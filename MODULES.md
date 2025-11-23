@@ -58,7 +58,7 @@ result, err := doorman.FixStuckTransaction("txn_12345", "retry")
 #### Configuration
 ```bash
 DOORMAN_BASE_URL=https://doorman.sgbank.pr
-DOORMAN_USER=your-username
+DOORMAN_USERNAME=your-username
 DOORMAN_PASSWORD=your-password
 DOORMAN_TIMEOUT=30s
 DOORMAN_RETRY_ATTEMPTS=3

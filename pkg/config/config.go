@@ -116,12 +116,12 @@ type Config struct {
 
 // DoormanConfig contains Doorman-specific configuration
 type DoormanConfig struct {
-	BaseURL        string        `json:"base_url"`
-	User           string        `json:"user"`
-	Password       string        `json:"password"`
-	Timeout        time.Duration `json:"timeout"`
-	RetryAttempts  int           `json:"retry_attempts"`
-	RetryDelay     time.Duration `json:"retry_delay"`
+	BaseURL       string        `json:"base_url"`
+	User          string        `json:"user"`
+	Password      string        `json:"password"`
+	Timeout       time.Duration `json:"timeout"`
+	RetryAttempts int           `json:"retry_attempts"`
+	RetryDelay    time.Duration `json:"retry_delay"`
 }
 
 // JiraConfig contains Jira-specific configuration
@@ -157,11 +157,11 @@ type StorageConfig struct {
 
 // AppConfig contains general application configuration
 type AppConfig struct {
-	Name         string        `json:"name"`
-	Version      string        `json:"version"`
-	Debug        bool          `json:"debug"`
-	LogLevel     string        `json:"log_level"`
-	Timeout      time.Duration `json:"timeout"`
+	Name     string        `json:"name"`
+	Version  string        `json:"version"`
+	Debug    bool          `json:"debug"`
+	LogLevel string        `json:"log_level"`
+	Timeout  time.Duration `json:"timeout"`
 }
 
 // LoadConfig loads the complete application configuration
@@ -170,12 +170,12 @@ func LoadConfig() (*Config, error) {
 
 	config := &Config{
 		Doorman: DoormanConfig{
-			BaseURL:        Get("DOORMAN_BASE_URL", "https://doorman.sgbank.pr"),
-			User:           Get("DOORMAN_USER", ""),
-			Password:       Get("DOORMAN_PASSWORD", ""),
-			Timeout:        GetDuration("DOORMAN_TIMEOUT", 30*time.Second),
-			RetryAttempts:  GetInt("DOORMAN_RETRY_ATTEMPTS", 3),
-			RetryDelay:     GetDuration("DOORMAN_RETRY_DELAY", 1*time.Second),
+			BaseURL:       Get("DOORMAN_BASE_URL", "https://doorman.sgbank.pr"),
+			User:          Get("DOORMAN_USERNAME", ""),
+			Password:      Get("DOORMAN_PASSWORD", ""),
+			Timeout:       GetDuration("DOORMAN_TIMEOUT", 30*time.Second),
+			RetryAttempts: GetInt("DOORMAN_RETRY_ATTEMPTS", 3),
+			RetryDelay:    GetDuration("DOORMAN_RETRY_DELAY", 1*time.Second),
 		},
 		Jira: JiraConfig{
 			BaseURL:       Get("JIRA_BASE_URL", "https://gxsbank.atlassian.net"),
@@ -195,7 +195,7 @@ func LoadConfig() (*Config, error) {
 		},
 		Storage: StorageConfig{
 			BasePath:        Get("STORAGE_BASE_PATH", "./data"),
-			MaxSize:         GetInt64("STORAGE_MAX_SIZE", 100*1024*1024), // 100MB
+			MaxSize:         GetInt64("STORAGE_MAX_SIZE", 100*1024*1024),  // 100MB
 			MaxFileSize:     GetInt64("STORAGE_MAX_FILE_SIZE", 1024*1024), // 1MB
 			Compression:     GetBool("STORAGE_COMPRESSION", true),
 			Encryption:      GetBool("STORAGE_ENCRYPTION", false),
@@ -223,7 +223,7 @@ func (c *Config) Validate() error {
 		errors = append(errors, "DOORMAN_BASE_URL is required")
 	}
 	if c.Doorman.User == "" {
-		errors = append(errors, "DOORMAN_USER is required")
+		errors = append(errors, "DOORMAN_USERNAME is required")
 	}
 	if c.Doorman.Password == "" {
 		errors = append(errors, "DOORMAN_PASSWORD is required")
