@@ -5,7 +5,8 @@
       "Bash(tree:*)",
       "Bash(go build:*)",
       "Bash(timeout:*)",
-      "Bash(make:*)"
+      "Bash(make:*)",
+      "Bash(go get:*)"
     ],
     "deny": [],
     "ask": []
