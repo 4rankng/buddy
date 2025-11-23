@@ -6,9 +6,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
-	"strconv"
-	"strings"
 	"time"
 
 	"oncall/pkg/config"
@@ -205,18 +202,32 @@ func (j *jiraModule) GetTicket(ticketKey string) (*ports.JiraTicket, error) {
 // GetAssignedTickets retrieves tickets assigned to the specified team/user
 func (j *jiraModule) GetAssignedTickets(team string) ([]ports.JiraTicket, error) {
 	jql := fmt.Sprintf(`project = "PAY" AND assignee = "%s" AND status not in (Done, Closed, Resolved) ORDER BY created DESC`, team)
-	return j.SearchTickets(jql)
+	options := &ports.SearchOptions{
+		MaxResults: 50,
+		Fields:     []string{"summary", "status", "priority", "assignee", "reporter", "created", "updated"},
+	}
+	return j.SearchTickets(jql, options)
 }
 
 // SearchTickets searches for tickets using JQL
-func (j *jiraModule) SearchTickets(query string) ([]ports.JiraTicket, error) {
+func (j *jiraModule) SearchTickets(query string, options *ports.SearchOptions) ([]ports.JiraTicket, error) {
 	url := fmt.Sprintf("%s/rest/api/3/search", j.baseURL)
+
+	maxResults := 50
+	if options != nil && options.MaxResults > 0 {
+		maxResults = options.MaxResults
+	}
+
+	fields := []string{"summary", "status", "priority", "assignee", "reporter", "created", "updated", "labels", "components", "project", "issuetype"}
+	if options != nil && len(options.Fields) > 0 {
+		fields = options.Fields
+	}
 
 	searchReq := jiraSearchReq{
 		JQL:        query,
 		StartAt:    0,
-		MaxResults: 50,
-		Fields:     []string{"summary", "status", "priority", "assignee", "reporter", "created", "updated", "labels", "components", "project", "issuetype"},
+		MaxResults: maxResults,
+		Fields:     fields,
 	}
 
 	b, err := json.Marshal(searchReq)
@@ -255,13 +266,13 @@ func (j *jiraModule) SearchTickets(query string) ([]ports.JiraTicket, error) {
 }
 
 // CreateTicket creates a new Jira ticket
-func (j *jiraModule) CreateTicket(ticket *ports.JiraTicket) (string, string, error) {
+func (j *jiraModule) CreateTicket(ticket *ports.CreateTicketRequest) (*ports.JiraTicket, error) {
 	url := fmt.Sprintf("%s/rest/api/3/issue", j.baseURL)
 
 	fields := map[string]interface{}{
-		"project": map[string]interface{}{"key": "PAY"},
+		"project": map[string]interface{}{"key": ticket.Project},
 		"summary": ticket.Summary,
-		"issuetype": map[string]interface{}{"name": "Task"},
+		"issuetype": map[string]interface{}{"name": ticket.IssueType},
 	}
 
 	// Add description if provided
@@ -293,43 +304,84 @@ func (j *jiraModule) CreateTicket(ticket *ports.JiraTicket) (string, string, err
 		fields["components"] = components
 	}
 
+	// Add additional fields if provided
+	if len(ticket.Fields) > 0 {
+		for k, v := range ticket.Fields {
+			fields[k] = v
+		}
+	}
+
 	body := jiraIssueReq{Fields: fields}
 	b, err := json.Marshal(body)
 	if err != nil {
-		return "", "", fmt.Errorf("failed to marshal ticket request: %w", err)
+		return nil, fmt.Errorf("failed to marshal ticket request: %w", err)
 	}
 
 	req, err := http.NewRequest(http.MethodPost, url, bytes.NewReader(b))
 	if err != nil {
-		return "", "", fmt.Errorf("failed to create ticket request: %w", err)
+		return nil, fmt.Errorf("failed to create ticket request: %w", err)
 	}
 
 	resp, err := j.executeWithRetry(req)
 	if err != nil {
-		return "", "", fmt.Errorf("failed to create ticket: %w", err)
+		return nil, fmt.Errorf("failed to create ticket: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != 201 {
 		body, _ := io.ReadAll(resp.Body)
-		return "", "", fmt.Errorf("failed to create ticket: %s - %s", resp.Status, string(body))
+		return nil, fmt.Errorf("failed to create ticket: %s - %s", resp.Status, string(body))
 	}
 
 	var out jiraIssueResp
 	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
-		return "", "", fmt.Errorf("failed to decode create response: %w", err)
+		return nil, fmt.Errorf("failed to decode create response: %w", err)
 	}
 
-	ticketURL := fmt.Sprintf("%s/browse/%s", j.baseURL, out.Key)
-	return out.Key, ticketURL, nil
+	// Get the created ticket to return full details
+	return j.GetTicket(out.Key)
 }
 
 // UpdateTicket updates an existing Jira ticket
-func (j *jiraModule) UpdateTicket(ticketKey string, updates map[string]interface{}) error {
+func (j *jiraModule) UpdateTicket(ticketKey string, updates *ports.UpdateTicketRequest) error {
 	url := fmt.Sprintf("%s/rest/api/3/issue/%s", j.baseURL, ticketKey)
 
+	fields := map[string]interface{}{}
+
+	if updates.Summary != "" {
+		fields["summary"] = updates.Summary
+	}
+	if updates.Description != "" {
+		fields["description"] = j.adf(updates.Description)
+	}
+	if updates.Status != "" {
+		fields["status"] = map[string]interface{}{"name": updates.Status}
+	}
+	if updates.Priority != "" {
+		fields["priority"] = map[string]interface{}{"name": updates.Priority}
+	}
+	if updates.Assignee != "" {
+		fields["assignee"] = map[string]interface{}{"name": updates.Assignee}
+	}
+	if len(updates.Labels) > 0 {
+		fields["labels"] = updates.Labels
+	}
+	if len(updates.Components) > 0 {
+		components := make([]map[string]interface{}, 0, len(updates.Components))
+		for _, component := range updates.Components {
+			components = append(components, map[string]interface{}{"name": component})
+		}
+		fields["components"] = components
+	}
+
+	if len(updates.Fields) > 0 {
+		for k, v := range updates.Fields {
+			fields[k] = v
+		}
+	}
+
 	body := map[string]interface{}{
-		"fields": updates,
+		"fields": fields,
 	}
 
 	b, err := json.Marshal(body)
@@ -358,7 +410,17 @@ func (j *jiraModule) UpdateTicket(ticketKey string, updates map[string]interface
 
 // AddComment adds a comment to a ticket
 func (j *jiraModule) AddComment(ticketKey string, comment string) error {
-	adfComment := j.adf(comment)
+	adfComment := map[string]interface{}{
+		"version": 1,
+		"type":    "doc",
+		"content": []map[string]interface{}{{
+			"type": "paragraph",
+			"content": []map[string]interface{}{{
+				"type": "text",
+				"text": comment,
+			}},
+		}},
+	}
 	return j.AddCommentWithADF(ticketKey, adfComment)
 }
 
@@ -394,68 +456,60 @@ func (j *jiraModule) AddCommentWithADF(ticketKey string, comment map[string]inte
 	return nil
 }
 
-// CreateSHIPRM creates a SHIPRM ticket
-func (j *jiraModule) CreateSHIPRM(request *ports.SHIPRMRequest) (string, string, error) {
-	url := fmt.Sprintf("%s/rest/api/3/issue", j.baseURL)
+// GetProjects returns a list of available Jira projects
+func (j *jiraModule) GetProjects() ([]ports.JiraProject, error) {
+	url := fmt.Sprintf("%s/rest/api/3/project", j.baseURL)
 
-	// Convert services to Jira format
-	services := make([]map[string]interface{}, 0, len(request.Services))
-	for _, service := range request.Services {
-		services = append(services, map[string]interface{}{
-			"workspaceId": "246c1bd0-99bf-42c1-b124-a30c70c816d1",
-			"id":          fmt.Sprintf("246c1bd0-99bf-42c1-b124-a30c70c816d1:%s", request.ChangeType),
-			"objectId":    request.ChangeType,
-		})
-	}
-
-	fields := map[string]interface{}{
-		"project":           map[string]interface{}{"key": "SHIPRM"},
-		"summary":           request.Title,
-		"description":       j.adf(request.Description),
-		"customfield_11290": services, // Services
-		"customfield_10925": j.adf("NA"), // Impact Analysis
-		"customfield_11181": services, // Affected Services
-		"customfield_11183": request.ReviewDate.Format("2006-01-02"), // Review Date
-		"customfield_11187": j.adfCode(request.CURL), // Implementation Steps
-		"customfield_10042": j.adf("NA"), // Test Plan
-		"customfield_11188": j.adf(request.Description), // Change Description
-		"customfield_11189": j.adf(func() string { if request.Impact.RequiresMaintenance { return "Yes" } else { return "No" } }()),
-		"customfield_11190": j.adf(func() string { if request.Impact.AffectsCustomers { return "Yes" } else { return "No" } }()),
-		"customfield_11191": j.adf(func() string { if request.Impact.DowntimeRequired { return "Yes" } else { return "No" } }()),
-		"customfield_11186": j.adf("Standard production change"), // Change Type
-		"customfield_11192": j.adf(request.Validation), // Validation Steps
-		"issuetype":         map[string]interface{}{"id": "10005"}, // System Change
-	}
-
-	body := jiraIssueReq{Fields: fields}
-	b, err := json.Marshal(body)
+	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
-		return "", "", fmt.Errorf("failed to marshal SHIPRM request: %w", err)
-	}
-
-	req, err := http.NewRequest(http.MethodPost, url, bytes.NewReader(b))
-	if err != nil {
-		return "", "", fmt.Errorf("failed to create SHIPRM request: %w", err)
+		return nil, fmt.Errorf("failed to create projects request: %w", err)
 	}
 
 	resp, err := j.executeWithRetry(req)
 	if err != nil {
-		return "", "", fmt.Errorf("failed to create SHIPRM: %w", err)
+		return nil, fmt.Errorf("failed to get projects: %w", err)
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != 201 {
+	if resp.StatusCode >= 300 {
 		body, _ := io.ReadAll(resp.Body)
-		return "", "", fmt.Errorf("failed to create SHIPRM: %s - %s", resp.Status, string(body))
+		return nil, fmt.Errorf("failed to get projects: %s - %s", resp.Status, string(body))
 	}
 
-	var out jiraIssueResp
-	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
-		return "", "", fmt.Errorf("failed to decode SHIPRM response: %w", err)
+	var projects []ports.JiraProject
+	if err := json.NewDecoder(resp.Body).Decode(&projects); err != nil {
+		return nil, fmt.Errorf("failed to decode projects response: %w", err)
 	}
 
-	ticketURL := fmt.Sprintf("%s/browse/%s", j.baseURL, out.Key)
-	return out.Key, ticketURL, nil
+	return projects, nil
+}
+
+// GetIssueTypes returns issue types for a specific project
+func (j *jiraModule) GetIssueTypes(projectKey string) ([]ports.JiraIssueType, error) {
+	url := fmt.Sprintf("%s/rest/api/3/project/%s/issuetypes", j.baseURL, projectKey)
+
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create issue types request: %w", err)
+	}
+
+	resp, err := j.executeWithRetry(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get issue types: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 300 {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("failed to get issue types: %s - %s", resp.Status, string(body))
+	}
+
+	var issueTypes []ports.JiraIssueType
+	if err := json.NewDecoder(resp.Body).Decode(&issueTypes); err != nil {
+		return nil, fmt.Errorf("failed to decode issue types response: %w", err)
+	}
+
+	return issueTypes, nil
 }
 
 // HealthCheck performs a health check on the Jira service

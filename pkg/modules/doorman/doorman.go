@@ -3,8 +3,8 @@ package doorman
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
@@ -20,21 +20,6 @@ type doormanModule struct {
 	config  config.DoormanConfig
 	client  *http.Client
 	baseURL string
-}
-
-// NewDoormanModule creates a new Doorman module
-func NewDoormanModule(cfg config.DoormanConfig) (ports.DoormanPort, error) {
-	jar, _ := cookiejar.New(nil)
-	client := &http.Client{
-		Timeout: cfg.Timeout,
-		Jar:     jar,
-	}
-
-	return &doormanModule{
-		config:  cfg,
-		client:  client,
-		baseURL: cfg.BaseURL,
-	}, nil
 }
 
 // doormanLoginReq represents the login request payload
@@ -60,7 +45,18 @@ type queryResponse struct {
 	} `json:"result"`
 }
 
-// Authenticate performs authentication with Doorman
+// NewDoormanModule creates a new Doorman module
+func NewDoormanModule(cfg config.DoormanConfig) (ports.DoormanPort, error) {
+	jar, _ := cookiejar.New(nil)
+	cli := &http.Client{Timeout: cfg.Timeout, Jar: jar}
+	return &doormanModule{
+		config:  cfg,
+		client:  cli,
+		baseURL: cfg.BaseURL,
+	}, nil
+}
+
+// authenticate performs authentication with Doorman
 func (d *doormanModule) authenticate() error {
 	loginURL, _ := url.JoinPath(d.baseURL, "/api/login/ldap/signin")
 
@@ -69,29 +65,17 @@ func (d *doormanModule) authenticate() error {
 		Password: d.config.Password,
 	}
 
-	b, err := json.Marshal(payload)
-	if err != nil {
-		return fmt.Errorf("failed to marshal login request: %w", err)
-	}
-
-	req, err := http.NewRequest(http.MethodPost, loginURL, bytes.NewReader(b))
-	if err != nil {
-		return fmt.Errorf("failed to create login request: %w", err)
-	}
-
+	b, _ := json.Marshal(payload)
+	req, _ := http.NewRequest(http.MethodPost, loginURL, bytes.NewReader(b))
 	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := d.executeWithRetry(req)
+	resp, err := d.client.Do(req)
 	if err != nil {
-		return fmt.Errorf("doorman authentication failed: %w", err)
+		return err
 	}
 	defer resp.Body.Close()
-
 	if resp.StatusCode >= 300 {
-		bodyBytes, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("doorman auth failed: %s - %s", resp.Status, string(bodyBytes))
+		return errors.New("doorman auth failed: " + resp.Status)
 	}
-
 	return nil
 }
 
@@ -119,7 +103,7 @@ func (d *doormanModule) executeWithRetry(req *http.Request) (*http.Response, err
 // ExecuteQuery executes a SQL query on the specified cluster/instance/schema
 func (d *doormanModule) ExecuteQuery(cluster, instance, schema, query string) ([]map[string]interface{}, error) {
 	if err := d.authenticate(); err != nil {
-		return nil, fmt.Errorf("authentication failed: %w", err)
+		return nil, err
 	}
 
 	// Validate query to prevent SQL injection
@@ -128,44 +112,28 @@ func (d *doormanModule) ExecuteQuery(cluster, instance, schema, query string) ([
 	}
 
 	qURL, _ := url.JoinPath(d.baseURL, "/api/rds/query/execute")
-
-	payload := queryPayload{
-		ClusterName:  cluster,
-		InstanceName: instance,
-		Schema:       schema,
-		Query:        strings.TrimSpace(query),
-	}
-
-	b, err := json.Marshal(payload)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal query payload: %w", err)
-	}
-
-	req, err := http.NewRequest(http.MethodPost, qURL, bytes.NewReader(b))
-	if err != nil {
-		return nil, fmt.Errorf("failed to create query request: %w", err)
-	}
-
+	payload := queryPayload{ClusterName: cluster, InstanceName: instance, Schema: schema, Query: strings.TrimSpace(query)}
+	b, _ := json.Marshal(payload)
+	req, _ := http.NewRequest(http.MethodPost, qURL, bytes.NewReader(b))
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := d.executeWithRetry(req)
 	if err != nil {
-		return nil, fmt.Errorf("query execution failed: %w", err)
+		return nil, err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode >= 300 {
-		bodyBytes, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("doorman query failed: %s - %s", resp.Status, string(bodyBytes))
+		return nil, errors.New("doorman query failed: " + resp.Status)
 	}
 
 	var qr queryResponse
 	if err := json.NewDecoder(resp.Body).Decode(&qr); err != nil {
-		return nil, fmt.Errorf("failed to decode query response: %w", err)
+		return nil, err
 	}
 
 	if qr.Code != 200 {
-		return nil, fmt.Errorf("doorman query returned non-200 code: %d", qr.Code)
+		return nil, errors.New("doorman query returned non-200 code")
 	}
 
 	// Convert response to map format
@@ -179,13 +147,57 @@ func (d *doormanModule) ExecuteQuery(cluster, instance, schema, query string) ([
 		}
 		rows = append(rows, row)
 	}
-
 	return rows, nil
+}
+
+
+// GetAvailableClusters returns a list of available database clusters
+func (d *doormanModule) GetAvailableClusters() ([]ports.DatabaseCluster, error) {
+	// Return a list of known clusters from configuration
+	clusters := []ports.DatabaseCluster{
+		{
+			Name:        "sg-prd-m-payment-engine",
+			Instance:    "sg-prd-m-payment-engine",
+			Schema:      "prod_payment_engine_db01",
+			Description: "Payment processing engine database",
+			Environment: "production",
+		},
+		{
+			Name:        "sg-prd-m-payment-core",
+			Instance:    "sg-prd-m-payment-core",
+			Schema:      "prod_payment_core_db01",
+			Description: "Payment core services database",
+			Environment: "production",
+		},
+		{
+			Name:        "sg-prd-m-partnerpay-engine",
+			Instance:    "sg-prd-m-partnerpay-engine",
+			Schema:      "prod_partnerpay_engine_db01",
+			Description: "Partner payment processing database",
+			Environment: "production",
+		},
+		{
+			Name:        "sg-prd-m-pairing-service",
+			Instance:    "sg-prd-m-pairing-service",
+			Schema:      "prod_pairing_service_db01",
+			Description: "Device pairing service database",
+			Environment: "production",
+		},
+		{
+			Name:        "sg-prd-m-transaction-limit",
+			Instance:    "sg-prd-m-transaction-limit",
+			Schema:      "prod_transaction_limit_db01",
+			Description: "Transaction limit management database",
+			Environment: "production",
+		},
+	}
+
+	return clusters, nil
 }
 
 // validateQuery performs basic SQL query validation
 func (d *doormanModule) validateQuery(query string) error {
-	query = strings.ToUpper(strings.TrimSpace(query))
+	queryUpper := strings.ToUpper(strings.TrimSpace(query))
 
 	// List of potentially dangerous SQL statements
 	dangerousStatements := []string{
@@ -194,7 +206,7 @@ func (d *doormanModule) validateQuery(query string) error {
 	}
 
 	for _, stmt := range dangerousStatements {
-		if strings.HasPrefix(query, stmt) {
+		if strings.HasPrefix(queryUpper, stmt) {
 			return fmt.Errorf("potentially dangerous SQL statement detected: %s", stmt)
 		}
 	}
@@ -202,30 +214,6 @@ func (d *doormanModule) validateQuery(query string) error {
 	return nil
 }
 
-// QueryPaymentEngine executes queries on the Payment Engine cluster
-func (d *doormanModule) QueryPaymentEngine(query string) ([]map[string]interface{}, error) {
-	return d.ExecuteQuery("sg-prd-m-payment-engine", "sg-prd-m-payment-engine", "prod_payment_engine_db01", query)
-}
-
-// QueryPaymentCore executes queries on the Payment Core cluster
-func (d *doormanModule) QueryPaymentCore(query string) ([]map[string]interface{}, error) {
-	return d.ExecuteQuery("sg-prd-m-payment-core", "sg-prd-m-payment-core", "prod_payment_core_db01", query)
-}
-
-// QueryPartnerPayEngine executes queries on the Partner Pay Engine cluster
-func (d *doormanModule) QueryPartnerPayEngine(query string) ([]map[string]interface{}, error) {
-	return d.ExecuteQuery("sg-prd-m-partnerpay-engine", "sg-prd-m-partnerpay-engine", "prod_partnerpay_engine_db01", query)
-}
-
-// QueryPairingService executes queries on the Pairing Service cluster
-func (d *doormanModule) QueryPairingService(query string) ([]map[string]interface{}, error) {
-	return d.ExecuteQuery("sg-prd-m-pairing-service", "sg-prd-m-pairing-service", "prod_pairing_service_db01", query)
-}
-
-// QueryTransactionLimit executes queries on the Transaction Limit cluster
-func (d *doormanModule) QueryTransactionLimit(query string) ([]map[string]interface{}, error) {
-	return d.ExecuteQuery("sg-prd-m-transaction-limit", "sg-prd-m-transaction-limit", "prod_transaction_limit_db01", query)
-}
 
 // HealthCheck performs a health check on the Doorman service
 func (d *doormanModule) HealthCheck() error {
@@ -234,42 +222,4 @@ func (d *doormanModule) HealthCheck() error {
 		return fmt.Errorf("doorman health check failed: %w", err)
 	}
 	return nil
-}
-
-// GetTransactionStatus queries the status of a specific transaction
-func (d *doormanModule) GetTransactionStatus(transactionID string) ([]map[string]interface{}, error) {
-	query := fmt.Sprintf("SELECT * FROM transactions WHERE transaction_id = '%s' LIMIT 1", transactionID)
-	return d.QueryPaymentCore(query)
-}
-
-// GetStuckTransactions retrieves transactions that are stuck in a particular state
-func (d *doormanModule) GetStuckTransactions(state string, hours int) ([]map[string]interface{}, error) {
-	query := fmt.Sprintf(`
-		SELECT transaction_id, status, created_at, updated_at, amount
-		FROM transactions
-		WHERE status = '%s'
-		AND updated_at < NOW() - INTERVAL '%d hours'
-		ORDER BY created_at DESC
-		LIMIT 100
-	`, state, hours)
-
-	return d.QueryPaymentCore(query)
-}
-
-// FixStuckTransaction applies a fix to a stuck transaction
-func (d *doormanModule) FixStuckTransaction(transactionID, fixType string) ([]map[string]interface{}, error) {
-	var query string
-
-	switch fixType {
-	case "mark_failed":
-		query = fmt.Sprintf("UPDATE transactions SET status = 'FAILED', updated_at = NOW() WHERE transaction_id = '%s'", transactionID)
-	case "retry":
-		query = fmt.Sprintf("UPDATE transactions SET status = 'PENDING', retry_count = retry_count + 1, updated_at = NOW() WHERE transaction_id = '%s'", transactionID)
-	case "cancel":
-		query = fmt.Sprintf("UPDATE transactions SET status = 'CANCELLED', updated_at = NOW() WHERE transaction_id = '%s'", transactionID)
-	default:
-		return nil, fmt.Errorf("unknown fix type: %s", fixType)
-	}
-
-	return d.QueryPaymentCore(query)
 }

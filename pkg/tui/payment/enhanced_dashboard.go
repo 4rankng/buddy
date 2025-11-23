@@ -2,7 +2,10 @@ package payment
 
 import (
 	"fmt"
+	"oncall/pkg/core"
 	"oncall/pkg/tui/payment/panes"
+	"oncall/pkg/services/payment"
+	"oncall/pkg/ports"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -11,29 +14,200 @@ import (
 // EnhancedDashboardModel represents the payment team dashboard
 type EnhancedDashboardModel struct {
 	Focus           FocusManager
+	Container       *core.Container
+	PaymentService  *payment.PaymentService
 	IncidentPane    *panes.IncidentQueuePane
 	ActionsPane     *panes.ActionsPane
 	LogsPane        *panes.LogsPane
 	Width           int
 	Height          int
 	Quitting        bool
+	Initialized     bool
+	LastError       string
 }
 
 // NewEnhancedDashboardModel creates a new enhanced dashboard model
-func NewEnhancedDashboardModel() EnhancedDashboardModel {
-	return EnhancedDashboardModel{
-		Focus:           NewFocusManager(),
-		IncidentPane:    panes.NewIncidentQueuePane(),
-		ActionsPane:     panes.NewActionsPane(),
-		LogsPane:        panes.NewLogsPane(5), // Show 5 log lines
-		Width:           80,
-		Height:          24,
-		Quitting:        false,
+func NewEnhancedDashboardModel() (EnhancedDashboardModel, error) {
+	// Initialize the dependency container
+	container, err := core.NewContainer()
+	if err != nil {
+		return EnhancedDashboardModel{}, fmt.Errorf("failed to initialize container: %w", err)
 	}
+
+	// Get payment service from container
+	paymentService := container.PaymentService()
+
+	return EnhancedDashboardModel{
+		Focus:          NewFocusManager(),
+		Container:      container,
+		PaymentService: paymentService,
+		IncidentPane:   panes.NewIncidentQueuePane(),
+		ActionsPane:    panes.NewActionsPane(),
+		LogsPane:       panes.NewLogsPane(5), // Show 5 log lines
+		Width:          80,
+		Height:         24,
+		Quitting:       false,
+		Initialized:    false,
+		LastError:      "",
+	}, nil
 }
 
 func (m EnhancedDashboardModel) Init() tea.Cmd {
-	return nil
+	// Load initial data when dashboard starts
+	return tea.Batch(
+		m.loadInitialData(),
+	)
+}
+
+func (m EnhancedDashboardModel) loadInitialData() tea.Cmd {
+	return func() tea.Msg {
+		// Load incidents
+		if m.PaymentService != nil {
+			tickets, err := m.PaymentService.GetAssignedTickets()
+			if err != nil {
+				m.LogsPane.AddLog(panes.LogLevelError, fmt.Sprintf("Failed to load tickets: %v", err))
+			} else {
+				m.updateIncidentPane(tickets)
+				m.LogsPane.AddLog(panes.LogLevelInfo, fmt.Sprintf("Loaded %d tickets", len(tickets)))
+			}
+
+			// Load stuck transactions
+			stuckTxns, err := m.PaymentService.GetStuckTransactions(24) // Last 24 hours
+			if err != nil {
+				m.LogsPane.AddLog(panes.LogLevelError, fmt.Sprintf("Failed to load stuck transactions: %v", err))
+			} else {
+				m.LogsPane.AddLog(panes.LogLevelInfo, fmt.Sprintf("Found %d stuck transactions", len(stuckTxns)))
+			}
+		}
+
+		// Add initial log entries
+		m.LogsPane.AddLog(panes.LogLevelInfo, "Payment dashboard initialized successfully")
+		m.LogsPane.AddLog(panes.LogLevelSuccess, "Connected to Jira and Doorman services")
+
+		return nil
+	}
+}
+
+// updateIncidentPane updates the incident pane with Jira tickets
+func (m *EnhancedDashboardModel) updateIncidentPane(tickets []ports.JiraTicket) {
+	incidents := make([]panes.Incident, 0, len(tickets))
+
+	for _, ticket := range tickets {
+		priority := panes.PriorityMedium
+		switch ticket.Priority {
+		case "Critical", "Highest":
+			priority = panes.PriorityCritical
+		case "High":
+			priority = panes.PriorityHigh
+		case "Low", "Lowest":
+			priority = panes.PriorityLow
+		}
+
+		status := panes.StatusOpen
+		switch ticket.Status {
+		case "In Progress", "Reopened":
+			status = panes.StatusInProgress
+		case "To Do":
+			status = panes.StatusToDo
+		case "In Review":
+			status = panes.StatusInReview
+		case "Done", "Closed", "Resolved":
+			status = panes.StatusDone
+		case "Blocked":
+			status = panes.StatusBlocked
+		}
+
+		incident := panes.Incident{
+			ID:          ticket.Key,
+			Title:       ticket.Summary,
+			Status:      status,
+			Priority:    priority,
+			Assignee:    ticket.Assignee,
+			Created:     ticket.Created,
+			Updated:     ticket.Updated,
+			Description: ticket.Description,
+		}
+		incidents = append(incidents, incident)
+	}
+
+	m.IncidentPane.Incidents = incidents
+}
+
+// executeTraceAction executes transaction tracing
+func (m *EnhancedDashboardModel) executeTraceAction(transactionID string) {
+	if m.PaymentService == nil {
+		m.LogsPane.AddLog(panes.LogLevelError, "Payment service not available")
+		return
+	}
+
+	m.LogsPane.AddLog(panes.LogLevelInfo, fmt.Sprintf("Tracing transaction: %s", transactionID))
+
+	flow, err := m.PaymentService.TraceTransaction(transactionID)
+	if err != nil {
+		m.LogsPane.AddLog(panes.LogLevelError, fmt.Sprintf("Failed to trace transaction: %v", err))
+		m.ActionsPane.TraceResult = nil
+		return
+	}
+
+	// Convert to display format
+	steps := make([]panes.TransactionStep, 0, len(flow.Steps))
+	for _, step := range flow.Steps {
+		status := panes.StatusPending
+		switch step.Status {
+		case payment.StatusCompleted:
+			status = panes.StatusCompleted
+		case payment.StatusProcessing:
+			status = panes.StatusProcessing
+		case payment.StatusFailed:
+			status = panes.StatusFailed
+		case payment.StatusTimeout:
+			status = panes.StatusTimeout
+		}
+
+		transactionStep := panes.TransactionStep{
+			Name:      step.Name,
+			System:    step.System,
+			Status:    status,
+			Duration:  step.Duration,
+			Timestamp: step.Timestamp,
+		}
+		steps = append(steps, transactionStep)
+	}
+
+	m.ActionsPane.TraceResult = &panes.TransactionFlow{
+		TransactionID: flow.TransactionID,
+		CustomerID:    flow.CustomerID,
+		TotalAmount:   flow.TotalAmount,
+		Currency:      flow.Currency,
+		Steps:         steps,
+	}
+
+	m.LogsPane.AddLog(panes.LogLevelSuccess, fmt.Sprintf("Transaction traced: %s steps completed", len(steps)))
+}
+
+// executeDeregisterAction executes PayNow deregistration
+func (m *EnhancedDashboardModel) executeDeregisterAction(input string) {
+	if m.PaymentService == nil {
+		m.LogsPane.AddLog(panes.LogLevelError, "Payment service not available")
+		return
+	}
+
+	// Split input to handle multiple accounts
+	accounts := []string{input}
+	if len(input) > 0 && input[0] == '+' {
+		// Assume phone number format
+		accounts = []string{input}
+	}
+
+	m.LogsPane.AddLog(panes.LogLevelInfo, fmt.Sprintf("Creating PayNow deregistration request for %d account(s)", len(accounts)))
+
+	result, err := m.PaymentService.CreateDeregistrationSHIPRM(accounts)
+	if err != nil {
+		m.LogsPane.AddLog(panes.LogLevelError, fmt.Sprintf("Failed to create deregistration request: %v", err))
+		return
+	}
+
+	m.LogsPane.AddLog(panes.LogLevelSuccess, fmt.Sprintf("Created SHIPRM ticket %s for deregistration", result.TicketID))
 }
 
 func (m EnhancedDashboardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -100,17 +274,16 @@ func (m EnhancedDashboardModel) handleInputMode(msg tea.KeyMsg) (tea.Model, tea.
 		m.ActionsPane.BackToMenu()
 		m.Focus.InputMode = false
 	case tea.KeyEnter:
-		// Execute action
-		m.ActionsPane.ExecuteAction()
+		// Execute action based on current mode
+		if m.ActionsPane.Mode == panes.ModeTrace && len(m.ActionsPane.TraceInput) > 0 {
+			m.executeTraceAction(m.ActionsPane.TraceInput)
+		} else if m.ActionsPane.Mode == panes.ModeDeregister && len(m.ActionsPane.DeregisterInput) > 0 {
+			m.executeDeregisterAction(m.ActionsPane.DeregisterInput)
+			m.ActionsPane.DeregisterSubmitted = true
+		}
+
 		m.ActionsPane.UnfocusInput()
 		m.Focus.InputMode = false
-
-		// Add log entry
-		modeStr := "Trace"
-		if m.ActionsPane.Mode == panes.ModeDeregister {
-			modeStr = "Deregister"
-		}
-		m.LogsPane.AddLog(panes.LogLevelInfo, fmt.Sprintf("Action executed: %s", modeStr))
 	case tea.KeyBackspace:
 		m.ActionsPane.HandleInput("backspace")
 	case tea.KeyLeft:

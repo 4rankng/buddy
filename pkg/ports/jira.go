@@ -2,21 +2,21 @@ package ports
 
 import "time"
 
-// JiraPort defines the interface for Jira ticket management and operations
+// JiraPort defines the interface for generic Jira ticket management and operations
 type JiraPort interface {
 	// Ticket operations
 	GetTicket(ticketKey string) (*JiraTicket, error)
-	GetAssignedTickets(team string) ([]JiraTicket, error)
-	SearchTickets(query string) ([]JiraTicket, error)
-	CreateTicket(ticket *JiraTicket) (string, string, error) // Returns ticket ID and URL
-	UpdateTicket(ticketKey string, updates map[string]interface{}) error
+	SearchTickets(jql string, options *SearchOptions) ([]JiraTicket, error)
+	CreateTicket(ticket *CreateTicketRequest) (*JiraTicket, error)
+	UpdateTicket(ticketKey string, updates *UpdateTicketRequest) error
 
 	// Comment operations
 	AddComment(ticketKey string, comment string) error
 	AddCommentWithADF(ticketKey string, comment map[string]interface{}) error
 
-	// SHIPRM operations
-	CreateSHIPRM(request *SHIPRMRequest) (string, string, error) // Returns ticket ID and URL
+	// Project and issue type operations
+	GetProjects() ([]JiraProject, error)
+	GetIssueTypes(projectKey string) ([]JiraIssueType, error)
 
 	// Health check
 	HealthCheck() error
@@ -50,36 +50,55 @@ type JiraComment struct {
 	ADF       map[string]interface{} `json:"adf,omitempty"`
 }
 
-// SHIPRMRequest represents a SHIPRM (System High Impact Production Risk Management) request
-type SHIPRMRequest struct {
-	Title        string                 `json:"title"`
-	Description  string                 `json:"description"`
-	ChangeType   string                 `json:"change_type"`
-	CURL         string                 `json:"curl"`
-	Services     []SHIPRMService        `json:"services"`
-	Impact       SHIPRMImpact           `json:"impact"`
-	Dependencies []string               `json:"dependencies"`
-	BackoutPlan  string                 `json:"backout_plan"`
-	Validation   string                 `json:"validation"`
-	ReviewDate   time.Time              `json:"review_date"`
-	Additional   map[string]interface{} `json:"additional,omitempty"`
+// Generic Jira Types
+
+// CreateTicketRequest represents a generic ticket creation request
+type CreateTicketRequest struct {
+	Project     string                 `json:"project"`
+	IssueType   string                 `json:"issue_type"`
+	Summary     string                 `json:"summary"`
+	Description string                 `json:"description"`
+	Priority    string                 `json:"priority,omitempty"`
+	Assignee    string                 `json:"assignee,omitempty"`
+	Labels      []string               `json:"labels,omitempty"`
+	Components  []string               `json:"components,omitempty"`
+	Fields      map[string]interface{} `json:"fields,omitempty"`
 }
 
-// SHIPRMService represents a service affected by a SHIPRM change
-type SHIPRMService struct {
+// UpdateTicketRequest represents a generic ticket update request
+type UpdateTicketRequest struct {
+	Summary     string                 `json:"summary,omitempty"`
+	Description string                 `json:"description,omitempty"`
+	Status      string                 `json:"status,omitempty"`
+	Priority    string                 `json:"priority,omitempty"`
+	Assignee    string                 `json:"assignee,omitempty"`
+	Labels      []string               `json:"labels,omitempty"`
+	Components  []string               `json:"components,omitempty"`
+	Fields      map[string]interface{} `json:"fields,omitempty"`
+}
+
+// SearchOptions represents options for ticket searching
+type SearchOptions struct {
+	Fields     []string `json:"fields,omitempty"`
+	MaxResults int      `json:"max_results,omitempty"`
+	StartAt    int      `json:"start_at,omitempty"`
+}
+
+// JiraProject represents a Jira project
+type JiraProject struct {
+	Key             string `json:"key"`
+	Name            string `json:"name"`
+	Description     string `json:"description"`
+	ProjectTypeKey  string `json:"project_type_key"`
+	Lead            string `json:"lead"`
+}
+
+// JiraIssueType represents a Jira issue type
+type JiraIssueType struct {
+	Id          string `json:"id"`
 	Name        string `json:"name"`
-	Environment string `json:"environment"`
-	Component   string `json:"component"`
-	Team        string `json:"team"`
-}
-
-// SHIPRMImpact represents the impact assessment for a SHIPRM change
-type SHIPRMImpact struct {
-	Description        string `json:"description"`
-	AffectsCustomers   bool   `json:"affects_customers"`
-	RequiresMaintenance bool  `json:"requires_maintenance"`
-	DowntimeRequired   bool   `json:"downtime_required"`
-	RiskLevel         string `json:"risk_level"`
+	Description string `json:"description"`
+	Subtask     bool   `json:"subtask"`
 }
 
 // ADFDocument represents an Atlassian Document Format document

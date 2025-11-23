@@ -5,17 +5,22 @@ import (
 	"sync"
 
 	"oncall/pkg/config"
-	"oncall/pkg/modules"
+	"oncall/pkg/modules/doorman"
+	"oncall/pkg/modules/jira"
+	"oncall/pkg/modules/datadog"
+	"oncall/pkg/modules/storage"
 	"oncall/pkg/ports"
+	"oncall/pkg/services/payment"
 )
 
 // Container manages dependencies and provides access to all modules
 type Container struct {
-	config   *config.Config
-	doorman  ports.DoormanPort
-	jira     ports.JiraPort
-	datadog  ports.DatadogPort
-	storage  ports.StoragePort
+	config        *config.Config
+	doorman       ports.DoormanPort
+	jira          ports.JiraPort
+	datadog       ports.DatadogPort
+	storage       ports.StoragePort
+	paymentService *payment.PaymentService
 
 	mu sync.RWMutex
 	initialized bool
@@ -69,28 +74,31 @@ func (c *Container) initializeModules() error {
 	var err error
 
 	// Initialize Doorman module
-	c.doorman, err = modules.NewDoormanModule(c.config.Doorman)
+	c.doorman, err = doorman.NewDoormanModule(c.config.Doorman)
 	if err != nil {
 		return fmt.Errorf("failed to initialize doorman module: %w", err)
 	}
 
 	// Initialize Jira module
-	c.jira, err = modules.NewJiraModule(c.config.Jira)
+	c.jira, err = jira.NewJiraModule(c.config.Jira)
 	if err != nil {
 		return fmt.Errorf("failed to initialize jira module: %w", err)
 	}
 
 	// Initialize Datadog module
-	c.datadog, err = modules.NewDatadogModule(c.config.Datadog)
+	c.datadog, err = datadog.NewDatadogModule(c.config.Datadog)
 	if err != nil {
 		return fmt.Errorf("failed to initialize datadog module: %w", err)
 	}
 
 	// Initialize Storage module
-	c.storage, err = modules.NewStorageModule(c.config.Storage)
+	c.storage, err = storage.NewMemoryStorage(c.config.Storage)
 	if err != nil {
 		return fmt.Errorf("failed to initialize storage module: %w", err)
 	}
+
+	// Initialize Payment Service
+	c.paymentService = payment.NewPaymentService(c.doorman, c.jira)
 
 	return nil
 }
@@ -128,6 +136,13 @@ func (c *Container) Storage() ports.StoragePort {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return c.storage
+}
+
+// PaymentService returns the Payment Service
+func (c *Container) PaymentService() *payment.PaymentService {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.paymentService
 }
 
 // HealthCheck performs health checks on all modules
@@ -189,6 +204,7 @@ func (c *Container) Reset() {
 	c.jira = nil
 	c.datadog = nil
 	c.storage = nil
+	c.paymentService = nil
 	c.initialized = false
 }
 
