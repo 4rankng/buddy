@@ -1,0 +1,9 @@
+# Ignore local environment and IDE files
+.env
+.idea/
+**/.DS_Store
+bin
+bin/*
+assets
+assets/*
+
