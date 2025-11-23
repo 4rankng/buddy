@@ -1,0 +1,82 @@
+my goal for Jira module is
+- Fetch a list of Jira ticket assigned to payment team (?filter=12071)
+- Fetch individual Jira ticket
+- Create a SHIPRM ticket (one of the example is the logic that create for deregister paynow)
+
+
+
+https://gxsbank.atlassian.net/issues/?filter=12071 how to get a list of Jira ticket by filter id with api
+
+To get a list of Jira tickets using a filter ID (like 12071), you use the standard Search API endpoint and specify the filter in the JQL query parameter.
+
+1. The API Endpoint
+Cloud: GET /rest/api/3/search
+
+Server / Data Center: GET /rest/api/2/search
+
+2. The JQL Syntax
+The JQL query itself is very simple: filter=12071
+
+3. Full Examples
+cURL Command (Terminal)
+Replace your-domain, your-email, and your-api-token with your actual credentials.
+
+Bash
+curl --request GET \
+  --url 'https://your-domain.atlassian.net/rest/api/3/search?jql=filter=12071' \
+  --user 'your-email@example.com:your-api-token' \
+  --header 'Accept: application/json'
+
+Fetch individual Jira ticket
+
+Request URL
+https://gxsbank.atlassian.net/rest/servicedesk/1/servicedesk/sla/issue/TSE-724
+Request Method
+GET
+{
+    "hasPreviousCycles": false,
+    "goalViews": [
+        {
+            "paused": false,
+            "active": false,
+            "closed": false,
+            "failed": false,
+            "metricName": "Time to first response",
+            "remainingTime": "8:00",
+            "remainingTimeLong": "8h",
+            "goalTime": "8:00",
+            "goalTimeLong": "8h",
+            "currentJqlMatch": "All remaining issues",
+            "nextConditionMatch": "Entered Status: In Triaging",
+            "calendarName": "Sample 9-5 Calendar",
+            "startTime": "Yesterday 10:30 AM",
+            "stopTime": "Today 8:29 PM",
+            "stopTimeInEpochMillis": 1763900952406,
+            "breachTime": "24/Nov/25 5:00 PM",
+            "breachTimeInEpochMillis": 1763974800000,
+            "completeGoals": [],
+            "slaDisplayFormat": "OLD_SLA_FORMAT"
+        },
+        {
+            "paused": false,
+            "active": true,
+            "closed": false,
+            "failed": false,
+            "metricName": "Time to resolution",
+            "remainingTime": "38:01",
+            "remainingTimeLong": "38h 1m",
+            "goalTime": "72:00",
+            "goalTimeLong": "72h",
+            "currentJqlMatch": "All remaining issues",
+            "nextConditionMatch": "Resolution: Set",
+            "calendarName": "24/7 Calendar (Default)",
+            "startTime": "Yesterday 10:30 AM",
+            "stopTime": "Today 8:29 PM",
+            "stopTimeInEpochMillis": 1763900952392,
+            "breachTime": "25/Nov/25 10:30 AM",
+            "breachTimeInEpochMillis": 1764037847684,
+            "completeGoals": [],
+            "slaDisplayFormat": "OLD_SLA_FORMAT"
+        }
+    ]
+}

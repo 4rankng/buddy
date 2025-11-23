@@ -7,6 +7,7 @@ type JiraPort interface {
 	// Ticket operations
 	GetTicket(ticketKey string) (*JiraTicket, error)
 	SearchTickets(jql string, options *SearchOptions) ([]JiraTicket, error)
+	GetTicketsByFilter(filterID string, options *SearchOptions) ([]JiraTicket, error)
 	CreateTicket(ticket *CreateTicketRequest) (*JiraTicket, error)
 	UpdateTicket(ticketKey string, updates *UpdateTicketRequest) error
 
@@ -41,13 +42,13 @@ type JiraTicket struct {
 
 // JiraComment represents a Jira comment
 type JiraComment struct {
-	ID        string                 `json:"id"`
-	Author    string                 `json:"author"`
-	Body      string                 `json:"body"`
-	Created   time.Time              `json:"created"`
-	Updated   time.Time              `json:"updated"`
-	IsPublic  bool                   `json:"is_public"`
-	ADF       map[string]interface{} `json:"adf,omitempty"`
+	ID       string                 `json:"id"`
+	Author   string                 `json:"author"`
+	Body     string                 `json:"body"`
+	Created  time.Time              `json:"created"`
+	Updated  time.Time              `json:"updated"`
+	IsPublic bool                   `json:"is_public"`
+	ADF      map[string]interface{} `json:"adf,omitempty"`
 }
 
 // Generic Jira Types
@@ -86,11 +87,11 @@ type SearchOptions struct {
 
 // JiraProject represents a Jira project
 type JiraProject struct {
-	Key             string `json:"key"`
-	Name            string `json:"name"`
-	Description     string `json:"description"`
-	ProjectTypeKey  string `json:"project_type_key"`
-	Lead            string `json:"lead"`
+	Key            string `json:"key"`
+	Name           string `json:"name"`
+	Description    string `json:"description"`
+	ProjectTypeKey string `json:"project_type_key"`
+	Lead           string `json:"lead"`
 }
 
 // JiraIssueType represents a Jira issue type
@@ -103,7 +104,7 @@ type JiraIssueType struct {
 
 // ADFDocument represents an Atlassian Document Format document
 type ADFDocument struct {
-	Version int                    `json:"version"`
-	Type    string                 `json:"type"`
+	Version int                      `json:"version"`
+	Type    string                   `json:"type"`
 	Content []map[string]interface{} `json:"content"`
 }

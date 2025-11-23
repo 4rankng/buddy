@@ -45,31 +45,31 @@ type jiraIssueResp struct {
 
 // jiraSearchReq represents a Jira search request
 type jiraSearchReq struct {
-	JQL        string `json:"jql"`
-	StartAt    int    `json:"startAt"`
-	MaxResults int    `json:"maxResults"`
+	JQL        string   `json:"jql"`
+	StartAt    int      `json:"startAt"`
+	MaxResults int      `json:"maxResults"`
 	Fields     []string `json:"fields,omitempty"`
 }
 
 // jiraSearchResp represents a Jira search response
 type jiraSearchResp struct {
-	StartAt    int        `json:"startAt"`
-	MaxResults int        `json:"maxResults"`
-	Total      int        `json:"total"`
+	StartAt    int         `json:"startAt"`
+	MaxResults int         `json:"maxResults"`
+	Total      int         `json:"total"`
 	Issues     []jiraIssue `json:"issues"`
 }
 
 // jiraIssue represents a Jira issue
 type jiraIssue struct {
-	Key    string               `json:"key"`
-	ID     string               `json:"id"`
-	Fields jiraIssueFields      `json:"fields"`
+	Key    string          `json:"key"`
+	ID     string          `json:"id"`
+	Fields jiraIssueFields `json:"fields"`
 }
 
 // jiraIssueFields represents Jira issue fields
 type jiraIssueFields struct {
 	Summary     string          `json:"summary"`
-	Description interface{}    `json:"description"`
+	Description interface{}     `json:"description"`
 	Status      jiraStatus      `json:"status"`
 	Priority    jiraPriority    `json:"priority"`
 	Assignee    *jiraUser       `json:"assignee"`
@@ -94,9 +94,9 @@ type jiraPriority struct {
 
 // jiraUser represents a Jira user
 type jiraUser struct {
-	DisplayName string `json:"displayName"`
+	DisplayName  string `json:"displayName"`
 	EmailAddress string `json:"emailAddress"`
-	Name        string `json:"name"`
+	Name         string `json:"name"`
 }
 
 // jiraComponent represents a Jira component
@@ -161,7 +161,7 @@ func (j *jiraModule) adfCode(text string) ports.ADFDocument {
 		Version: 1,
 		Type:    "doc",
 		Content: []map[string]interface{}{{
-			"type": "codeBlock",
+			"type":  "codeBlock",
 			"attrs": map[string]interface{}{"language": "bash"},
 			"content": []map[string]interface{}{{
 				"type": "text",
@@ -206,6 +206,12 @@ func (j *jiraModule) GetAssignedTickets(team string) ([]ports.JiraTicket, error)
 		MaxResults: 50,
 		Fields:     []string{"summary", "status", "priority", "assignee", "reporter", "created", "updated"},
 	}
+	return j.SearchTickets(jql, options)
+}
+
+// GetTicketsByFilter retrieves tickets using a filter ID
+func (j *jiraModule) GetTicketsByFilter(filterID string, options *ports.SearchOptions) ([]ports.JiraTicket, error) {
+	jql := fmt.Sprintf("filter=%s", filterID)
 	return j.SearchTickets(jql, options)
 }
 
@@ -270,8 +276,8 @@ func (j *jiraModule) CreateTicket(ticket *ports.CreateTicketRequest) (*ports.Jir
 	url := fmt.Sprintf("%s/rest/api/3/issue", j.baseURL)
 
 	fields := map[string]interface{}{
-		"project": map[string]interface{}{"key": ticket.Project},
-		"summary": ticket.Summary,
+		"project":   map[string]interface{}{"key": ticket.Project},
+		"summary":   ticket.Summary,
 		"issuetype": map[string]interface{}{"name": ticket.IssueType},
 	}
 
@@ -537,12 +543,12 @@ func (j *jiraModule) HealthCheck() error {
 // convertToJiraTicket converts a jiraIssue to a ports.JiraTicket
 func (j *jiraModule) convertToJiraTicket(issue jiraIssue) *ports.JiraTicket {
 	ticket := &ports.JiraTicket{
-		Key:      issue.Key,
-		Summary:  issue.Fields.Summary,
-		Status:   issue.Fields.Status.Name,
-		Created:  issue.Fields.Created,
-		Updated:  issue.Fields.Updated,
-		URL:      fmt.Sprintf("%s/browse/%s", j.baseURL, issue.Key),
+		Key:     issue.Key,
+		Summary: issue.Fields.Summary,
+		Status:  issue.Fields.Status.Name,
+		Created: issue.Fields.Created,
+		Updated: issue.Fields.Updated,
+		URL:     fmt.Sprintf("%s/browse/%s", j.baseURL, issue.Key),
 	}
 
 	// Handle description (could be string or ADF)
