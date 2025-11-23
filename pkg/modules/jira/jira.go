@@ -348,6 +348,18 @@ func (j *jiraModule) CreateTicket(ticket *ports.CreateTicketRequest) (*ports.Jir
 	return j.GetTicket(out.Key)
 }
 
+// CreateShiprmTicket creates a new SHIPRM ticket
+func (j *jiraModule) CreateShiprmTicket(request *ports.CreateShiprmTicketRequest) (*ports.JiraTicket, error) {
+	req := &ports.CreateTicketRequest{
+		Project:     "SHIPRM",
+		IssueType:   "Task", // Assuming 'Task' is the issue type, can be adjusted
+		Summary:     request.Summary,
+		Description: request.Description,
+		Assignee:    request.Assignee,
+	}
+	return j.CreateTicket(req)
+}
+
 // UpdateTicket updates an existing Jira ticket
 func (j *jiraModule) UpdateTicket(ticketKey string, updates *ports.UpdateTicketRequest) error {
 	url := fmt.Sprintf("%s/rest/api/3/issue/%s", j.baseURL, ticketKey)

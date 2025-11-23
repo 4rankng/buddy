@@ -10,6 +10,7 @@ type JiraPort interface {
 	GetTicketsByFilter(filterID string, options *SearchOptions) ([]JiraTicket, error)
 	CreateTicket(ticket *CreateTicketRequest) (*JiraTicket, error)
 	UpdateTicket(ticketKey string, updates *UpdateTicketRequest) error
+	CreateShiprmTicket(request *CreateShiprmTicketRequest) (*JiraTicket, error)
 
 	// Comment operations
 	AddComment(ticketKey string, comment string) error
@@ -76,6 +77,13 @@ type UpdateTicketRequest struct {
 	Labels      []string               `json:"labels,omitempty"`
 	Components  []string               `json:"components,omitempty"`
 	Fields      map[string]interface{} `json:"fields,omitempty"`
+}
+
+// CreateShiprmTicketRequest represents a request to create a SHIPRM ticket
+type CreateShiprmTicketRequest struct {
+	Summary     string `json:"summary"`
+	Description string `json:"description"`
+	Assignee    string `json:"assignee,omitempty"`
 }
 
 // SearchOptions represents options for ticket searching

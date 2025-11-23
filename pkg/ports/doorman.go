@@ -5,6 +5,9 @@ type DoormanPort interface {
 	// ExecuteQuery executes a read-only SQL query on a specific cluster/instance/schema
 	ExecuteQuery(cluster, instance, schema, query string) ([]map[string]interface{}, error)
 
+	// CreateDMLTicket creates a DML ticket for database operations
+	CreateDMLTicket(request *DMLRequest) (string, error)
+
 	// Health check
 	HealthCheck() error
 

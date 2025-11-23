@@ -150,6 +150,62 @@ func (d *doormanModule) ExecuteQuery(cluster, instance, schema, query string) ([
 	return rows, nil
 }
 
+// CreateDMLTicket creates a DML ticket for database operations
+func (d *doormanModule) CreateDMLTicket(request *ports.DMLRequest) (string, error) {
+	if err := d.authenticate(); err != nil {
+		return "", err
+	}
+
+	// Validate query to prevent SQL injection (basic check)
+	if err := d.validateQuery(request.Query); err != nil {
+		return "", fmt.Errorf("query validation failed: %w", err)
+	}
+
+	url, _ := url.JoinPath(d.baseURL, "/api/rds/dml/create_ticket")
+
+	payload := map[string]interface{}{
+		"clusterName":       request.ClusterName,
+		"instanceName":      request.InstanceName,
+		"schema":            request.Schema,
+		"originalQuery":     request.Query,
+		"rollbackQuery":     "", // Optional, can be added to request if needed
+		"toolLabel":         "direct",
+		"skipWhereClause":   false,
+		"skipRollbackQuery": true,
+		"note":              request.Description,
+	}
+
+	b, _ := json.Marshal(payload)
+	req, _ := http.NewRequest(http.MethodPost, url, bytes.NewReader(b))
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := d.executeWithRetry(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 300 {
+		return "", errors.New("doorman ticket creation failed: " + resp.Status)
+	}
+
+	var result struct {
+		Result []struct {
+			ID string `json:"id"`
+		} `json:"result"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return "", err
+	}
+
+	if len(result.Result) > 0 {
+		return result.Result[0].ID, nil
+	}
+
+	return "", errors.New("no ticket ID returned")
+}
+
 
 // GetAvailableClusters returns a list of available database clusters
 func (d *doormanModule) GetAvailableClusters() ([]ports.DatabaseCluster, error) {

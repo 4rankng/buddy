@@ -81,6 +81,10 @@ GET
     ]
 }
 
+you dont build overseer but learn from overseer to update functionality of our module Jira and Doorman only
+
+
+here is what you can learn from overseer
 
 # Overseer Application Architecture Documentation
 
@@ -226,9 +230,9 @@ Each service has:
 ```ruby
 def self.refresh_token
   response = conn.post("/api/login/ldap/signin") do |req|
-    req.body = { 
-      username: ENV["DOORMAN_USERNAME"], 
-      password: ENV["DOORMAN_PASSWORD"] 
+    req.body = {
+      username: ENV["DOORMAN_USERNAME"],
+      password: ENV["DOORMAN_PASSWORD"]
     }.to_json
   end
   # Extracts and returns cookie token and expiration
@@ -301,7 +305,7 @@ def datadog_log_link
   service_name = self.class.config[:service].gsub("_", "-")
   start_time = 15.days.ago.strftime("%s%L")
   end_time = Time.current.strftime("%s%L")
-  
+
   "https://app.datadoghq.com/logs?query=env:prd service:(#{service_name}) " \
   "(@ID:#{run_id} OR @runID:#{run_id}) " \
   "&agg_m=count&agg_m_source=base&agg_t=count&cols=host,service" \
@@ -320,7 +324,7 @@ def datadog_log_link(batch_id, credit_transfer, workflow_ids)
   # - Environment: prd
   # - Services: rpp-adapter, payment-engine, payment-core, partnerpay-engine
   # - Transaction IDs, workflow IDs, batch IDs
-  
+
   "https://app.datadoghq.com/logs?query=env:prd service:(rpp-adapter OR payment-engine OR payment-core OR partnerpay-engine) ..."
 end
 ```
