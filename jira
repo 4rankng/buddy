@@ -30,7 +30,7 @@ curl --request GET \
 Fetch individual Jira ticket
 
 Request URL
-https://gxsbank.atlassian.net/rest/servicedesk/1/servicedesk/sla/issue/TSE-724
+https://gxsbank.atl``assian.net/rest/servicedesk/1/servicedesk/sla/issue/TSE-724
 Request Method
 GET
 {
@@ -80,3 +80,581 @@ GET
         }
     ]
 }
+
+
+# Overseer Application Architecture Documentation
+
+## Overview
+Overseer is a Rails application that integrates with multiple services including Jira, Doorman (database management), and Datadog for monitoring and operations management.
+
+---
+
+## 1. Jira Integration
+
+### Fetching Jira Issues
+
+**Location**: `app/models/jira_api/client.rb`
+
+**Authentication**:
+- Uses Basic Authentication with credentials from environment variables
+- `ENV["JIRA_USERNAME"]` and `ENV["JIRA_API_KEY"]`
+
+**Main Methods**:
+
+#### `get_assigned_issues(project_key, emails)`
+- Fetches issues assigned to specified users in a project
+- Excludes completed/closed issues
+- Returns array of `JiraApi::Ticket` objects
+- Uses JQL (Jira Query Language) to filter results
+
+```ruby
+jql = "assignee IN (#{emails}) AND project = #{project_key} AND status NOT IN (Done, Resolved, Closed, Completed)"
+```
+
+#### `get_issue_details(issue_key)`
+- Fetches detailed information for a specific issue
+- Returns a single `JiraApi::Ticket` object
+- Used in: `app/controllers/oncall/issues_controller.rb#show`
+
+#### `get_csv_attachment(attachment_url)`
+- Downloads and processes CSV attachments from Jira issues
+- Handles redirects automatically
+- Processes CSV content for issue parsing
+
+**Connection Setup**:
+```ruby
+Faraday.new(url: Settings.jira.domain) do |f|
+  f.request :authorization, :basic, ENV["JIRA_USERNAME"], ENV["JIRA_API_KEY"]
+  f.headers["Accept"] = "application/json"
+  f.adapter Faraday.default_adapter
+end
+```
+
+**Data Model**: `app/models/jira_api/ticket.rb`
+- Represents Jira tickets with attributes: id, key, summary, description, assignee, status, priority, attachments
+
+### Creating Jira Tickets
+
+**Note**: The current codebase includes a `close_ticket` method but does not have a complete ticket creation implementation. Tickets are referenced via links in Doorman notes.
+
+---
+
+## 2. Doorman Integration (Database Management)
+
+Doorman is an internal tool for managing database operations (DML - Data Manipulation Language) across different services.
+
+### Creating Doorman DML Tickets
+
+**Location**: `app/models/doorman/ticket.rb`
+
+**Method**: `Doorman::Ticket.create(service_name, originalQuery, rollbackQuery, note)`
+
+**Authentication**:
+- Uses cookie-based authentication stored in `Current.doorman_auth`
+- Token refreshed via `Doorman::Query.refresh_token` when needed
+
+**Example Usage** (from `app/controllers/doorman/tickets_controller.rb`):
+```ruby
+response = Doorman::Ticket.create(
+  ticket_params[:service],
+  ticket_params[:original_query],
+  ticket_params[:rollback_query],
+  ticket_params[:note]
+)
+```
+
+**Request Structure**:
+```ruby
+{
+  accountID: service.account_id,
+  clusterName: service.cluster_name,
+  schema: service.schema,
+  originalQuery: originalQuery,
+  rollbackQuery: rollbackQuery,
+  toolLabel: "direct",
+  skipWhereClause: false,
+  skipRollbackQuery: false,
+  note: note
+}
+```
+
+**Endpoint**: `https://doorman.infra.prd.g-bank.app/api/rds/dml/create_ticket`
+
+**Services Configuration** (`app/models/doorman/service.rb`):
+- payment_core
+- payment_engine
+- rpp_adapter
+- partnerpay_engine
+- pairing_service
+- qr_service
+- transaction_history
+
+Each service has:
+- `account_id`: AWS account ID
+- `cluster_name`: RDS cluster name
+- `instance_name`: RDS instance name
+- `schema`: Database schema name
+
+### Querying Doorman DML Status
+
+**Location**: `app/models/doorman/dml.rb`
+
+**Method**: `Doorman::Dml.execute(service_name, query)`
+- Fetches DML tickets from Doorman
+- Returns array of `Doorman::Dml` objects with status, queries, approvals, and timestamps
+
+---
+
+## 3. Database Queries to Different Services
+
+### Query Execution via Doorman
+
+**Location**: `app/models/doorman/query.rb`
+
+**Method**: `Doorman::Query.execute(service_name, query, klass)`
+
+**How it Works**:
+1. Sends SQL query to Doorman API for specified service
+2. Doorman executes query on read-replica databases
+3. Returns results mapped to specified class
+
+**Authentication**:
+- Cookie-based with automatic token refresh
+- Credentials: `ENV["DOORMAN_USERNAME"]` and `ENV["DOORMAN_PASSWORD"]`
+
+**Auto-refresh mechanism**:
+```ruby
+def self.refresh_token
+  response = conn.post("/api/login/ldap/signin") do |req|
+    req.body = { 
+      username: ENV["DOORMAN_USERNAME"], 
+      password: ENV["DOORMAN_PASSWORD"] 
+    }.to_json
+  end
+  # Extracts and returns cookie token and expiration
+end
+```
+
+**Endpoint**: `https://doorman.infra.prd.g-bank.app/api/rds/query/execute`
+
+### Queriable Module
+
+**Location**: `app/models/concerns/queriable.rb`
+
+Models that include `Queriable` get ActiveRecord-like query methods:
+
+**Methods**:
+- `find_by(opts)`: Find single record
+- `where(opts)`: Find multiple records with conditions
+  - Supports: equality, ranges, IN clauses
+  - Options: `:limit`, `:order_desc`, `:order_asc`
+- `raw_query(query)`: Execute custom SQL
+
+**Example Usage**:
+```ruby
+# PaymentCore::Workflow includes Queriable
+workflow = PaymentCore::Workflow.find_by_run_id(id)
+
+# RppAdapter::CreditTransfer includes Queriable
+transfers = RppAdapter::CreditTransfer.where(
+  partner_tx_id: batch_id,
+  limit: 100
+)
+```
+
+**Services Using Queriable**:
+- `PaymentCore::InternalTransaction`
+- `PaymentCore::ExternalTransaction`
+- `PaymentEngine::Workflow`
+- `PaymentEngine::Transfer`
+- `RppAdapter::CreditTransfer`
+- `RppAdapter::RppMsg`
+- `RppAdapter::Workflow`
+- `PartnerPayEngine::Intent`
+- `QrService::QrEntity`
+- `TransactionHistory::PaymentDetail`
+
+Each model must define:
+```ruby
+def self.config
+  {
+    table_name: 'table_name',
+    service: 'service_name'
+  }
+end
+```
+
+---
+
+## 4. Datadog Integration
+
+### Generating Datadog Log Links
+
+**Location**: `app/models/concerns/workflowable.rb`
+
+**Method**: `datadog_log_link`
+
+Generates URLs to Datadog logs for workflow troubleshooting:
+
+```ruby
+def datadog_log_link
+  service_name = self.class.config[:service].gsub("_", "-")
+  start_time = 15.days.ago.strftime("%s%L")
+  end_time = Time.current.strftime("%s%L")
+  
+  "https://app.datadoghq.com/logs?query=env:prd service:(#{service_name}) " \
+  "(@ID:#{run_id} OR @runID:#{run_id}) " \
+  "&agg_m=count&agg_m_source=base&agg_t=count&cols=host,service" \
+  "&fromUser=true&messageDisplay=inline&refresh_mode=sliding&storage=hot" \
+  "&stream_sort=desc&view=spans&viz=stream" \
+  "&from_ts=#{start_time}&to_ts=#{end_time}&live=true"
+end
+```
+
+**Usage in Controllers** (`app/controllers/searches_controller.rb`):
+
+```ruby
+def datadog_log_link(batch_id, credit_transfer, workflow_ids)
+  # Constructs complex Datadog query URLs
+  # Filters by:
+  # - Environment: prd
+  # - Services: rpp-adapter, payment-engine, payment-core, partnerpay-engine
+  # - Transaction IDs, workflow IDs, batch IDs
+  
+  "https://app.datadoghq.com/logs?query=env:prd service:(rpp-adapter OR payment-engine OR payment-core OR partnerpay-engine) ..."
+end
+```
+
+**Custom Datadog Links for Payment Core** (`app/models/payment_core/workflow.rb`):
+- Includes additional service filters for complex workflows
+- Links to specific workflow execution traces
+
+### Datadog Model
+
+**Location**: `app/models/datadog/log.rb`
+
+Basic wrapper for Datadog log queries (minimal implementation in current codebase).
+
+---
+
+## Flow Examples
+
+### Example 1: Oncall Issue Processing Flow
+
+1. **Fetch Jira Issue**:
+   ```ruby
+   jira_issue = JiraApi::Client.new.get_issue_details(issue_key)
+   ```
+
+2. **Parse and Store Locally**:
+   ```ruby
+   issue = Issue.find_or_initialize_by(external_id: jira_issue.id)
+   issue.update(summary: jira_issue.summary, ...)
+   ```
+
+3. **Query Related Database Records**:
+   ```ruby
+   pc_transaction = PaymentCore::InternalTransaction.find_by(tx_id: transaction_id)
+   ```
+
+4. **Generate DML Queries**:
+   ```ruby
+   queries = IssueItem.dml_query_and_rollback(caused_by, issue_items)
+   ```
+
+5. **Create Doorman Tickets**:
+   ```ruby
+   response = Doorman::Ticket.create(service, original_query, rollback_query, jira_link)
+   ```
+
+6. **Track Doorman Records**:
+   ```ruby
+   Doorman::DmlRecord.create!(
+     ticket_id: response["result"][0]["id"],
+     service: service,
+     original: original_query,
+     rollback: rollback_query
+   )
+   ```
+
+### Example 2: Search Transaction Flow
+
+1. **Search by Batch ID**:
+   ```ruby
+   rpp_credit_transfer = RppAdapter::CreditTransfer.find_by(partner_tx_id: batch_id)
+   ```
+
+2. **Fetch Related Workflows**:
+   ```ruby
+   pe_workflows = PaymentEngine::Workflow.where(...)
+   pc_transactions = PaymentCore::InternalTransaction.where(...)
+   ```
+
+3. **Generate Datadog Link**:
+   ```ruby
+   datadog_log_link(batch_id, credit_transfer, workflow_ids)
+   ```
+
+4. **Display Results with Links**:
+   - Jira ticket link
+   - Doorman DML links
+   - Datadog log links
+
+---
+
+## Environment Variables Required
+
+```bash
+# Jira
+JIRA_USERNAME=your-jira-email
+JIRA_API_KEY=your-jira-api-token
+
+# Doorman
+DOORMAN_USERNAME=your-ldap-username
+DOORMAN_PASSWORD=your-ldap-password
+```
+
+## Configuration Files
+
+- `config/settings.yml`: Contains service URLs and domains
+  - `jira.domain`: Jira instance URL
+  - `doorman.host`: Doorman service URL
+
+---
+
+## Key Design Patterns
+
+1. **Service Objects**: Jira and Doorman operations encapsulated in dedicated classes
+2. **Concerns**: `Queriable` and `Workflowable` provide shared behavior across models
+3. **Token Management**: Automatic refresh of Doorman authentication tokens
+4. **Error Handling**: Graceful degradation with logging on service failures
+5. **Read Replicas**: All database queries go through Doorman to read-replica instances
+
+---
+
+## Go Implementation Guide
+
+### 1. Purpose
+Provide an idiomatic Go blueprint to re‑implement Overseer’s capabilities (Jira issue interactions, Doorman querying & DML ticket creation, search flows, workflow tracing/Datadog log links) with strong separation of concerns, testability, and observability.
+
+### 2. High-Level Architecture (Text)
+HTTP layer (handlers) → Domain Services (jira, doorman, search, workflow) → Repositories (Queryable abstraction over Doorman) → External Systems (Jira REST, Doorman API, Datadog). Shared utilities: config, logging, errors, telemetry, security.
+
+### 3. Rails → Go Mapping
+- Controllers → HTTP handlers (router: chi, gin, or fiber; recommend chi for minimal dependencies).
+- Service objects → Interfaces + concrete structs (e.g. JiraClient, DoormanClient).
+- Concerns (Queriable) → Generic repository with filter + options API.
+- Concerns (Workflowable) → WorkflowTracer utility + constants for state maps.
+- Models → Go structs (prefer immutable fields; constructor for validation).
+- Global `Current` → context.Context values (request-scoped) & dependency injection.
+- Settings (YAML + ENV) → Single Config struct loaded at startup; environment overrides.
+
+### 4. Suggested Package Layout
+```
+/cmd/overseer-api          # main
+/internal/http/routers     # router + middleware wiring
+/internal/http/handlers    # request handlers
+/internal/jira             # jira client + DTOs
+/internal/doorman          # doorman client + auth refresh
+/internal/repository       # generic query repository
+/internal/search           # orchestrated search use cases
+/internal/workflow         # workflow state & datadog link logic
+/internal/services/...     # domain-specific aggregations (paymentcore, rppadapter, etc.)
+/pkg/config                # config loader
+/pkg/log                   # structured logger setup
+/pkg/errors                # sentinel + wrapping helpers
+/pkg/telemetry             # metrics/tracing init
+/pkg/security              # validation, rate limit, input sanitation
+```
+
+### 5. Core Interfaces (Pseudocode)
+```go
+type JiraClient interface {
+  GetIssue(ctx context.Context, key string) (*JiraTicket, error)
+  GetAssignedIssues(ctx context.Context, project string, emails []string) ([]JiraTicket, error)
+  GetCSVAttachment(ctx context.Context, url string) (io.ReadCloser, error)
+}
+
+type DoormanClient interface {
+  ExecuteQuery(ctx context.Context, svc ServiceConfig, sql string) (QueryResult, error)
+  CreateDMLTicket(ctx context.Context, req DMLTicketRequest) (*DMLTicketResponse, error)
+  RefreshToken(ctx context.Context) error
+}
+
+type Queryable[T any] interface {
+  FindBy(ctx context.Context, filters Filters) (*T, error)
+  Where(ctx context.Context, filters Filters, opts ...QueryOption) ([]T, error)
+  Raw(ctx context.Context, sql string, args ...any) ([]T, error)
+}
+
+type WorkflowTracer interface {
+  DatadogLogLink(runID string, service string, since time.Duration) string
+}
+```
+
+### 6. Key Structs
+```go
+type JiraTicket struct {
+  ID, Key, Summary, Description, Assignee, Status, Priority string
+  CreatedAt time.Time
+  DueAt *time.Time
+  Attachments []JiraAttachment
+}
+
+type JiraAttachment struct {ID, FileName, MimeType, SelfURL, ContentURL string}
+
+type ServiceConfig struct {
+  Name, AccountID, ClusterName, InstanceName, Schema string
+}
+
+type DMLTicketRequest struct {
+  Service ServiceConfig
+  OriginalSQL string
+  RollbackSQL string
+  Note string
+  ToolLabel string // "direct"
+  SkipWhereClause bool
+  SkipRollback bool
+}
+
+type DMLTicketResponse struct {ID, Status string; CreatedAt time.Time}
+
+type QueryResult struct {Headers []string; Types []string; Rows [][]string}
+
+type Filters map[string]any
+
+// Functional query options
+type QueryOption func(*queryOpts)
+```
+
+### 7. Repository & Query Building
+- Filters support: equality (`field = ?`), IN (`field IN (...)`), range (`field BETWEEN ? AND ?`).
+- Prefer parameterization; if Doorman only accepts raw SQL in payload, sanitize values (whitelist characters: `[A-Za-z0-9_\-]`).
+- Generic repository constructed with model-specific mapper: `func(row map[string]string) (T, error)`.
+
+### 8. Doorman Auth Refresh
+- Store cookie + expiry; on 401 or impending expiry (e.g. <2m left) trigger refresh.
+- Use `singleflight.Group` to prevent concurrent refresh stampede.
+
+### 9. Error Strategy
+```go
+var (
+  ErrNotFound = errors.New("not found")
+  ErrUnauthorized = errors.New("unauthorized")
+  ErrExternal = errors.New("external service error")
+  ErrValidation = errors.New("validation error")
+)
+```
+Wrap with context: `fmt.Errorf("jira get %s: %w", key, err)`. HTTP middleware maps: 404 / 401 / 422 / 500. Include correlation ID from middleware in logs.
+
+### 10. Logging & Telemetry
+- Use zap or zerolog: `logger.Info("jira_issue", zap.String("key", key))`.
+- Metrics: Prometheus counters (jira_requests_total, doorman_requests_total), histograms (external_call_duration_seconds).
+- Tracing (optional): OpenTelemetry spans around external calls.
+
+### 11. Configuration Loading
+```go
+type Config struct {
+  Jira struct {BaseURL, Username, APIKey string}
+  Doorman struct {BaseURL, Username, Password string}
+  Services map[string]ServiceConfig
+  Server struct {Port int}
+  Log struct {Level string}
+}
+```
+Load precedence: ENV → optional file (YAML/TOML) → defaults. Fail fast on missing secrets. Provide `Validate()` method.
+
+### 12. Workflow Tracing & State Mapping
+- Keep `map[string]map[string]string` for workflow states (like Ruby constant).
+- Provide `StateDisplay(workflowID, stateCode string) string` returning `code (name)` or error.
+- `DatadogLogLink(runID, service, since)` builds URL replicating Rails logic (epoch millis range).
+
+### 13. Sample `main.go` Skeleton
+```go
+func main() {
+  ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+  defer cancel()
+  cfg := config.Load()
+  logger := log.New(cfg.Log.Level)
+  jiraClient := jira.NewClient(cfg.Jira, logger)
+  doormanClient := doorman.NewClient(cfg.Doorman, logger)
+  repos := repository.InitAll(doormanClient, cfg.Services)
+  r := chi.NewRouter()
+  r.Use(middleware.RequestID, middleware.Timeout(10*time.Second), middleware.Recoverer)
+  r.Get("/search", handlers.Search(repos, jiraClient, logger))
+  srv := &http.Server{Addr: fmt.Sprintf(":%d", cfg.Server.Port), Handler: r}
+  go func(){ <-ctx.Done(); ctxShutdown, _ := context.WithTimeout(context.Background(), 5*time.Second); srv.Shutdown(ctxShutdown) }()
+  if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) { logger.Fatal(err) }
+}
+```
+
+### 14. Example Search Handler (Batch ID)
+```go
+func Search(repos RepoSet, jira JiraClient, logger *zap.Logger) http.HandlerFunc {
+  return func(w http.ResponseWriter, r *http.Request) {
+    ctx := r.Context()
+    batchID := r.URL.Query().Get("batch_id")
+    if batchID == "" { http.Error(w, "batch_id required", http.StatusBadRequest); return }
+    g, ctx := errgroup.WithContext(ctx)
+    var credit *CreditTransfer
+    var workflows []Workflow
+    g.Go(func() error { ct, err := repos.RppCreditTransfers.FindBy(ctx, Filters{"partner_tx_id": batchID}); credit = ct; return err })
+    g.Go(func() error { wf, err := repos.PaymentEngineWorkflows.Where(ctx, Filters{"batch_id": batchID}); workflows = wf; return err })
+    if err := g.Wait(); err != nil { /* map error */ }
+    link := workflow.DatadogLogLink(batchID, "payment-engine", 15*24*time.Hour)
+    RespondJSON(w, map[string]any{"credit_transfer": credit, "workflows": workflows, "datadog_link": link})
+  }
+}
+```
+
+### 15. Testing Strategy
+- Unit: table-driven (jira parsing, doorman query mapping, repository filters).
+- Mocks: `httptest.Server` for Jira/Doorman endpoints.
+- Token refresh tests: simulate 401 then verify singleflight refresh.
+- Race detection: `go test -race ./...`.
+- Golden JSON tests for handler responses.
+- Integration (optional): stub a local Doorman emulator returning query result payload.
+
+### 16. Concurrency Considerations
+- Context timeouts (e.g. 5s) on all external calls.
+- Parallel independent queries via `errgroup`.
+- Semaphore (channel) for large multi-service fan-out.
+- Singleflight token refresh.
+- No shared mutable state without synchronization.
+
+### 17. Security Considerations
+- Input validation (length, allowed charset) for IDs & service names.
+- Escape or parameterize values to avoid injection (even if Doorman mediates execution).
+- Do not log secrets or raw SQL with PII.
+- Rate limiting middleware (IP or auth token) for expensive endpoints.
+- Enforce HTTPS / secure headers at gateway.
+
+### 18. Migration Checklist
+1. Define initial scope (/search endpoint + Jira get issue).
+2. Implement config loader + logger.
+3. Create minimal JiraClient (GetIssue) + tests.
+4. Implement DoormanClient (ExecuteQuery read path) + tests.
+5. Build first repository (InternalTransaction) + mapper.
+6. Add Search handler (batch ID path) + response DTO.
+7. Introduce WorkflowTracer & Datadog link building.
+8. Add error classification + HTTP error middleware.
+9. Implement token refresh logic (singleflight).
+10. Add additional repositories (CreditTransfer, Workflow).
+11. Implement DML ticket creation (CreateDMLTicket) + tests.
+12. Add Prometheus metrics & optional tracing.
+13. Security hardening (validation, rate limit, secret handling).
+14. Performance/load test & tuning.
+15. Documentation finalization & operational checklist (dashboards, alerts).
+
+### 19. Incremental Delivery Strategy
+Start read-only; add write (DML tickets); layer observability; expand domain coverage; optimize & harden.
+
+### 20. Future Enhancements
+- Circuit breakers (resilience) for external dependencies.
+- Background sync workers (periodic Jira issue pulls).
+- gRPC/GraphQL façade for cross-team integration.
+- Feature flags & config hot reload.
+
+---
+
+This section supplies Go engineers with the architectural translation, interface contracts, and phased approach to re‑implement Overseer reliably.
