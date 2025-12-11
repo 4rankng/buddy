@@ -16,51 +16,241 @@ type SQLStatements struct {
 	RPPRollbackStatements []string
 }
 
-// GenerateSQLStatements generates SQL statements for all supported cases.
+// DMLTicket represents a SQL generation request with templates
+type DMLTicket struct {
+	RunIDs           []string // run_ids to update
+	ReqBizMsgIDs     []string // optional req_biz_msg_ids for RPP cases
+	PartnerTxIDs     []string // optional partner_tx_ids for RPP cases
+	DeployTemplate   string   // SQL template for deploy
+	RollbackTemplate string   // SQL template for rollback
+	TargetDB         string   // "PC", "PE", or "RPP"
+	WorkflowID       string   // optional workflow_id filter
+	TargetState      int      // target state to check in WHERE clause
+	TargetAttempt    int      // target attempt to check in WHERE clause
+	StateField       string   // field name for state in WHERE clause (usually "state")
+	WorkflowIDs      []string // multiple workflow_ids for IN clause
+}
+
+// sqlTemplates maps SOP cases to their DML tickets
+var sqlTemplates = map[SOPCase]func(TransactionResult) DMLTicket{
+	SOPCasePcExternalPaymentFlow200_11: func(result TransactionResult) DMLTicket {
+		if runID := getPcExtPayment200_11RunID(result); runID != "" {
+			return DMLTicket{
+				RunIDs: []string{runID},
+				DeployTemplate: `-- pc_external_payment_flow_200_11
+UPDATE workflow_execution
+SET state = 202,
+    attempt = 1,
+    ` + "`data`" + ` = JSON_SET(
+      ` + "`data`" + `,
+      '$.StreamResp', JSON_OBJECT(
+        'TxID', '',
+        'Status', 'FAILED',
+        'ErrorCode', 'ADAPTER_ERROR',
+        'ExternalID', '',
+        'ErrorMessage', 'Reject from adapter'),
+      '$.State', 202)
+WHERE run_id IN (%s)
+AND state = 200
+AND attempt = 11;`,
+				RollbackTemplate: `UPDATE workflow_execution
+SET state = 200,
+    attempt = 11,
+    ` + "`data`" + ` = JSON_SET(` + "`data`" + `, '$.State', 200)
+WHERE run_id IN (%s);`,
+				TargetDB:      "PC",
+				WorkflowID:    "pc_external_payment_flow",
+				TargetState:   200,
+				TargetAttempt: 11,
+			}
+		}
+		return DMLTicket{}
+	},
+	SOPCasePcExternalPaymentFlow201_0RPP210: func(result TransactionResult) DMLTicket {
+		return DMLTicket{
+			RunIDs: []string{result.RPPWorkflow.RunID},
+			DeployTemplate: `-- RPP 210, PE 220, PC 201. No response from RPP. Move to 222 to resume. ACSP
+UPDATE workflow_execution
+SET state = 222,
+    attempt = 1,
+    ` + "`data`" + ` = JSON_SET(` + "`data`" + `, '$.State', 222)
+WHERE run_id IN (%s)
+AND state = 210;`,
+			RollbackTemplate: `UPDATE workflow_execution
+SET state = 201,
+    attempt = 0,
+    ` + "`data`" + ` = JSON_SET(` + "`data`" + `, '$.State', 201)
+WHERE run_id IN (%s);`,
+			TargetDB:      "RPP",
+			TargetState:   210,
+			TargetAttempt: 0,
+		}
+	},
+	SOPCasePcExternalPaymentFlow201_0RPP900: func(result TransactionResult) DMLTicket {
+		return DMLTicket{
+			RunIDs: []string{result.RPPWorkflow.RunID},
+			DeployTemplate: `-- RPP 900, PE 220, PC 201. Republish from RPP to resume. ACSP
+UPDATE workflow_execution
+SET state = 301,
+    attempt = 1,
+    ` + "`data`" + ` = JSON_SET(` + "`data`" + `, '$.State', 301)
+WHERE run_id IN (%s)
+AND state = 900;`,
+			RollbackTemplate: `UPDATE workflow_execution
+SET state = 900,
+    attempt = 0,
+    ` + "`data`" + ` = JSON_SET(` + "`data`" + `, '$.State', 900)
+WHERE run_id IN (%s);`,
+			TargetDB:      "RPP",
+			TargetState:   900,
+			TargetAttempt: 0,
+		}
+	},
+	SOPCasePeTransferPayment210_0: func(result TransactionResult) DMLTicket {
+		return DMLTicket{
+			RunIDs: []string{result.PaymentEngineWorkflow.RunID},
+			DeployTemplate: `-- Reject PE stuck 210. Reject transactions since it hasn't reached Paynet yet
+UPDATE workflow_execution
+SET state = 221,
+    attempt = 1,
+    ` + "`data`" + ` = JSON_SET(
+      ` + "`data`" + `,
+      '$.StreamMessage', JSON_OBJECT(
+        'Status', 'FAILED',
+        'ErrorCode', 'ADAPTER_ERROR',
+        'ErrorMessage', 'Manual Rejected'),
+      '$.State', 221)
+WHERE run_id IN (%s)
+AND workflow_id = 'workflow_transfer_payment'
+AND state = 210;`,
+			RollbackTemplate: `UPDATE workflow_execution
+SET state = 210,
+    attempt = 0,
+    ` + "`data`" + ` = JSON_SET(
+      ` + "`data`" + `,
+      '$.StreamMessage', NULL,
+      '$.State', 210)
+WHERE run_id IN (%s)
+AND workflow_id = 'workflow_transfer_payment';`,
+			TargetDB:      "PE",
+			WorkflowID:    "workflow_transfer_payment",
+			TargetState:   210,
+			TargetAttempt: 0,
+		}
+	},
+	SOPCaseRppCashoutReject101_19: func(result TransactionResult) DMLTicket {
+		return DMLTicket{
+			RunIDs: []string{result.RPPWorkflow.RunID},
+			DeployTemplate: `-- RPP Deploy: Reset workflows stuck at state 311 to attempt 1
+UPDATE workflow_execution
+SET attempt = 1
+WHERE run_id IN (%s)
+AND state = 311
+AND workflow_id IN (%s);`,
+			RollbackTemplate: `UPDATE workflow_execution
+SET attempt = 1
+WHERE run_id IN (%s)
+AND workflow_id IN (%s);`,
+			TargetDB:    "RPP",
+			WorkflowIDs: []string{"'wf_ct_qr_payment'", "'wf_ct_cashout'"},
+			TargetState: 311,
+		}
+	},
+}
+
+// generateSQLFromTicket generates SQL statements from a DML ticket
+func generateSQLFromTicket(ticket DMLTicket) SQLStatements {
+	if len(ticket.RunIDs) == 0 {
+		return SQLStatements{}
+	}
+
+	// Create comma-separated list of quoted IDs
+	quotedIDs := make([]string, len(ticket.RunIDs))
+	for i, id := range ticket.RunIDs {
+		quotedIDs[i] = fmt.Sprintf("'%s'", id)
+	}
+	inClause := strings.Join(quotedIDs, ", ")
+
+	statements := SQLStatements{}
+
+	// Generate deploy and rollback statements
+	var deploySQL, rollbackSQL string
+
+	// Check if template expects workflow_ids parameter (by checking if the template has multiple %s placeholders)
+	if strings.Count(ticket.DeployTemplate, "%s") >= 2 {
+		// Template expects two parameters: run_ids and workflow_ids
+		workflowIDsClause := strings.Join(ticket.WorkflowIDs, ", ")
+		deploySQL = fmt.Sprintf(ticket.DeployTemplate, inClause, workflowIDsClause)
+		rollbackSQL = fmt.Sprintf(ticket.RollbackTemplate, inClause, workflowIDsClause)
+	} else {
+		// Template expects only run_ids
+		deploySQL = fmt.Sprintf(ticket.DeployTemplate, inClause)
+		rollbackSQL = fmt.Sprintf(ticket.RollbackTemplate, inClause)
+	}
+
+	// Add to appropriate statement list based on target DB
+	switch ticket.TargetDB {
+	case "PC":
+		statements.PCDeployStatements = append(statements.PCDeployStatements, deploySQL)
+		statements.PCRollbackStatements = append(statements.PCRollbackStatements, rollbackSQL)
+	case "PE":
+		statements.PEDeployStatements = append(statements.PEDeployStatements, deploySQL)
+		statements.PERollbackStatements = append(statements.PERollbackStatements, rollbackSQL)
+	case "RPP":
+		statements.RPPDeployStatements = append(statements.RPPDeployStatements, deploySQL)
+		statements.RPPRollbackStatements = append(statements.RPPRollbackStatements, rollbackSQL)
+	}
+
+	return statements
+}
+
+// GenerateSQLStatements generates SQL statements for all supported cases using templates.
 func GenerateSQLStatements(results []TransactionResult) SQLStatements {
 	statements := SQLStatements{}
 
-	// Slice to collect run_ids for bulk processing of Case 1
-	var pcExtPayment200_11RunIDs []string
-
 	fmt.Println("\n--- Generating SQL Statements ---")
 
-	// Iterate using index to allow modification of the result struct (if needed)
+	// Group tickets by case type for bulk processing
+	caseTickets := make(map[SOPCase][]DMLTicket)
+
 	for i := range results {
 		// identifySOPCase now takes a pointer and might trigger prompts
 		caseType := identifySOPCase(&results[i])
 		results[i].RPPInfo = string(caseType) // Store identified case for reference
 
-		switch caseType {
-		case SOPCasePcExternalPaymentFlow200_11:
-			// Collect run_id for bulk generation instead of generating individual statements
-			runID := getPcExtPayment200_11RunID(results[i])
-			if runID != "" {
-				pcExtPayment200_11RunIDs = append(pcExtPayment200_11RunIDs, runID)
+		// Get the template function for this case
+		if templateFunc, exists := sqlTemplates[caseType]; exists {
+			ticket := templateFunc(results[i])
+			if len(ticket.RunIDs) > 0 {
+				caseTickets[caseType] = append(caseTickets[caseType], ticket)
 			}
-		case SOPCasePcExternalPaymentFlow201_0RPP210:
-			s := FixPcExtPayment201_0RPP210(results[i])
-			statements.RPPDeployStatements = append(statements.RPPDeployStatements, s.RPPDeployStatements...)
-			statements.RPPRollbackStatements = append(statements.RPPRollbackStatements, s.RPPRollbackStatements...)
-		case SOPCasePcExternalPaymentFlow201_0RPP900:
-			s := FixPcExtPayment201_0RPP900(results[i])
-			statements.RPPDeployStatements = append(statements.RPPDeployStatements, s.RPPDeployStatements...)
-			statements.RPPRollbackStatements = append(statements.RPPRollbackStatements, s.RPPRollbackStatements...)
-		case SOPCasePeTransferPayment210_0:
-			s := FixPeTransferPayment210_0(results[i])
-			statements.PEDeployStatements = append(statements.PEDeployStatements, s.PEDeployStatements...)
-			statements.PERollbackStatements = append(statements.PERollbackStatements, s.PERollbackStatements...)
-		case SOPCaseRppCashoutReject101_19:
-			s := FixRppCashoutReject101_19(results[i])
-			statements.RPPDeployStatements = append(statements.RPPDeployStatements, s.RPPDeployStatements...)
-			statements.RPPRollbackStatements = append(statements.RPPRollbackStatements, s.RPPRollbackStatements...)
 		}
 	}
 
-	// Generate bulk statements for Case 1 if any found
-	if len(pcExtPayment200_11RunIDs) > 0 {
-		s := FixPcExtPayment200_11_Bulk(pcExtPayment200_11RunIDs)
-		appendStatements(&statements, s)
+	// Process each case type, consolidating tickets when possible
+	for caseType, tickets := range caseTickets {
+		// For Case 1, we want to process all tickets together for bulk SQL
+		if caseType == SOPCasePcExternalPaymentFlow200_11 {
+			// Consolidate all run IDs from all tickets
+			var allRunIDs []string
+			for _, ticket := range tickets {
+				allRunIDs = append(allRunIDs, ticket.RunIDs...)
+			}
+
+			// Create a single consolidated ticket
+			if len(tickets) > 0 {
+				consolidatedTicket := tickets[0]
+				consolidatedTicket.RunIDs = allRunIDs
+				generatedSQL := generateSQLFromTicket(consolidatedTicket)
+				appendStatements(&statements, generatedSQL)
+			}
+		} else {
+			// For other cases, process each ticket individually
+			for _, ticket := range tickets {
+				generatedSQL := generateSQLFromTicket(ticket)
+				appendStatements(&statements, generatedSQL)
+			}
+		}
 	}
 
 	return statements

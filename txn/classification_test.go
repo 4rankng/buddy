@@ -27,13 +27,13 @@ func TestRppE2EIDPatternInvalid(t *testing.T) {
 	invalidE2EIDs := []string{
 		// Wrong date format
 		"2025-12-09GXSPMYKL010ORB79174342",
-		"2025129GXSPMYKL010ORB79174342", // 7 digits
+		"2025129GXSPMYKL010ORB79174342",   // 7 digits
 		"202512099GXSPMYKL010ORB79174342", // 9 digits
 		// Wrong prefix
 		"20251209GXSPMXKL010ORB79174342",
 		"20251209GSPMYKL010ORB79174342",
 		// Wrong length
-		"20251209GXSPMYKL010ORB7917434",  // 31 chars
+		"20251209GXSPMYKL010ORB7917434",   // 31 chars
 		"20251209GXSPMYKL010ORB791743423", // 33 chars
 		// Special characters
 		"20251209GXSPMYKL010ORB79174342@",
@@ -173,13 +173,13 @@ func TestIsRppE2EID(t *testing.T) {
 		{"20251209GXSPMYKL040OQR10829949", true},
 		{"20251209GXSPMYKL040OQR41308688", true},
 		{"20250101GXSPMYAB12345678901234", true},
-		{"20251209GXSPMXKL010ORB79174342", false}, // Wrong prefix
-		{"20251209gxspmymy010orb79174342", false}, // Lowercase
-		{"20251209GXSPMY", false},                // Too short
-		{"20251209GXSPMYKL010ORB791743423", false}, // Too long
+		{"20251209GXSPMXKL010ORB79174342", false},   // Wrong prefix
+		{"20251209gxspmymy010orb79174342", false},   // Lowercase
+		{"20251209GXSPMY", false},                   // Too short
+		{"20251209GXSPMYKL010ORB791743423", false},  // Too long
 		{"ccc572052d6446a2b896fee381dcca3a", false}, // Transaction ID
-		{"TS-4466.txt", false},                  // File path
-		{"", false},                             // Empty
+		{"TS-4466.txt", false},                      // File path
+		{"", false},                                 // Empty
 	}
 
 	for _, tc := range testCases {
@@ -201,12 +201,12 @@ func TestIsFilePath(t *testing.T) {
 		{"../path/to/file.txt", true},
 		{"/absolute/path/to/file.txt", true},
 		{"./relative/file.txt", true},
-		{"file", false}, // File without extension - ambiguous, classify as transaction ID
-		{"20251209GXSPMYKL010ORB79174342", false}, // E2E ID
+		{"file", false},                             // File without extension - ambiguous, classify as transaction ID
+		{"20251209GXSPMYKL010ORB79174342", false},   // E2E ID
 		{"ccc572052d6446a2b896fee381dcca3a", false}, // Transaction ID
-		{"", false},                              // Empty
-		{"just-a-string", false},                 // No file-like pattern
-		{".hiddenfile", true},                    // Hidden file
+		{"", false},                                 // Empty
+		{"just-a-string", false},                    // No file-like pattern
+		{".hiddenfile", true},                       // Hidden file
 	}
 
 	for _, tc := range testCases {

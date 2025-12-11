@@ -1,8 +1,8 @@
 package app
 
 import (
-	"fmt"
 	"buddy/config"
+	"fmt"
 )
 
 type Context struct {

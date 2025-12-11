@@ -1,20 +1,7 @@
 {
   "permissions": {
-    "allow": [
-      "Bash(find:*)",
-      "Bash(tree:*)",
-      "Bash(go build:*)",
-      "Bash(timeout:*)",
-      "Bash(make:*)",
-      "Bash(go get:*)",
-      "Bash(go mod tidy:*)",
-      "Bash(gvm version:*)",
-      "Bash(echo:*)",
-      "Bash(source:*)",
-      "Bash(gvm use:*)",
-      "Bash(exec:*)"
-    ],
-    "deny": [],
+    "allow": [],
+    "deny": ["Bash(go build:*)"],
     "ask": []
   }
 }
