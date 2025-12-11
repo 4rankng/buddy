@@ -87,3 +87,56 @@ func ProcessBatchFile(filePath string) {
 	// Print summary
 	calculateSummaryStats(results)
 }
+
+// ProcessBatchFileWithFilter processes a file containing transaction IDs with a filter function
+func ProcessBatchFileWithFilter(filePath string, filter func(TransactionResult) bool) {
+	// Read transaction IDs from file
+	transactionIDs, err := ReadTransactionIDsFromFile(filePath)
+	if err != nil {
+		output.PrintError(fmt.Errorf("failed to read transaction IDs from file: %v", err))
+		return
+	}
+
+	fmt.Printf("Processing %d transaction IDs from %s\n", len(transactionIDs), filePath)
+
+	// Process transactions in batch
+	results := ProcessBatchTransactions(transactionIDs)
+
+	// Filter results based on the provided filter function
+	filteredResults := make([]TransactionResult, 0)
+	for _, result := range results {
+		if filter(result) {
+			filteredResults = append(filteredResults, result)
+		}
+	}
+
+	if len(filteredResults) == 0 {
+		fmt.Printf("No transactions matched the filter criteria\n")
+		return
+	}
+
+	fmt.Printf("Found %d transactions matching the filter criteria\n", len(filteredResults))
+
+	// Generate output filename
+	outputPath := filePath + "-output.txt"
+
+	// Write results to output file
+	if err := WriteBatchResults(filteredResults, outputPath); err != nil {
+		output.PrintError(fmt.Errorf("failed to write results to output file: %v", err))
+		return
+	}
+
+	fmt.Printf("Results written to %s\n", outputPath)
+
+	// Process filtered transactions using the unified handler system
+	sqlStatements := GenerateSQLStatements(filteredResults)
+
+	// Write SQL files
+	if err := WriteSQLFiles(sqlStatements, filePath); err != nil {
+		output.PrintError(fmt.Errorf("failed to write SQL files: %v", err))
+		return
+	}
+
+	// Print summary
+	calculateSummaryStats(filteredResults)
+}

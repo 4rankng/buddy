@@ -14,6 +14,7 @@ func getAllSOPCases() []SOPCase {
 		SOPCasePeTransferPayment210_0,
 		SOPCaseRppCashoutReject101_19,
 		SOPCaseRppQrPaymentReject210_0,
+		SOPCaseRppNoResponseResume,
 	}
 }
 
@@ -88,6 +89,8 @@ func getCaseDisplayName(caseType SOPCase) string {
 		return "rpp_cashout_reject_101_19"
 	case SOPCaseRppQrPaymentReject210_0:
 		return "rpp_qr_payment_reject_210_0"
+	case SOPCaseRppNoResponseResume:
+		return "rpp_no_response_resume"
 	default:
 		return string(caseType)
 	}

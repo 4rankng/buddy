@@ -57,6 +57,7 @@ var templateConfigs = map[SOPCase]TemplateConfig{
 	SOPCasePeTransferPayment210_0:           {Parameters: []string{"run_ids"}},
 	SOPCaseRppCashoutReject101_19:           {Parameters: []string{"run_ids"}},
 	SOPCaseRppQrPaymentReject210_0:          {Parameters: []string{"run_ids"}},
+	SOPCaseRppNoResponseResume:              {Parameters: []string{"run_ids", "workflow_ids"}},
 }
 
 // sqlTemplates maps SOP cases to their DML tickets
@@ -214,6 +215,31 @@ AND workflow_id = 'wf_ct_qr_payment';`,
 			TargetAttempt: 0,
 		}
 	},
+	SOPCaseRppNoResponseResume: func(result TransactionResult) *DMLTicket {
+		return &DMLTicket{
+			RunIDs:      []string{result.RPPWorkflow.RunID},
+			WorkflowIDs: []string{"'wf_ct_cashout'", "'wf_ct_qr_payment'"},
+			DeployTemplate: `-- rpp_no_response_resume_acsp
+-- RPP did not respond in time, but status at Paynet is ACSP (Accepted Settlement in Process) or ACTC (Accepted Technical Validation)
+UPDATE workflow_execution
+SET state = 222,
+    attempt = 1,
+    ` + "`data`" + ` = JSON_SET(` + "`data`" + `, '$.State', 222)
+WHERE run_id IN (%s)
+AND state = 210
+AND workflow_id IN (%s);`,
+			RollbackTemplate: `-- RPP Rollback: Move workflows back to state 210
+UPDATE workflow_execution
+SET state = 210,
+    attempt = 0,
+    ` + "`data`" + ` = JSON_SET(` + "`data`" + `, '$.State', 210)
+WHERE run_id IN (%s)
+AND workflow_id IN (%s);`,
+			TargetDB:      "RPP",
+			TargetState:   210,
+			TargetAttempt: 0,
+		}
+	},
 }
 
 // getCaseTypeFromTicket determines the SOP case type based on ticket characteristics
@@ -236,6 +262,9 @@ func getCaseTypeFromTicket(ticket DMLTicket) SOPCase {
 	}
 	if strings.Contains(ticket.DeployTemplate, "state = 221") && strings.Contains(ticket.DeployTemplate, "wf_ct_qr_payment") {
 		return SOPCaseRppQrPaymentReject210_0
+	}
+	if strings.Contains(ticket.DeployTemplate, "state = 222") && strings.Contains(ticket.DeployTemplate, "rpp_no_response_resume_acsp") {
+		return SOPCaseRppNoResponseResume
 	}
 	return SOPCaseNone
 }

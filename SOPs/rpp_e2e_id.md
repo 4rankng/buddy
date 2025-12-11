@@ -92,7 +92,7 @@ if we have multiple cases
 
 
 
-if 
+if
 mybuddy rpp resume XXXX
 where XXX is single e2d id or file path eg TS-4468.txt
 

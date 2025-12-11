@@ -57,6 +57,15 @@ func matchSOPCaseRppQrPaymentReject210_0(result TransactionResult) bool {
 		result.RPPWorkflow.Type == "wf_ct_qr_payment"
 }
 
+// MatchSOPCaseRppNoResponseResume checks if a transaction matches the RPP no response resume criteria
+func MatchSOPCaseRppNoResponseResume(result TransactionResult) bool {
+	// Check if RPP workflow matches criteria for resume (timeout scenario)
+	return result.RPPWorkflow.RunID != "" &&
+		result.RPPWorkflow.State == "210" &&
+		result.RPPWorkflow.Attempt == 0 &&
+		(result.RPPWorkflow.Type == "wf_ct_cashout" || result.RPPWorkflow.Type == "wf_ct_qr_payment")
+}
+
 // isRPPStuckCandidate checks if the transaction matches the ambiguous state for RPP cases
 // (Workflow Transfer 220 && External Payment 201/0)
 func isRPPStuckCandidate(result TransactionResult) bool {
@@ -88,6 +97,9 @@ func identifySOPCase(result *TransactionResult) SOPCase {
 	}
 	if matchSOPCaseRppQrPaymentReject210_0(*result) {
 		return SOPCaseRppQrPaymentReject210_0
+	}
+	if MatchSOPCaseRppNoResponseResume(*result) {
+		return SOPCaseRppNoResponseResume
 	}
 
 	// 2. Check for RPP Stuck Candidate (Ambiguous Case 2 vs Case 3)

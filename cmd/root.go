@@ -26,6 +26,7 @@ func Execute(appCtx *app.Context) error {
 
 	// Add all subcommands
 	rootCmd.AddCommand(NewTxnCmd(appCtx))
+	rootCmd.AddCommand(NewRppCmd(appCtx))
 
 	return rootCmd.Execute()
 }

@@ -52,6 +52,7 @@ const (
 	SOPCasePeTransferPayment210_0           SOPCase = "pe_transfer_payment_210_0"
 	SOPCaseRppCashoutReject101_19           SOPCase = "rpp_cashout_reject_101_19"
 	SOPCaseRppQrPaymentReject210_0          SOPCase = "rpp_qr_payment_reject_210_0"
+	SOPCaseRppNoResponseResume              SOPCase = "rpp_no_response_resume"
 )
 
 // WorkflowStateMaps contains state mappings for different workflow types
