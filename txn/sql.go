@@ -50,6 +50,10 @@ func GenerateSQLStatements(results []TransactionResult) SQLStatements {
 			s := FixPeTransferPayment210_0(results[i])
 			statements.PEDeployStatements = append(statements.PEDeployStatements, s.PEDeployStatements...)
 			statements.PERollbackStatements = append(statements.PERollbackStatements, s.PERollbackStatements...)
+		case SOPCaseRppCashoutReject101_19:
+			s := FixRppCashoutReject101_19(results[i])
+			statements.RPPDeployStatements = append(statements.RPPDeployStatements, s.RPPDeployStatements...)
+			statements.RPPRollbackStatements = append(statements.RPPRollbackStatements, s.RPPRollbackStatements...)
 		}
 	}
 
@@ -197,6 +201,44 @@ WHERE run_id = '%s' AND workflow_id = 'workflow_transfer_payment';`, result.Paym
 	return SQLStatements{
 		PEDeployStatements:   peDeployStatements,
 		PERollbackStatements: peRollbackStatements,
+	}
+}
+
+// FixRppCashoutReject101_19 generates SQL statements for RPP cashout reject case
+// Criteria: state=101 AND attempt=19 AND workflow_id IN ('wf_ct_cashout', 'wf_ct_qr_payment')
+func FixRppCashoutReject101_19(result TransactionResult) SQLStatements {
+	var rppDeployStatements []string
+	var rppRollbackStatements []string
+
+	// Generate deploy statement - Set workflow to failed state
+	deploySQL := fmt.Sprintf(`-- RPP Cashout Reject: Force fail workflows stuck at state 101 attempt 19
+UPDATE workflow_execution
+SET state = 501, attempt = 20,
+	`+"`data`"+` = JSON_SET(
+		`+"`data`"+`, '$.State', 501,
+		'$.ErrorMessage', 'Manual reject - Max attempts reached',
+		'$.ErrorCode', 'MAX_ATTEMPTS_EXCEEDED'
+	)
+WHERE run_id = '%s'
+AND state = 101
+AND attempt = 19
+AND workflow_id IN ('wf_ct_cashout', 'wf_ct_qr_payment');`, result.RPPWorkflow.RunID)
+	rppDeployStatements = append(rppDeployStatements, deploySQL)
+
+	// Generate rollback statement
+	rollbackSQL := fmt.Sprintf(`UPDATE workflow_execution
+SET state = 101, attempt = 19,
+	`+"`data`"+` = JSON_SET(
+		`+"`data`"+`, '$.State', 101,
+		'$.ErrorMessage', JSON_REMOVE(JSON_EXTRACT(`+"`data`"+`, '$.ErrorMessage'), '$.ErrorMessage'),
+		'$.ErrorCode', JSON_REMOVE(JSON_EXTRACT(`+"`data`"+`, '$.ErrorCode'), '$.ErrorCode')
+	)
+WHERE run_id = '%s';`, result.RPPWorkflow.RunID)
+	rppRollbackStatements = append(rppRollbackStatements, rollbackSQL)
+
+	return SQLStatements{
+		RPPDeployStatements:   rppDeployStatements,
+		RPPRollbackStatements: rppRollbackStatements,
 	}
 }
 

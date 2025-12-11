@@ -2,19 +2,39 @@ package config
 
 import (
 	"bufio"
+	"fmt"
 	"os"
 	"strings"
 )
 
-func init() {
-	// Load .env file
-	loadEnvFile(".env.my") // for mybuddy we load .env.my, for sgbuddy we load .env.sg
+type Config struct {
+	Environment string
 }
 
-func loadEnvFile(filename string) {
+var globalConfig *Config
+
+func LoadConfig(env string) error {
+	filename := ".env." + env
+
+	if err := loadEnvFile(filename); err != nil {
+		return fmt.Errorf("failed to load env file %s: %w", filename, err)
+	}
+
+	globalConfig = &Config{Environment: env}
+	return nil
+}
+
+func GetEnvironment() string {
+	if globalConfig != nil {
+		return globalConfig.Environment
+	}
+	return "unknown"
+}
+
+func loadEnvFile(filename string) error {
 	file, err := os.Open(filename)
 	if err != nil {
-		return
+		return err
 	}
 	defer file.Close()
 
@@ -32,6 +52,7 @@ func loadEnvFile(filename string) {
 			os.Setenv(key, value)
 		}
 	}
+	return nil
 }
 
 func Get(key, defaultValue string) string {

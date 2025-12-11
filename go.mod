@@ -1,4 +1,4 @@
-module mybuddy
+module buddy
 
 go 1.21
 

@@ -2,11 +2,15 @@ package txn
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 
-	"mybuddy/clients"
+	"buddy/clients"
 )
+
+// RppE2EIDPattern matches RPP E2E ID format: YYYYMMDDGXSPMY + 16 characters (total 30)
+var RppE2EIDPattern = regexp.MustCompile(`^\d{8}GXSPMY[A-Za-z0-9]{16}$`)
 
 // QueryTransactionStatus returns structured data about a transaction
 func QueryTransactionStatus(transactionID string) *TransactionResult {
@@ -17,6 +21,11 @@ func QueryTransactionStatus(transactionID string) *TransactionResult {
 			TransactionID: transactionID,
 			Error:         fmt.Sprintf("failed to create doorman client: %v", err),
 		}
+	}
+
+	// Check if input is an RPP E2E ID
+	if RppE2EIDPattern.MatchString(transactionID) {
+		return queryRPPE2EID(client, transactionID)
 	}
 
 	// Query transfer table with specific fields including timestamps
@@ -240,6 +249,107 @@ func QueryTransactionStatus(transactionID string) *TransactionResult {
 			}
 		}
 	}
+
+	return result
+}
+
+// queryRPPE2EID handles RPP E2E ID lookups
+func queryRPPE2EID(client *clients.DoormanClient, e2eID string) *TransactionResult {
+	// First query RPP adapter database to get partner_tx_id and credit_transfer status
+	rppQuery := fmt.Sprintf("SELECT partner_tx_id, status FROM credit_transfer WHERE end_to_end_id = '%s'", e2eID)
+	rppResults, err := client.ExecuteQuery("prd-payments-rpp-adapter-rds-mysql", "prd-payments-rpp-adapter-rds-mysql", "rpp_adapter", rppQuery)
+	if err != nil {
+		return &TransactionResult{
+			TransactionID: e2eID,
+			Error:         fmt.Sprintf("failed to query RPP adapter credit_transfer table: %v", err),
+		}
+	}
+
+	if len(rppResults) == 0 {
+		return &TransactionResult{
+			TransactionID: e2eID,
+			// TransferStatus remains empty since we're not querying payment-engine
+			Error: "No transaction found with the given E2E ID",
+		}
+	}
+
+	// Extract partner_tx_id which is the workflow run_id
+	partnerTxID, ok := rppResults[0]["partner_tx_id"].(string)
+	if !ok || partnerTxID == "" {
+		return &TransactionResult{
+			TransactionID: e2eID,
+			Error:         "could not extract partner_tx_id from RPP adapter",
+		}
+	}
+
+	// Extract credit_transfer status if available
+	var creditTransferStatus string
+	if status, statusOk := rppResults[0]["status"]; statusOk {
+		if statusStr, ok := status.(string); ok {
+			creditTransferStatus = statusStr
+		}
+	}
+
+	// Now query the workflow_execution table using partner_tx_id as run_id
+	workflowQuery := fmt.Sprintf("SELECT run_id, workflow_id, state, attempt, created_at, updated_at FROM workflow_execution WHERE run_id='%s'", partnerTxID)
+	workflows, err := client.QueryPrdPaymentsRppAdapter(workflowQuery)
+	if err != nil {
+		return &TransactionResult{
+			TransactionID: e2eID,
+			Error:         fmt.Sprintf("failed to query workflow_execution table: %v", err),
+		}
+	}
+
+	if len(workflows) == 0 {
+		return &TransactionResult{
+			TransactionID: e2eID,
+			Error:         "No workflow execution found for this E2E ID",
+		}
+	}
+
+	// Build result
+	workflow := workflows[0]
+	result := &TransactionResult{
+		TransactionID: e2eID,
+		// Note: TransferStatus is not set here because we're not querying payment-engine
+		// It should remain empty unless we query payment-engine
+		PartnerTxID: partnerTxID,
+		RPPStatus:   creditTransferStatus, // Set credit_transfer status
+	}
+
+	// Set RPP workflow info
+	if workflowID, workflowIDOk := workflow["workflow_id"]; workflowIDOk {
+		result.RPPWorkflow.Type = fmt.Sprintf("%v", workflowID)
+	}
+	result.RPPWorkflow.RunID = partnerTxID
+
+	// Extract attempt if available
+	if attemptVal, attemptOk := workflow["attempt"]; attemptOk {
+		if attemptFloat, ok := attemptVal.(float64); ok {
+			result.RPPWorkflow.Attempt = int(attemptFloat)
+		}
+	}
+
+	// Extract state
+	if state, stateOk := workflow["state"]; stateOk {
+		if stateInt, ok := state.(float64); ok {
+			stateNum := int(stateInt)
+			result.RPPWorkflow.State = fmt.Sprintf("%d", stateNum)
+			result.RPPStatus = result.RPPWorkflow.State
+		} else {
+			result.RPPWorkflow.State = fmt.Sprintf("%v", state)
+			result.RPPStatus = result.RPPWorkflow.State
+		}
+	}
+
+	// Set created_at timestamp
+	if createdAt, createdAtOk := workflow["created_at"]; createdAtOk {
+		result.CreatedAt = fmt.Sprintf("%v", createdAt)
+	}
+
+	// Also set RPP info for display
+	result.RPPInfo = fmt.Sprintf("RPP Workflow: %s, State: %s, Attempt: %d",
+		result.RPPWorkflow.Type, result.RPPWorkflow.State, result.RPPWorkflow.Attempt)
 
 	return result
 }

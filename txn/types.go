@@ -98,4 +98,5 @@ const (
 	SOPCasePcExternalPaymentFlow201_0RPP210 SOPCase = "pc_external_payment_flow_201_0_RPP_210"
 	SOPCasePcExternalPaymentFlow201_0RPP900 SOPCase = "pc_external_payment_flow_201_0_RPP_900"
 	SOPCasePeTransferPayment210_0           SOPCase = "pe_transfer_payment_210_0"
+	SOPCaseRppCashoutReject101_19           SOPCase = "rpp_cashout_reject_101_19"
 )

@@ -10,8 +10,8 @@ import (
 	"net/url"
 	"time"
 
-	"mybuddy/config"
-	"mybuddy/output"
+	"buddy/config"
+	"buddy/output"
 )
 
 type DoormanClient struct {

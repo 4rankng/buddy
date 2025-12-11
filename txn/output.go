@@ -43,31 +43,70 @@ func writeResult(w io.Writer, result TransactionResult, index int) {
 	}
 
 	fmt.Fprintf(w, "### [%d] transaction_id: %s\n", index, result.TransactionID)
-	fmt.Fprintln(w, "[payment-engine]")
-	fmt.Fprintf(w, "status: %s\n", result.TransferStatus)
 
-	if result.CreatedAt != "" {
-		fmt.Fprintf(w, "created_at: %s\n", result.CreatedAt)
+	// If this is an E2E ID lookup (determined by checking if it matches E2E ID pattern),
+	// show RPP adapter info first
+	if IsRppE2EID(result.TransactionID) {
+		fmt.Fprintln(w, "[rpp-adapter]")
+		fmt.Fprintf(w, "e2e_id: %s\n", result.TransactionID)
+		if result.RPPStatus != "" {
+			fmt.Fprintf(w, "credit_transfer.status: %s\n", result.RPPStatus)
+		}
+		if result.PartnerTxID != "" {
+			fmt.Fprintf(w, "partner_tx_id: %s\n", result.PartnerTxID)
+		}
+		if result.RPPWorkflow.Type != "" {
+			line := fmt.Sprintf("state=%s attempt=%d", result.RPPWorkflow.State, result.RPPWorkflow.Attempt)
+			fmt.Fprintf(w, "workflow_%s: %s run_id=%s\n", result.RPPWorkflow.Type, line, result.RPPWorkflow.RunID)
+		}
+		fmt.Fprintln(w)
 	}
 
-	if result.PaymentEngineWorkflow.RunID != "" {
-		line := fmt.Sprintf("state=%s attempt=%d", result.PaymentEngineWorkflow.State, result.PaymentEngineWorkflow.Attempt)
-		fmt.Fprintf(w, "workflow_transfer_payment: %s run_id=%s\n", line, result.PaymentEngineWorkflow.RunID)
+	// Only show payment-engine section if we have data from payment-engine
+	if result.TransferStatus != "" || result.PaymentEngineWorkflow.RunID != "" {
+		fmt.Fprintln(w, "[payment-engine]")
+		if result.TransferStatus != "" {
+			fmt.Fprintf(w, "status: %s\n", result.TransferStatus)
+		}
+
+		if result.CreatedAt != "" {
+			fmt.Fprintf(w, "created_at: %s\n", result.CreatedAt)
+		}
+
+		if result.PaymentEngineWorkflow.RunID != "" {
+			line := fmt.Sprintf("state=%s attempt=%d", result.PaymentEngineWorkflow.State, result.PaymentEngineWorkflow.Attempt)
+			fmt.Fprintf(w, "workflow_transfer_payment: %s run_id=%s\n", line, result.PaymentEngineWorkflow.RunID)
+		}
+
+		fmt.Fprintln(w, "[payment-core]")
+
+		if result.InternalTxStatus != "" {
+			fmt.Fprintf(w, "internal_transaction: %s\n", result.InternalTxStatus)
+		}
+
+		if result.ExternalTxStatus != "" {
+			fmt.Fprintf(w, "external_transaction: %s\n", result.ExternalTxStatus)
+		}
+
+		for _, workflow := range result.PaymentCoreWorkflows {
+			line := fmt.Sprintf("state=%s attempt=%d", workflow.State, workflow.Attempt)
+			fmt.Fprintf(w, "payment_core_workflow_%s: %s run_id=%s\n", workflow.Type, line, workflow.RunID)
+		}
 	}
 
-	fmt.Fprintln(w, "[payment-core]")
-
-	if result.InternalTxStatus != "" {
-		fmt.Fprintf(w, "internal_transaction: %s\n", result.InternalTxStatus)
-	}
-
-	if result.ExternalTxStatus != "" {
-		fmt.Fprintf(w, "external_transaction: %s\n", result.ExternalTxStatus)
-	}
-
-	for _, workflow := range result.PaymentCoreWorkflows {
-		line := fmt.Sprintf("state=%s attempt=%d", workflow.State, workflow.Attempt)
-		fmt.Fprintf(w, "payment_core_workflow_%s: %s run_id=%s\n", workflow.Type, line, workflow.RunID)
+	// Display RPP information if available (but don't duplicate if we already showed it for E2E IDs)
+	if (result.RPPWorkflow.RunID != "" || result.ReqBizMsgID != "" || result.PartnerTxID != "") && !IsRppE2EID(result.TransactionID) {
+		fmt.Fprintln(w, "[rpp-adapter]")
+		if result.ReqBizMsgID != "" {
+			fmt.Fprintf(w, "req_biz_msg_id: %s\n", result.ReqBizMsgID)
+		}
+		if result.PartnerTxID != "" {
+			fmt.Fprintf(w, "partner_tx_id: %s\n", result.PartnerTxID)
+		}
+		if result.RPPWorkflow.RunID != "" {
+			line := fmt.Sprintf("state=%s attempt=%d", result.RPPWorkflow.State, result.RPPWorkflow.Attempt)
+			fmt.Fprintf(w, "workflow_%s: %s run_id=%s\n", result.RPPWorkflow.Type, line, result.RPPWorkflow.RunID)
+		}
 	}
 
 	fmt.Fprintln(w)

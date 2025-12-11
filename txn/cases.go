@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"mybuddy/clients"
+	"buddy/clients"
 )
 
 // caseMatchers maps SOP cases to their respective matching functions
@@ -15,6 +15,7 @@ import (
 var caseMatchers = map[SOPCase]func(TransactionResult) bool{
 	SOPCasePcExternalPaymentFlow200_11: matchSOPCasePcExternalPaymentFlow200_11,
 	SOPCasePeTransferPayment210_0:      matchSOPCasePeTransferPayment210_0,
+	SOPCaseRppCashoutReject101_19:      matchSOPCaseRppCashoutReject101_19,
 }
 
 // findPaymentCoreWorkflow finds a specific workflow type in the PaymentCoreWorkflows slice
@@ -46,6 +47,15 @@ func matchSOPCasePeTransferPayment210_0(result TransactionResult) bool {
 		result.PaymentEngineWorkflow.Attempt == 0
 }
 
+// matchSOPCaseRppCashoutReject101_19 checks if a transaction matches Case 5 criteria
+func matchSOPCaseRppCashoutReject101_19(result TransactionResult) bool {
+	// Check if RPP workflow matches criteria
+	return result.RPPWorkflow.RunID != "" &&
+		result.RPPWorkflow.State == "101" &&
+		result.RPPWorkflow.Attempt == 19 &&
+		(result.RPPWorkflow.Type == "wf_ct_cashout" || result.RPPWorkflow.Type == "wf_ct_qr_payment")
+}
+
 // isRPPStuckCandidate checks if the transaction matches the ambiguous state for RPP cases
 // (Workflow Transfer 220 && External Payment 201/0)
 func isRPPStuckCandidate(result TransactionResult) bool {
@@ -71,6 +81,9 @@ func identifySOPCase(result *TransactionResult) SOPCase {
 	}
 	if matchSOPCasePeTransferPayment210_0(*result) {
 		return SOPCasePeTransferPayment210_0
+	}
+	if matchSOPCaseRppCashoutReject101_19(*result) {
+		return SOPCaseRppCashoutReject101_19
 	}
 
 	// 2. Check for RPP Stuck Candidate (Ambiguous Case 2 vs Case 3)
