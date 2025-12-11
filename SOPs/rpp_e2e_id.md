@@ -134,3 +134,44 @@ var externalPaymentFlowMap = map[int]string{
 	501: "stPrepareFailurePublish",
 	500: "stFailed",
 }
+
+rpp-adapter workflow_id=wf_ct_cashout
+	stCreditTransferPersisted = we.State(101)
+	stCreditorDetailUpdated   = we.State(111)
+	stPrepareCreditorInquiry  = we.State(120)
+
+	stCreditorInquiryFailed  = we.State(121)
+	stCreditorInquirySuccess = we.State(122)
+
+	stTransferProcessing              = we.State(210)
+	stTransferResponseReceived        = we.State(211)
+	stTransferMessageRejectedReceived = we.State(212)
+	stTransferManualRejectedReceived  = we.State(221)
+	stTransferManualResumeReceived    = we.State(222)
+
+	stPrepareSuccessPublish = we.State(301)
+	stPrepareFailurePublish = we.State(311)
+	stSkipPublish           = we.State(321)
+
+	stTransferRetryAttemptExceeded = we.State(502)
+
+	stFailed  = we.State(700)
+	stSuccess = we.State(900)
+
+rpp-adapter workflow_id='wf_ct_cashin'
+	stTransferPersisted         = we.State(100)
+	stRequestToPayUpdated       = we.State(110)
+	stRequestToPayUpdateFailed  = we.State(111)
+	stOriginalTransferValidated = we.State(121)
+	stFieldsValidationFailed    = we.State(122)
+
+	stTransferProcessing      = we.State(200)
+	stTransferStreamPersisted = we.State(201)
+	stTransferUpdated         = we.State(210)
+	stTransferRespPrepared    = we.State(220)
+
+	stCashInFailed   = we.State(700)
+	stCashInToRefund = we.State(701)
+
+	stCashInCompleted           = we.State(900)
+	stCashInCompletedWithRefund = we.State(901)
