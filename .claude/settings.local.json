@@ -1,7 +1,11 @@
 {
   "permissions": {
-    "allow": [],
-    "deny": ["Bash(go build:*)"],
+    "allow": [
+      "Bash(wc:*)"
+    ],
+    "deny": [
+      "Bash(go build:*)"
+    ],
     "ask": []
   }
 }

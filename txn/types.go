@@ -183,3 +183,36 @@ func FormatWorkflowState(workflowType string, stateStr string) string {
 	// Return as-is if it's not a number
 	return stateStr
 }
+
+// SQLStatements contains the deploy and rollback SQL statements separated by database
+type SQLStatements struct {
+	PCDeployStatements    []string
+	PCRollbackStatements  []string
+	PEDeployStatements    []string
+	PERollbackStatements  []string
+	RPPDeployStatements   []string
+	RPPRollbackStatements []string
+}
+
+// DMLTicket represents a SQL generation request with templates
+type DMLTicket struct {
+	RunIDs           []string // run_ids to update
+	ReqBizMsgIDs     []string // optional req_biz_msg_ids for RPP cases
+	PartnerTxIDs     []string // optional partner_tx_ids for RPP cases
+	DeployTemplate   string   // SQL template for deploy
+	RollbackTemplate string   // SQL template for rollback
+	TargetDB         string   // "PC", "PE", or "RPP"
+	WorkflowID       string   // optional workflow_id filter
+	TargetState      int      // target state to check in WHERE clause
+	TargetAttempt    int      // target attempt to check in WHERE clause
+	StateField       string   // field name for state in WHERE clause (usually "state")
+	WorkflowIDs      []string // multiple workflow_ids for IN clause
+
+	// Consolidation metadata
+	TransactionCount int // Number of transactions consolidated
+}
+
+// TemplateConfig defines the parameters required for a SQL template
+type TemplateConfig struct {
+	Parameters []string // List of parameter types: [\"run_ids\"], [\"run_ids\", \"workflow_ids\"]
+}
