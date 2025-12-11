@@ -32,29 +32,23 @@ select * from workflow_execution where run_id=(select partner_tx_id from credit_
 
 if
 
-state=101 and attempt = 19 and workflow_id='wf_ct_cashout', 'wf_ct_qr_payment'
+state=101 and attempt = 19 and workflow_id='wf_ct_cashout'
 `
 this case is called rpp_cashout_reject_101_19
 
 
 RPP_DEPLOY.sql
 
-UPDATE workflow_execution SET  attempt = 1
+SET state = 311, attempt = 1 ,  data = JSON_SET(data, '$.State', 311)
 WHERE run_id IN (
 	'33997a1f8dae4793a2e1bc711aa066af'
-) AND state = 311 and workflow_id in (
-'wf_ct_qr_payment',
-	'wf_ct_cashout'
-);
-
+) AND state = 101 and workflow_id = 'wf_ct_cashout';
+`
 RPP_Rollback.sql
-UPDATE workflow_execution SET attempt = 1
+SET state = 101, attempt = 0 ,  data = JSON_SET(data, '$.State', 101)
 WHERE run_id IN (
 	'33997a1f8dae4793a2e1bc711aa066af'
-) and workflow_id in (
-'wf_ct_qr_payment',
-	'wf_ct_cashout'
-);
+) and workflow_id = 'wf_ct_cashout';
 
 we can keep adding into IN ()
 if we have multiple cases
@@ -175,3 +169,38 @@ rpp-adapter workflow_id='wf_ct_cashin'
 
 	stCashInCompleted           = we.State(900)
 	stCashInCompletedWithRefund = we.State(901)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+if
+
+state=210 and attempt = 0 and workflow_id='wf_ct_cashout', 'wf_ct_qr_payment'
+`
+this case is called rpp_qr_payment_reject_210_0
+
+
+RPP_DEPLOY.sql
+
+UPDATE workflow_execution 
+SET state = 221, attempt = 1 ,  data = JSON_SET(data, '$.State', 221)
+where run_id in 
+('2823f1ae2cc44331b49827bdffc44a16') and state = 210 and workflow_id = 'wf_ct_qr_payment';
+
+RPP_Rollback.sql
+SET state = 210, attempt = 0 ,  data = JSON_SET(data, '$.State', 210)
+where run_id in 
+('2823f1ae2cc44331b49827bdffc44a16') and state = 210 and workflow_id = 'wf_ct_qr_payment';
+
+we can keep adding into IN ()
+if we have multiple cases
