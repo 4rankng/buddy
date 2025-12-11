@@ -1,16 +1,35 @@
 package txn
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
+
+// getAllSOPCases returns all defined SOP cases except SOPCaseNone
+func getAllSOPCases() []SOPCase {
+	return []SOPCase{
+		SOPCasePcExternalPaymentFlow200_11,
+		SOPCasePcExternalPaymentFlow201_0RPP210,
+		SOPCasePcExternalPaymentFlow201_0RPP900,
+		SOPCasePeTransferPayment210_0,
+		SOPCaseRppCashoutReject101_19,
+		SOPCaseRppQrPaymentReject210_0,
+	}
+}
 
 // calculateSummaryStats calculates and prints summary statistics for the processed transactions
 func calculateSummaryStats(results []TransactionResult) {
 	foundCount := 0
 	errorCount := 0
-	pcExtPayment200_11MatchCount := 0
-	pcExtPayment201_0RPP210MatchCount := 0
-	pcExtPayment201_0RPP900MatchCount := 0
-	peTransferPayment210_0MatchCount := 0
-	rppCashoutReject101_19MatchCount := 0
+
+	// Use a map to track case counts - this makes it easier to add new cases
+	caseCounts := make(map[SOPCase]int)
+
+	// Initialize all known cases with 0 count to ensure they appear in output
+	allCases := getAllSOPCases()
+	for _, caseType := range allCases {
+		caseCounts[caseType] = 0
+	}
 
 	// We re-iterate through results. Note: Since identifySOPCase is now potentially
 	// interactive or side-effecting (if we hadn't already run it), we should
@@ -30,25 +49,46 @@ func calculateSummaryStats(results []TransactionResult) {
 
 			// Check classification
 			caseType := identifySOPCase(result)
-			switch caseType {
-			case SOPCasePcExternalPaymentFlow200_11:
-				pcExtPayment200_11MatchCount++
-			case SOPCasePcExternalPaymentFlow201_0RPP210:
-				pcExtPayment201_0RPP210MatchCount++
-			case SOPCasePcExternalPaymentFlow201_0RPP900:
-				pcExtPayment201_0RPP900MatchCount++
-			case SOPCasePeTransferPayment210_0:
-				peTransferPayment210_0MatchCount++
-			case SOPCaseRppCashoutReject101_19:
-				rppCashoutReject101_19MatchCount++
+			if caseType != SOPCaseNone {
+				caseCounts[caseType]++
 			}
 		} else {
 			errorCount++
 		}
 	}
 
-	totalMatchCount := pcExtPayment200_11MatchCount + pcExtPayment201_0RPP210MatchCount + pcExtPayment201_0RPP900MatchCount + peTransferPayment210_0MatchCount + rppCashoutReject101_19MatchCount
+	// Calculate total matches
+	totalMatchCount := 0
+	for _, count := range caseCounts {
+		totalMatchCount += count
+	}
+
+	// Build the case details string dynamically using the helper function
+	var caseDetails []string
+	for _, caseType := range allCases {
+		caseDetails = append(caseDetails, fmt.Sprintf("%s: %d", getCaseDisplayName(caseType), caseCounts[caseType]))
+	}
+
 	fmt.Printf("Summary: %d found, %d errors/not found\n", foundCount, errorCount)
-	fmt.Printf("SQL matches: %d total (pc_external_payment_flow_200_11: %d, pc_external_payment_flow_201_0_RPP_210: %d, pc_external_payment_flow_201_0_RPP_900: %d, pe_transfer_payment_210_0: %d, rpp_cashout_reject_101_19: %d)\n",
-		totalMatchCount, pcExtPayment200_11MatchCount, pcExtPayment201_0RPP210MatchCount, pcExtPayment201_0RPP900MatchCount, peTransferPayment210_0MatchCount, rppCashoutReject101_19MatchCount)
+	fmt.Printf("SQL matches: %d total (%s)\n", totalMatchCount, strings.Join(caseDetails, ", "))
+}
+
+// getCaseDisplayName returns a user-friendly display name for a SOP case
+func getCaseDisplayName(caseType SOPCase) string {
+	switch caseType {
+	case SOPCasePcExternalPaymentFlow200_11:
+		return "pc_external_payment_flow_200_11"
+	case SOPCasePcExternalPaymentFlow201_0RPP210:
+		return "pc_external_payment_flow_201_0_RPP_210"
+	case SOPCasePcExternalPaymentFlow201_0RPP900:
+		return "pc_external_payment_flow_201_0_RPP_900"
+	case SOPCasePeTransferPayment210_0:
+		return "pe_transfer_payment_210_0"
+	case SOPCaseRppCashoutReject101_19:
+		return "rpp_cashout_reject_101_19"
+	case SOPCaseRppQrPaymentReject210_0:
+		return "rpp_qr_payment_reject_210_0"
+	default:
+		return string(caseType)
+	}
 }

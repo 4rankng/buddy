@@ -48,6 +48,15 @@ func matchSOPCaseRppCashoutReject101_19(result TransactionResult) bool {
 		(result.RPPWorkflow.Type == "wf_ct_cashout" || result.RPPWorkflow.Type == "wf_ct_qr_payment")
 }
 
+// matchSOPCaseRppQrPaymentReject210_0 checks if a transaction matches the new QR payment reject criteria
+func matchSOPCaseRppQrPaymentReject210_0(result TransactionResult) bool {
+	// Check if RPP workflow matches criteria for QR payment reject
+	return result.RPPWorkflow.RunID != "" &&
+		result.RPPWorkflow.State == "210" &&
+		result.RPPWorkflow.Attempt == 0 &&
+		result.RPPWorkflow.Type == "wf_ct_qr_payment"
+}
+
 // isRPPStuckCandidate checks if the transaction matches the ambiguous state for RPP cases
 // (Workflow Transfer 220 && External Payment 201/0)
 func isRPPStuckCandidate(result TransactionResult) bool {
@@ -76,6 +85,9 @@ func identifySOPCase(result *TransactionResult) SOPCase {
 	}
 	if matchSOPCaseRppCashoutReject101_19(*result) {
 		return SOPCaseRppCashoutReject101_19
+	}
+	if matchSOPCaseRppQrPaymentReject210_0(*result) {
+		return SOPCaseRppQrPaymentReject210_0
 	}
 
 	// 2. Check for RPP Stuck Candidate (Ambiguous Case 2 vs Case 3)
