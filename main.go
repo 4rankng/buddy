@@ -4,13 +4,13 @@ import (
 	"fmt"
 	"os"
 
-	"oncallmy/cmd"
+	"mybuddy/cmd"
 
 	"github.com/spf13/cobra"
 )
 
 var rootCmd = &cobra.Command{
-	Use:               "oncallmy",
+	Use:               "mybuddy",
 	Short:             "Oncall CLI tool for G-Bank operations",
 	Long:              `A CLI tool for oncall operations at G-Bank, including transaction queries and other operational tasks.`,
 	DisableAutoGenTag: true,

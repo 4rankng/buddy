@@ -1,5 +1,5 @@
 SHELL := /bin/bash
-BINARY := oncallmy
+BINARY := mybuddy
 CMD_PKG := .
 BIN_DIR := $(HOME)/bin
 

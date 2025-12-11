@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"strings"
 
-	"oncallmy/txn"
+	"mybuddy/txn"
 
 	"github.com/spf13/cobra"
 )

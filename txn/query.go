@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"oncallmy/clients"
+	"mybuddy/clients"
 )
 
 // QueryTransactionStatus returns structured data about a transaction

@@ -39,4 +39,4 @@ Thumbs.db
 .env.*.local
 .env.*
 # Build output
-oncallmy
+mybuddy

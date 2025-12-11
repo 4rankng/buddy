@@ -1,4 +1,4 @@
-module oncallmy
+module mybuddy
 
 go 1.21
 

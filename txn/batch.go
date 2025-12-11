@@ -6,7 +6,7 @@ import (
 	"os"
 	"strings"
 
-	"oncallmy/output"
+	"mybuddy/output"
 )
 
 // ReadTransactionIDsFromFile reads transaction IDs from a file, one per line

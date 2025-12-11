@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"oncallmy/clients"
+	"mybuddy/clients"
 )
 
 // caseMatchers maps SOP cases to their respective matching functions
