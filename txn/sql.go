@@ -56,6 +56,7 @@ var templateConfigs = map[SOPCase]TemplateConfig{
 	SOPCasePcExternalPaymentFlow201_0RPP900: {Parameters: []string{"run_ids"}},
 	SOPCasePeTransferPayment210_0:           {Parameters: []string{"run_ids"}},
 	SOPCaseRppCashoutReject101_19:           {Parameters: []string{"run_ids"}},
+	SOPCaseRppQrPaymentReject210_0:          {Parameters: []string{"run_ids"}},
 }
 
 // sqlTemplates maps SOP cases to their DML tickets
@@ -189,6 +190,30 @@ AND workflow_id = 'wf_ct_cashout';`,
 			TargetAttempt: 19,
 		}
 	},
+	SOPCaseRppQrPaymentReject210_0: func(result TransactionResult) *DMLTicket {
+		return &DMLTicket{
+			RunIDs: []string{result.RPPWorkflow.RunID},
+			DeployTemplate: `-- rpp_qr_payment_reject_210_0, manual reject
+UPDATE workflow_execution
+SET state = 221,
+    attempt = 1,
+    data = JSON_SET(data, '$.State', 221)
+WHERE run_id IN (%s)
+AND state = 210
+AND workflow_id = 'wf_ct_qr_payment';`,
+			RollbackTemplate: `-- RPP Rollback: Move qr_payment workflows back to state 210
+UPDATE workflow_execution
+SET state = 210,
+    attempt = 0,
+    data = JSON_SET(data, '$.State', 210)
+WHERE run_id IN (%s)
+AND workflow_id = 'wf_ct_qr_payment';`,
+			TargetDB:      "RPP",
+			WorkflowID:    "'wf_ct_qr_payment'",
+			TargetState:   210,
+			TargetAttempt: 0,
+		}
+	},
 }
 
 // getCaseTypeFromTicket determines the SOP case type based on ticket characteristics
@@ -208,6 +233,9 @@ func getCaseTypeFromTicket(ticket DMLTicket) SOPCase {
 	}
 	if strings.Contains(ticket.DeployTemplate, "state = 311") {
 		return SOPCaseRppCashoutReject101_19
+	}
+	if strings.Contains(ticket.DeployTemplate, "state = 221") && strings.Contains(ticket.DeployTemplate, "wf_ct_qr_payment") {
+		return SOPCaseRppQrPaymentReject210_0
 	}
 	return SOPCaseNone
 }
