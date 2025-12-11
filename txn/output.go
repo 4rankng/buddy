@@ -74,7 +74,7 @@ func writeResult(w io.Writer, result TransactionResult, index int) {
 			}
 		}
 		if result.RPPWorkflow.Type != "" {
-			line := fmt.Sprintf("state=%s attempt=%d", result.RPPWorkflow.State, result.RPPWorkflow.Attempt)
+			line := fmt.Sprintf("state=%s attempt=%d", result.RPPWorkflow.GetFormattedState(), result.RPPWorkflow.Attempt)
 			if _, err := fmt.Fprintf(w, "workflow_%s: %s run_id=%s\n", result.RPPWorkflow.Type, line, result.RPPWorkflow.RunID); err != nil {
 				fmt.Printf("Warning: failed to write rpp workflow: %v\n", err)
 			}
@@ -102,7 +102,7 @@ func writeResult(w io.Writer, result TransactionResult, index int) {
 		}
 
 		if result.PaymentEngineWorkflow.RunID != "" {
-			line := fmt.Sprintf("state=%s attempt=%d", result.PaymentEngineWorkflow.State, result.PaymentEngineWorkflow.Attempt)
+			line := fmt.Sprintf("state=%s attempt=%d", result.PaymentEngineWorkflow.GetFormattedState(), result.PaymentEngineWorkflow.Attempt)
 			if _, err := fmt.Fprintf(w, "workflow_transfer_payment: %s run_id=%s\n", line, result.PaymentEngineWorkflow.RunID); err != nil {
 				fmt.Printf("Warning: failed to write payment engine workflow: %v\n", err)
 			}
@@ -125,7 +125,7 @@ func writeResult(w io.Writer, result TransactionResult, index int) {
 		}
 
 		for _, workflow := range result.PaymentCoreWorkflows {
-			line := fmt.Sprintf("state=%s attempt=%d", workflow.State, workflow.Attempt)
+			line := fmt.Sprintf("state=%s attempt=%d", FormatWorkflowState(workflow.Type, workflow.State), workflow.Attempt)
 			if _, err := fmt.Fprintf(w, "payment_core_workflow_%s: %s run_id=%s\n", workflow.Type, line, workflow.RunID); err != nil {
 				fmt.Printf("Warning: failed to write payment core workflow: %v\n", err)
 			}
@@ -148,7 +148,7 @@ func writeResult(w io.Writer, result TransactionResult, index int) {
 			}
 		}
 		if result.RPPWorkflow.RunID != "" {
-			line := fmt.Sprintf("state=%s attempt=%d", result.RPPWorkflow.State, result.RPPWorkflow.Attempt)
+			line := fmt.Sprintf("state=%s attempt=%d", result.RPPWorkflow.GetFormattedState(), result.RPPWorkflow.Attempt)
 			if _, err := fmt.Fprintf(w, "workflow_%s: %s run_id=%s\n", result.RPPWorkflow.Type, line, result.RPPWorkflow.RunID); err != nil {
 				fmt.Printf("Warning: failed to write rpp workflow: %v\n", err)
 			}

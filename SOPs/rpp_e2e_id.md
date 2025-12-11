@@ -60,7 +60,7 @@ we can keep adding into IN ()
 if we have multiple cases
 
 
-for stdout output (single txn) or file output (multiple txn)
+for stdout output (single txn) or write to file output (multiple txn)
 
 ### [1] transaction_id: f4e858c9f47f4a469f09126f94f42ace
 [payment-engine]
@@ -76,7 +76,7 @@ payment_core_workflow_internal_payment_flow: state=stSuccess(900) attempt=0 run_
 credit_transfer.status: PROCESSING
 wf_ct_cashout: state=stSuccess(101) attempt=19 run_id=64bdfe8b7cae409d8074289b102bca1e
 
-
+Here is your reference for workflow state mappings
 // Workflow state mappings
 var workflowStateMap = map[int]string{
 	100: "stTransferPersisted",
