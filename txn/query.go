@@ -256,7 +256,7 @@ func QueryTransactionStatus(transactionID string) *TransactionResult {
 // queryRPPE2EID handles RPP E2E ID lookups
 func queryRPPE2EID(client *clients.DoormanClient, e2eID string) *TransactionResult {
 	// First query RPP adapter database to get partner_tx_id and credit_transfer status
-	rppQuery := fmt.Sprintf("SELECT partner_tx_id, status FROM credit_transfer WHERE end_to_end_id = '%s'", e2eID)
+	rppQuery := fmt.Sprintf("SELECT partner_tx_id, partner_tx_sts AS status FROM credit_transfer WHERE end_to_end_id = '%s'", e2eID)
 	rppResults, err := client.ExecuteQuery("prd-payments-rpp-adapter-rds-mysql", "prd-payments-rpp-adapter-rds-mysql", "rpp_adapter", rppQuery)
 	if err != nil {
 		return &TransactionResult{
