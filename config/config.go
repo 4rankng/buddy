@@ -36,7 +36,11 @@ func loadEnvFile(filename string) error {
 	if err != nil {
 		return err
 	}
-	defer file.Close()
+	defer func() {
+		if err := file.Close(); err != nil {
+			fmt.Printf("Warning: failed to close env file %s: %v\n", filename, err)
+		}
+	}()
 
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
@@ -49,7 +53,9 @@ func loadEnvFile(filename string) error {
 		if len(parts) == 2 {
 			key := strings.TrimSpace(parts[0])
 			value := strings.TrimSpace(parts[1])
-			os.Setenv(key, value)
+			if err := os.Setenv(key, value); err != nil {
+				fmt.Printf("Warning: failed to set env variable %s: %v\n", key, err)
+			}
 		}
 	}
 	return nil

@@ -29,13 +29,30 @@ type DMLTicket struct {
 	TargetAttempt    int      // target attempt to check in WHERE clause
 	StateField       string   // field name for state in WHERE clause (usually "state")
 	WorkflowIDs      []string // multiple workflow_ids for IN clause
+
+	// Consolidation metadata
+	TransactionCount int // Number of transactions consolidated
+}
+
+// TemplateConfig defines the parameters required for a SQL template
+type TemplateConfig struct {
+	Parameters []string // List of parameter types: ["run_ids"], ["run_ids", "workflow_ids"]
+}
+
+// templateConfigs maps SOP cases to their template parameter configurations
+var templateConfigs = map[SOPCase]TemplateConfig{
+	SOPCasePcExternalPaymentFlow200_11:      {Parameters: []string{"run_ids"}},
+	SOPCasePcExternalPaymentFlow201_0RPP210: {Parameters: []string{"run_ids"}},
+	SOPCasePcExternalPaymentFlow201_0RPP900: {Parameters: []string{"run_ids"}},
+	SOPCasePeTransferPayment210_0:           {Parameters: []string{"run_ids"}},
+	SOPCaseRppCashoutReject101_19:           {Parameters: []string{"run_ids", "workflow_ids"}},
 }
 
 // sqlTemplates maps SOP cases to their DML tickets
-var sqlTemplates = map[SOPCase]func(TransactionResult) DMLTicket{
-	SOPCasePcExternalPaymentFlow200_11: func(result TransactionResult) DMLTicket {
+var sqlTemplates = map[SOPCase]func(TransactionResult) *DMLTicket{
+	SOPCasePcExternalPaymentFlow200_11: func(result TransactionResult) *DMLTicket {
 		if runID := getPcExtPayment200_11RunID(result); runID != "" {
-			return DMLTicket{
+			return &DMLTicket{
 				RunIDs: []string{runID},
 				DeployTemplate: `-- pc_external_payment_flow_200_11
 UPDATE workflow_execution
@@ -64,10 +81,10 @@ WHERE run_id IN (%s);`,
 				TargetAttempt: 11,
 			}
 		}
-		return DMLTicket{}
+		return nil
 	},
-	SOPCasePcExternalPaymentFlow201_0RPP210: func(result TransactionResult) DMLTicket {
-		return DMLTicket{
+	SOPCasePcExternalPaymentFlow201_0RPP210: func(result TransactionResult) *DMLTicket {
+		return &DMLTicket{
 			RunIDs: []string{result.RPPWorkflow.RunID},
 			DeployTemplate: `-- RPP 210, PE 220, PC 201. No response from RPP. Move to 222 to resume. ACSP
 UPDATE workflow_execution
@@ -86,8 +103,8 @@ WHERE run_id IN (%s);`,
 			TargetAttempt: 0,
 		}
 	},
-	SOPCasePcExternalPaymentFlow201_0RPP900: func(result TransactionResult) DMLTicket {
-		return DMLTicket{
+	SOPCasePcExternalPaymentFlow201_0RPP900: func(result TransactionResult) *DMLTicket {
+		return &DMLTicket{
 			RunIDs: []string{result.RPPWorkflow.RunID},
 			DeployTemplate: `-- RPP 900, PE 220, PC 201. Republish from RPP to resume. ACSP
 UPDATE workflow_execution
@@ -106,8 +123,8 @@ WHERE run_id IN (%s);`,
 			TargetAttempt: 0,
 		}
 	},
-	SOPCasePeTransferPayment210_0: func(result TransactionResult) DMLTicket {
-		return DMLTicket{
+	SOPCasePeTransferPayment210_0: func(result TransactionResult) *DMLTicket {
+		return &DMLTicket{
 			RunIDs: []string{result.PaymentEngineWorkflow.RunID},
 			DeployTemplate: `-- Reject PE stuck 210. Reject transactions since it hasn't reached Paynet yet
 UPDATE workflow_execution
@@ -138,8 +155,8 @@ AND workflow_id = 'workflow_transfer_payment';`,
 			TargetAttempt: 0,
 		}
 	},
-	SOPCaseRppCashoutReject101_19: func(result TransactionResult) DMLTicket {
-		return DMLTicket{
+	SOPCaseRppCashoutReject101_19: func(result TransactionResult) *DMLTicket {
+		return &DMLTicket{
 			RunIDs: []string{result.RPPWorkflow.RunID},
 			DeployTemplate: `-- RPP Deploy: Reset workflows stuck at state 311 to attempt 1
 UPDATE workflow_execution
@@ -156,6 +173,27 @@ AND workflow_id IN (%s);`,
 			TargetState: 311,
 		}
 	},
+}
+
+// getCaseTypeFromTicket determines the SOP case type based on ticket characteristics
+func getCaseTypeFromTicket(ticket DMLTicket) SOPCase {
+	// Match based on template content and other characteristics
+	if strings.Contains(ticket.DeployTemplate, "pc_external_payment_flow_200_11") {
+		return SOPCasePcExternalPaymentFlow200_11
+	}
+	if strings.Contains(ticket.DeployTemplate, "state = 222") {
+		return SOPCasePcExternalPaymentFlow201_0RPP210
+	}
+	if strings.Contains(ticket.DeployTemplate, "state = 301") {
+		return SOPCasePcExternalPaymentFlow201_0RPP900
+	}
+	if strings.Contains(ticket.DeployTemplate, "workflow_transfer_payment") {
+		return SOPCasePeTransferPayment210_0
+	}
+	if strings.Contains(ticket.DeployTemplate, "state = 311") {
+		return SOPCaseRppCashoutReject101_19
+	}
+	return SOPCaseNone
 }
 
 // generateSQLFromTicket generates SQL statements from a DML ticket
@@ -176,16 +214,23 @@ func generateSQLFromTicket(ticket DMLTicket) SQLStatements {
 	// Generate deploy and rollback statements
 	var deploySQL, rollbackSQL string
 
-	// Check if template expects workflow_ids parameter (by checking if the template has multiple %s placeholders)
-	if strings.Count(ticket.DeployTemplate, "%s") >= 2 {
-		// Template expects two parameters: run_ids and workflow_ids
-		workflowIDsClause := strings.Join(ticket.WorkflowIDs, ", ")
-		deploySQL = fmt.Sprintf(ticket.DeployTemplate, inClause, workflowIDsClause)
-		rollbackSQL = fmt.Sprintf(ticket.RollbackTemplate, inClause, workflowIDsClause)
-	} else {
-		// Template expects only run_ids
+	// Use explicit config instead of string counting
+	caseType := getCaseTypeFromTicket(ticket)
+	config, exists := templateConfigs[caseType]
+	if !exists {
+		// Default to run_ids only
 		deploySQL = fmt.Sprintf(ticket.DeployTemplate, inClause)
 		rollbackSQL = fmt.Sprintf(ticket.RollbackTemplate, inClause)
+	} else {
+		// Generate based on parameter count
+		if len(config.Parameters) == 2 {
+			workflowIDsClause := strings.Join(ticket.WorkflowIDs, ", ")
+			deploySQL = fmt.Sprintf(ticket.DeployTemplate, inClause, workflowIDsClause)
+			rollbackSQL = fmt.Sprintf(ticket.RollbackTemplate, inClause, workflowIDsClause)
+		} else {
+			deploySQL = fmt.Sprintf(ticket.DeployTemplate, inClause)
+			rollbackSQL = fmt.Sprintf(ticket.RollbackTemplate, inClause)
+		}
 	}
 
 	// Add to appropriate statement list based on target DB
@@ -210,8 +255,8 @@ func GenerateSQLStatements(results []TransactionResult) SQLStatements {
 
 	fmt.Println("\n--- Generating SQL Statements ---")
 
-	// Group tickets by case type for bulk processing
-	caseTickets := make(map[SOPCase][]DMLTicket)
+	// Use map[SOPCase]DMLTicket for automatic consolidation
+	caseTickets := make(map[SOPCase]DMLTicket)
 
 	for i := range results {
 		// identifySOPCase now takes a pointer and might trigger prompts
@@ -220,36 +265,34 @@ func GenerateSQLStatements(results []TransactionResult) SQLStatements {
 
 		// Get the template function for this case
 		if templateFunc, exists := sqlTemplates[caseType]; exists {
-			ticket := templateFunc(results[i])
-			if len(ticket.RunIDs) > 0 {
-				caseTickets[caseType] = append(caseTickets[caseType], ticket)
+			newTicket := templateFunc(results[i])
+			if newTicket != nil && len(newTicket.RunIDs) > 0 {
+				if existingTicket, exists := caseTickets[caseType]; exists {
+					// Merge IDs into existing ticket
+					existingTicket.RunIDs = append(existingTicket.RunIDs, newTicket.RunIDs...)
+					if len(newTicket.ReqBizMsgIDs) > 0 {
+						existingTicket.ReqBizMsgIDs = append(existingTicket.ReqBizMsgIDs, newTicket.ReqBizMsgIDs...)
+					}
+					if len(newTicket.PartnerTxIDs) > 0 {
+						existingTicket.PartnerTxIDs = append(existingTicket.PartnerTxIDs, newTicket.PartnerTxIDs...)
+					}
+					existingTicket.TransactionCount++
+					caseTickets[caseType] = existingTicket
+				} else {
+					// Create new ticket with counter
+					newTicket.TransactionCount = 1
+					caseTickets[caseType] = *newTicket
+				}
 			}
 		}
 	}
 
-	// Process each case type, consolidating tickets when possible
-	for caseType, tickets := range caseTickets {
-		// For Case 1, we want to process all tickets together for bulk SQL
-		if caseType == SOPCasePcExternalPaymentFlow200_11 {
-			// Consolidate all run IDs from all tickets
-			var allRunIDs []string
-			for _, ticket := range tickets {
-				allRunIDs = append(allRunIDs, ticket.RunIDs...)
-			}
-
-			// Create a single consolidated ticket
-			if len(tickets) > 0 {
-				consolidatedTicket := tickets[0]
-				consolidatedTicket.RunIDs = allRunIDs
-				generatedSQL := generateSQLFromTicket(consolidatedTicket)
-				appendStatements(&statements, generatedSQL)
-			}
-		} else {
-			// For other cases, process each ticket individually
-			for _, ticket := range tickets {
-				generatedSQL := generateSQLFromTicket(ticket)
-				appendStatements(&statements, generatedSQL)
-			}
+	// Process each consolidated ticket
+	for caseType, ticket := range caseTickets {
+		if len(ticket.RunIDs) > 0 {
+			fmt.Printf("Generating SQL for %s with %d transactions\n", caseType, ticket.TransactionCount)
+			generatedSQL := generateSQLFromTicket(ticket)
+			appendStatements(&statements, generatedSQL)
 		}
 	}
 
@@ -274,162 +317,6 @@ func getPcExtPayment200_11RunID(result TransactionResult) string {
 		}
 	}
 	return ""
-}
-
-// FixPcExtPayment200_11_Bulk generates SQL statements for multiple transactions using IN clause
-func FixPcExtPayment200_11_Bulk(runIDs []string) SQLStatements {
-	var pcDeployStatements []string
-	var pcRollbackStatements []string
-
-	if len(runIDs) == 0 {
-		return SQLStatements{}
-	}
-
-	// Create comma-separated list of quoted run_ids
-	quotedRunIDs := make([]string, len(runIDs))
-	for i, id := range runIDs {
-		quotedRunIDs[i] = fmt.Sprintf("'%s'", id)
-	}
-	inClause := strings.Join(quotedRunIDs, ", ")
-
-	// Generate deploy statement
-	deploySQL := fmt.Sprintf(`-- pc_external_payment_flow_200_11 (Bulk Update for %d items)
-UPDATE workflow_execution SET state = 202, attempt = 1,
-  `+"`data`"+` = JSON_SET(`+"`data`"+`, '$.StreamResp', JSON_OBJECT('TxID', '', 'Status', 'FAILED', 'ErrorCode', 'ADAPTER_ERROR', 'ExternalID', '', 'ErrorMessage', 'Reject from adapter'), '$.State', 202)
-WHERE run_id IN (%s)
-AND state = 200 AND attempt = 11;`, len(runIDs), inClause)
-	pcDeployStatements = append(pcDeployStatements, deploySQL)
-
-	// Generate rollback statement
-	rollbackSQL := fmt.Sprintf(`UPDATE workflow_execution SET state = 200, attempt = 11, `+"`data`"+` = JSON_SET(`+"`data`"+`, '$.State', 200)
-WHERE run_id IN (%s);`, inClause)
-	pcRollbackStatements = append(pcRollbackStatements, rollbackSQL)
-
-	return SQLStatements{
-		PCDeployStatements:   pcDeployStatements,
-		PCRollbackStatements: pcRollbackStatements,
-	}
-}
-
-// FixPcExtPayment201_0RPP210 generates SQL for pc_external_payment_flow_201_0_RPP_210 (state 210)
-func FixPcExtPayment201_0RPP210(result TransactionResult) SQLStatements {
-	var rppDeployStatements []string
-	var rppRollbackStatements []string
-
-	// Generate deploy statement
-	deploySQL := fmt.Sprintf(`-- RPP 210, PE 220, PC 201. No response from RPP. Move to 222 to resume. ACSP
-UPDATE workflow_execution SET state = 222, attempt = 1,
-	 `+"`data`"+` = JSON_SET(`+"`data`"+`, '$.State', 222)
-WHERE run_id = '%s' AND state = 210;`, result.RPPWorkflow.RunID)
-	rppDeployStatements = append(rppDeployStatements, deploySQL)
-
-	// Generate rollback statement
-	rollbackSQL := fmt.Sprintf(`UPDATE workflow_execution SET state = 201, attempt = 0,
-	 `+"`data`"+` = JSON_SET(`+"`data`"+`, '$.State', 201)
-WHERE run_id = '%s';`, result.RPPWorkflow.RunID)
-	rppRollbackStatements = append(rppRollbackStatements, rollbackSQL)
-
-	return SQLStatements{
-		RPPDeployStatements:   rppDeployStatements,
-		RPPRollbackStatements: rppRollbackStatements,
-	}
-}
-
-// FixPcExtPayment201_0RPP900 generates SQL statements for pc_external_payment_flow_201_0_RPP_900
-func FixPcExtPayment201_0RPP900(result TransactionResult) SQLStatements {
-	var rppDeployStatements []string
-	var rppRollbackStatements []string
-
-	// Ensure we have a valid run ID from the RPP data
-	if result.RPPWorkflow.RunID != "" {
-		// Generate deploy statement
-		deploySQL := fmt.Sprintf(`-- RPP 900, PE 220, PC 201. Republish from RPP to resume. ACSP
-UPDATE workflow_execution
-SET state = 301, attempt = 1, `+"`data`"+` = JSON_SET(`+"`data`"+`, '$.State', 301)
-WHERE run_id = '%s' AND state = 900;`, result.RPPWorkflow.RunID)
-		rppDeployStatements = append(rppDeployStatements, deploySQL)
-
-		// Generate rollback statement
-		rollbackSQL := fmt.Sprintf(`UPDATE workflow_execution SET state = 900, attempt = 0, `+"`data`"+` = JSON_SET(`+"`data`"+`, '$.State', 900)
-WHERE run_id = '%s';`, result.RPPWorkflow.RunID)
-		rppRollbackStatements = append(rppRollbackStatements, rollbackSQL)
-	}
-
-	return SQLStatements{
-		RPPDeployStatements:   rppDeployStatements,
-		RPPRollbackStatements: rppRollbackStatements,
-	}
-}
-
-// FixPeTransferPayment210_0 generates SQL statements for transactions with
-// workflow_transfer_payment: stAuthProcessing (210) attempt=0
-func FixPeTransferPayment210_0(result TransactionResult) SQLStatements {
-	var peDeployStatements []string
-	var peRollbackStatements []string
-
-	// Generate deploy statement
-	deploySQL := fmt.Sprintf(`-- Reject PE stuck 210. Reject transactions since it hasn't reached Paynet yet
-UPDATE workflow_execution
-SET  state = 221, attempt = 1, `+"`data`"+` = JSON_SET(
-	 `+"`data`"+`, '$.StreamMessage',
-	 JSON_OBJECT(
-	         'Status', 'FAILED',
-	         'ErrorCode', 'ADAPTER_ERROR',
-	         'ErrorMessage', 'Manual Rejected'),
-	 '$.State', 221)
-WHERE run_id = '%s' AND workflow_id = 'workflow_transfer_payment' AND state = 210;`, result.PaymentEngineWorkflow.RunID)
-	peDeployStatements = append(peDeployStatements, deploySQL)
-
-	// Generate rollback statement
-	rollbackSQL := fmt.Sprintf(`UPDATE workflow_execution
-SET  state = 210, attempt = 0, `+"`data`"+` = JSON_SET(
-	 `+"`data`"+`, '$.StreamMessage', null,
-	   '$.State', 210)
-WHERE run_id = '%s' AND workflow_id = 'workflow_transfer_payment';`, result.PaymentEngineWorkflow.RunID)
-	peRollbackStatements = append(peRollbackStatements, rollbackSQL)
-
-	return SQLStatements{
-		PEDeployStatements:   peDeployStatements,
-		PERollbackStatements: peRollbackStatements,
-	}
-}
-
-// FixRppCashoutReject101_19 generates SQL statements for RPP cashout reject case
-// Criteria: state=101 AND attempt=19 AND workflow_id IN ('wf_ct_cashout', 'wf_ct_qr_payment')
-func FixRppCashoutReject101_19(result TransactionResult) SQLStatements {
-	var rppDeployStatements []string
-	var rppRollbackStatements []string
-
-	// Generate deploy statement - Set workflow to failed state
-	deploySQL := fmt.Sprintf(`-- RPP Cashout Reject: Force fail workflows stuck at state 101 attempt 19
-UPDATE workflow_execution
-SET state = 501, attempt = 20,
-	`+"`data`"+` = JSON_SET(
-		`+"`data`"+`, '$.State', 501,
-		'$.ErrorMessage', 'Manual reject - Max attempts reached',
-		'$.ErrorCode', 'MAX_ATTEMPTS_EXCEEDED'
-	)
-WHERE run_id = '%s'
-AND state = 101
-AND attempt = 19
-AND workflow_id IN ('wf_ct_cashout', 'wf_ct_qr_payment');`, result.RPPWorkflow.RunID)
-	rppDeployStatements = append(rppDeployStatements, deploySQL)
-
-	// Generate rollback statement
-	rollbackSQL := fmt.Sprintf(`UPDATE workflow_execution
-SET state = 101, attempt = 19,
-	`+"`data`"+` = JSON_SET(
-		`+"`data`"+`, '$.State', 101,
-		'$.ErrorMessage', JSON_REMOVE(JSON_EXTRACT(`+"`data`"+`, '$.ErrorMessage'), '$.ErrorMessage'),
-		'$.ErrorCode', JSON_REMOVE(JSON_EXTRACT(`+"`data`"+`, '$.ErrorCode'), '$.ErrorCode')
-	)
-WHERE run_id = '%s';`, result.RPPWorkflow.RunID)
-	rppRollbackStatements = append(rppRollbackStatements, rollbackSQL)
-
-	return SQLStatements{
-		RPPDeployStatements:   rppDeployStatements,
-		RPPRollbackStatements: rppRollbackStatements,
-	}
 }
 
 // WriteSQLFiles writes the SQL statements to database-specific Deploy.sql and Rollback.sql files
@@ -485,11 +372,19 @@ func writeSQLFile(filePath string, statements []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to create file %s: %v", filePath, err)
 	}
-	defer file.Close()
+	defer func() {
+		if err := file.Close(); err != nil {
+			fmt.Printf("Warning: failed to close SQL file %s: %v\n", filePath, err)
+		}
+	}()
 
 	for _, stmt := range statements {
-		fmt.Fprintln(file, stmt)
-		fmt.Fprintln(file)
+		if _, err := fmt.Fprintln(file, stmt); err != nil {
+			fmt.Printf("Warning: failed to write SQL statement: %v\n", err)
+		}
+		if _, err := fmt.Fprintln(file); err != nil {
+			fmt.Printf("Warning: failed to write newline: %v\n", err)
+		}
 	}
 	fmt.Printf("SQL statements written to %s\n", filePath)
 	return nil

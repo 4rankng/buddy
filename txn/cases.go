@@ -10,14 +10,6 @@ import (
 	"buddy/clients"
 )
 
-// caseMatchers maps SOP cases to their respective matching functions
-// Note: We are now handling the RPP cases dynamically in identifySOPCase
-var caseMatchers = map[SOPCase]func(TransactionResult) bool{
-	SOPCasePcExternalPaymentFlow200_11: matchSOPCasePcExternalPaymentFlow200_11,
-	SOPCasePeTransferPayment210_0:      matchSOPCasePeTransferPayment210_0,
-	SOPCaseRppCashoutReject101_19:      matchSOPCaseRppCashoutReject101_19,
-}
-
 // findPaymentCoreWorkflow finds a specific workflow type in the PaymentCoreWorkflows slice
 func findPaymentCoreWorkflow(workflows []WorkflowInfo, workflowType string) *WorkflowInfo {
 	for i := range workflows {

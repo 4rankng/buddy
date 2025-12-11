@@ -60,7 +60,11 @@ func (c *DoormanClient) Authenticate() error {
 		output.LogEvent("doorman_auth_http_error", map[string]any{"error": err.Error()})
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			output.LogEvent("doorman_auth_close_error", map[string]any{"error": err.Error()})
+		}
+	}()
 	if resp.StatusCode >= 300 {
 		var bodyBytes []byte
 		if resp.Body != nil {
@@ -87,7 +91,11 @@ func (c *DoormanClient) ExecuteQuery(cluster, instance, schema, query string) ([
 		output.LogEvent("doorman_http_error", map[string]any{"error": err.Error(), "cluster": cluster, "schema": schema})
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			output.LogEvent("doorman_auth_close_error", map[string]any{"error": err.Error()})
+		}
+	}()
 	if resp.StatusCode >= 300 {
 		var bodyBytes []byte
 		if resp.Body != nil {

@@ -15,7 +15,11 @@ func ReadTransactionIDsFromFile(filePath string) ([]string, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to open file: %v", err)
 	}
-	defer file.Close()
+	defer func() {
+		if err := file.Close(); err != nil {
+			output.LogEvent("batch_file_close_error", map[string]any{"error": err.Error(), "filePath": filePath})
+		}
+	}()
 
 	var transactionIDs []string
 	scanner := bufio.NewScanner(file)
