@@ -10,6 +10,7 @@ func calculateSummaryStats(results []TransactionResult) {
 	pcExtPayment201_0RPP210MatchCount := 0
 	pcExtPayment201_0RPP900MatchCount := 0
 	peTransferPayment210_0MatchCount := 0
+	rppCashoutReject101_19MatchCount := 0
 
 	// We re-iterate through results. Note: Since identifySOPCase is now potentially
 	// interactive or side-effecting (if we hadn't already run it), we should
@@ -38,14 +39,16 @@ func calculateSummaryStats(results []TransactionResult) {
 				pcExtPayment201_0RPP900MatchCount++
 			case SOPCasePeTransferPayment210_0:
 				peTransferPayment210_0MatchCount++
+			case SOPCaseRppCashoutReject101_19:
+				rppCashoutReject101_19MatchCount++
 			}
 		} else {
 			errorCount++
 		}
 	}
 
-	totalMatchCount := pcExtPayment200_11MatchCount + pcExtPayment201_0RPP210MatchCount + pcExtPayment201_0RPP900MatchCount + peTransferPayment210_0MatchCount
+	totalMatchCount := pcExtPayment200_11MatchCount + pcExtPayment201_0RPP210MatchCount + pcExtPayment201_0RPP900MatchCount + peTransferPayment210_0MatchCount + rppCashoutReject101_19MatchCount
 	fmt.Printf("Summary: %d found, %d errors/not found\n", foundCount, errorCount)
-	fmt.Printf("SQL matches: %d total (pc_external_payment_flow_200_11: %d, pc_external_payment_flow_201_0_RPP_210: %d, pc_external_payment_flow_201_0_RPP_900: %d, pe_transfer_payment_210_0: %d)\n",
-		totalMatchCount, pcExtPayment200_11MatchCount, pcExtPayment201_0RPP210MatchCount, pcExtPayment201_0RPP900MatchCount, peTransferPayment210_0MatchCount)
+	fmt.Printf("SQL matches: %d total (pc_external_payment_flow_200_11: %d, pc_external_payment_flow_201_0_RPP_210: %d, pc_external_payment_flow_201_0_RPP_900: %d, pe_transfer_payment_210_0: %d, rpp_cashout_reject_101_19: %d)\n",
+		totalMatchCount, pcExtPayment200_11MatchCount, pcExtPayment201_0RPP210MatchCount, pcExtPayment201_0RPP900MatchCount, peTransferPayment210_0MatchCount, rppCashoutReject101_19MatchCount)
 }
