@@ -38,7 +38,7 @@ this case is called rpp_cashout_reject_101_19
 
 
 RPP_DEPLOY.sql
-
+-- rpp_cashout_reject_101_19, publish FAILED status
 SET state = 311, attempt = 1 ,  data = JSON_SET(data, '$.State', 311)
 WHERE run_id IN (
 	'33997a1f8dae4793a2e1bc711aa066af'
@@ -185,21 +185,22 @@ rpp-adapter workflow_id='wf_ct_cashin'
 
 if
 
-state=210 and attempt = 0 and workflow_id='wf_ct_cashout', 'wf_ct_qr_payment'
+state=210 and attempt = 0 and workflow_id='wf_ct_qr_payment'
 `
 this case is called rpp_qr_payment_reject_210_0
 
 
 RPP_DEPLOY.sql
 
-UPDATE workflow_execution 
+-- rpp_qr_payment_reject_210_0, manual reject
+UPDATE workflow_execution
 SET state = 221, attempt = 1 ,  data = JSON_SET(data, '$.State', 221)
-where run_id in 
+where run_id in
 ('2823f1ae2cc44331b49827bdffc44a16') and state = 210 and workflow_id = 'wf_ct_qr_payment';
 
 RPP_Rollback.sql
 SET state = 210, attempt = 0 ,  data = JSON_SET(data, '$.State', 210)
-where run_id in 
+where run_id in
 ('2823f1ae2cc44331b49827bdffc44a16') and state = 210 and workflow_id = 'wf_ct_qr_payment';
 
 we can keep adding into IN ()

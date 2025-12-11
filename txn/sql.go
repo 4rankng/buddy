@@ -6,6 +6,16 @@ import (
 	"strings"
 )
 
+// contains checks if a slice contains a specific string
+func contains(slice []string, item string) bool {
+	for _, s := range slice {
+		if s == item {
+			return true
+		}
+	}
+	return false
+}
+
 // SQLStatements contains the deploy and rollback SQL statements separated by database
 type SQLStatements struct {
 	PCDeployStatements    []string
@@ -45,7 +55,7 @@ var templateConfigs = map[SOPCase]TemplateConfig{
 	SOPCasePcExternalPaymentFlow201_0RPP210: {Parameters: []string{"run_ids"}},
 	SOPCasePcExternalPaymentFlow201_0RPP900: {Parameters: []string{"run_ids"}},
 	SOPCasePeTransferPayment210_0:           {Parameters: []string{"run_ids"}},
-	SOPCaseRppCashoutReject101_19:           {Parameters: []string{"run_ids", "workflow_ids"}},
+	SOPCaseRppCashoutReject101_19:           {Parameters: []string{"run_ids"}},
 }
 
 // sqlTemplates maps SOP cases to their DML tickets
@@ -158,19 +168,25 @@ AND workflow_id = 'workflow_transfer_payment';`,
 	SOPCaseRppCashoutReject101_19: func(result TransactionResult) *DMLTicket {
 		return &DMLTicket{
 			RunIDs: []string{result.RPPWorkflow.RunID},
-			DeployTemplate: `-- RPP Deploy: Reset workflows stuck at state 311 to attempt 1
+			DeployTemplate: `-- rpp_cashout_reject_101_19, publish FAILED status
 UPDATE workflow_execution
-SET attempt = 1
+SET state = 311,
+    attempt = 1,
+    data = JSON_SET(data, '$.State', 311)
 WHERE run_id IN (%s)
-AND state = 311
-AND workflow_id IN (%s);`,
-			RollbackTemplate: `UPDATE workflow_execution
-SET attempt = 1
+AND state = 101
+AND workflow_id = 'wf_ct_cashout';`,
+			RollbackTemplate: `-- RPP Rollback: Move workflows back to state 101
+UPDATE workflow_execution
+SET state = 101,
+    attempt = 0,
+    data = JSON_SET(data, '$.State', 101)
 WHERE run_id IN (%s)
-AND workflow_id IN (%s);`,
-			TargetDB:    "RPP",
-			WorkflowIDs: []string{"'wf_ct_qr_payment'", "'wf_ct_cashout'"},
-			TargetState: 311,
+AND workflow_id = 'wf_ct_cashout';`,
+			TargetDB:      "RPP",
+			WorkflowID:    "'wf_ct_cashout'",
+			TargetState:   101,
+			TargetAttempt: 19,
 		}
 	},
 }
@@ -222,11 +238,20 @@ func generateSQLFromTicket(ticket DMLTicket) SQLStatements {
 		deploySQL = fmt.Sprintf(ticket.DeployTemplate, inClause)
 		rollbackSQL = fmt.Sprintf(ticket.RollbackTemplate, inClause)
 	} else {
-		// Generate based on parameter count
+		// Generate based on parameter types
 		if len(config.Parameters) == 2 {
-			workflowIDsClause := strings.Join(ticket.WorkflowIDs, ", ")
-			deploySQL = fmt.Sprintf(ticket.DeployTemplate, inClause, workflowIDsClause)
-			rollbackSQL = fmt.Sprintf(ticket.RollbackTemplate, inClause, workflowIDsClause)
+			// Check if it's workflow_id (single) or workflow_ids (multiple)
+			if contains(config.Parameters, "workflow_ids") {
+				workflowIDsClause := strings.Join(ticket.WorkflowIDs, ", ")
+				deploySQL = fmt.Sprintf(ticket.DeployTemplate, inClause, workflowIDsClause)
+				rollbackSQL = fmt.Sprintf(ticket.RollbackTemplate, inClause, workflowIDsClause)
+			} else if contains(config.Parameters, "workflow_id") {
+				deploySQL = fmt.Sprintf(ticket.DeployTemplate, inClause, ticket.WorkflowID)
+				rollbackSQL = fmt.Sprintf(ticket.RollbackTemplate, inClause, ticket.WorkflowID)
+			} else {
+				deploySQL = fmt.Sprintf(ticket.DeployTemplate, inClause)
+				rollbackSQL = fmt.Sprintf(ticket.RollbackTemplate, inClause)
+			}
 		} else {
 			deploySQL = fmt.Sprintf(ticket.DeployTemplate, inClause)
 			rollbackSQL = fmt.Sprintf(ticket.RollbackTemplate, inClause)
