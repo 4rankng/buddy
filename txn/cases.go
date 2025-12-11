@@ -45,7 +45,7 @@ func matchSOPCaseRppCashoutReject101_19(result TransactionResult) bool {
 	return result.RPPWorkflow.RunID != "" &&
 		result.RPPWorkflow.State == "101" &&
 		result.RPPWorkflow.Attempt == 19 &&
-		(result.RPPWorkflow.Type == "wf_ct_cashout" || result.RPPWorkflow.Type == "wf_ct_qr_payment")
+		result.RPPWorkflow.Type == "wf_ct_cashout"
 }
 
 // matchSOPCaseRppQrPaymentReject210_0 checks if a transaction matches the new QR payment reject criteria

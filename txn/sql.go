@@ -169,11 +169,11 @@ AND workflow_id = 'workflow_transfer_payment';`,
 	SOPCaseRppCashoutReject101_19: func(result TransactionResult) *DMLTicket {
 		return &DMLTicket{
 			RunIDs: []string{result.RPPWorkflow.RunID},
-			DeployTemplate: `-- rpp_cashout_reject_101_19, publish FAILED status
+			DeployTemplate: `-- rpp_cashout_reject_101_19, manual reject
 UPDATE workflow_execution
-SET state = 311,
+SET state = 221,
     attempt = 1,
-    data = JSON_SET(data, '$.State', 311)
+    data = JSON_SET(data, '$.State', 221)
 WHERE run_id IN (%s)
 AND state = 101
 AND workflow_id = 'wf_ct_cashout';`,
