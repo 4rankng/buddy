@@ -8,7 +8,7 @@ import (
 
 func init() {
 	// Load .env file
-	loadEnvFile(".env")
+	loadEnvFile(".env.my") // for mybuddy we load .env.my, for sgbuddy we load .env.sg
 }
 
 func loadEnvFile(filename string) {
