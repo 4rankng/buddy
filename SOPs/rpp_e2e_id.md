@@ -88,3 +88,35 @@ where run_id in
 
 we can keep adding into IN ()
 if we have multiple cases
+
+
+
+
+if 
+mybuddy rpp resume XXXX
+where XXX is single e2d id or file path eg TS-4468.txt
+
+you query prd-payments-rpp-adapter-rds-mysql
+
+
+select * from workflow_execution where run_id=(select partner_tx_id from credit_transfer where end_to_end_id='20251209GXSPMYKL010ORB79174342');
+
+if state=210 and attempt = 0 and workflow_id in ('wf_ct_cashout', 'wf_ct_qr_payment')
+
+RPP_Deploy.sql
+```sql
+-- rpp_no_response_resume_acsp
+-- RPP did not respond in time, but status at Paynet is ACSP (Accepted Settlement in Process) or ACTC (Accepted Technical Validation)
+UPDATE workflow_execution SET state = 222, attempt = 1,
+  `data` = JSON_SET(`data`, '$.State', 222)
+WHERE run_id IN (
+  '663c03ec156e4046b283d58604a68f4f'
+) AND state = 210 and workflow_id in ('wf_ct_cashout', 'wf_ct_qr_payment');
+```
+
+RPP_Rollback.sql
+UPDATE workflow_execution SET state = 210, attempt = 0,
+  `data` = JSON_SET(`data`, '$.State', 210)
+WHERE run_id IN (
+  '663c03ec156e4046b283d58604a68f4f'
+);
