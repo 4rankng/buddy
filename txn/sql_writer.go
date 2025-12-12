@@ -1,6 +1,7 @@
 package txn
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 )
@@ -54,24 +55,20 @@ func WriteSQLFiles(statements SQLStatements, basePath string) error {
 
 // WriteSQLFile writes SQL statements to a file
 func WriteSQLFile(filePath string, statements []string) error {
-	file, err := os.Create(filePath)
-	if err != nil {
-		return fmt.Errorf("failed to create file %s: %v", filePath, err)
-	}
-	defer func() {
-		if err := file.Close(); err != nil {
-			fmt.Printf("Warning: failed to close SQL file %s: %v\n", filePath, err)
-		}
-	}()
-
+	var buffer bytes.Buffer
 	for _, stmt := range statements {
-		if _, err := fmt.Fprintln(file, stmt); err != nil {
-			fmt.Printf("Warning: failed to write SQL statement: %v\n", err)
+		if _, err := buffer.WriteString(stmt); err != nil {
+			fmt.Printf("Warning: failed to buffer SQL statement: %v\n", err)
 		}
-		if _, err := fmt.Fprintln(file); err != nil {
-			fmt.Printf("Warning: failed to write newline: %v\n", err)
+		if _, err := buffer.WriteString("\n\n"); err != nil {
+			fmt.Printf("Warning: failed to buffer newline: %v\n", err)
 		}
 	}
+
+	if err := os.WriteFile(filePath, buffer.Bytes(), 0o644); err != nil {
+		return fmt.Errorf("failed to write file %s: %v", filePath, err)
+	}
+
 	fmt.Printf("SQL statements written to %s\n", filePath)
 	return nil
 }

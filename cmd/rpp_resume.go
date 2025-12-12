@@ -94,7 +94,7 @@ func processBatchFile(appCtx *app.Context, filePath string) {
 	// Always display RPP transaction status and workflow info for all transactions
 	// Write to output file instead of stdout
 	outputPath := filePath + "_RPP_Status.txt"
-	outputFile, err := os.Create(outputPath)
+	outputFile, err := os.OpenFile(outputPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
 	if err != nil {
 		fmt.Printf("%sError creating output file: %v\n", appCtx.GetPrefix(), err)
 		return

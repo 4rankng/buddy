@@ -9,8 +9,8 @@ import (
 	"buddy/clients"
 )
 
-// RppE2EIDPattern matches RPP E2E ID format: YYYYMMDDGXSPMY + 16 characters (total 30)
-var RppE2EIDPattern = regexp.MustCompile(`^\d{8}GXSPMY[A-Za-z0-9]{16}$`)
+// RppE2EIDPattern matches RPP E2E ID format: first 8 chars are digits (YYYYMMDD) and last 8 chars are digits, total 30 chars
+var RppE2EIDPattern = regexp.MustCompile(`^\d{8}.{14}\d{8}$`)
 
 // QueryTransactionStatus returns structured data about a transaction
 func QueryTransactionStatus(transactionID string) *TransactionResult {
@@ -264,7 +264,6 @@ func queryRPPE2EID(client *clients.DoormanClient, e2eID string) *TransactionResu
 			Error:         fmt.Sprintf("failed to query RPP adapter credit_transfer table: %v", err),
 		}
 	}
-
 	if len(rppResults) == 0 {
 		return &TransactionResult{
 			TransactionID: e2eID,
@@ -299,12 +298,22 @@ func queryRPPE2EID(client *clients.DoormanClient, e2eID string) *TransactionResu
 			Error:         fmt.Sprintf("failed to query workflow_execution table: %v", err),
 		}
 	}
-
 	if len(workflows) == 0 {
-		return &TransactionResult{
+		// If workflow execution is missing but credit_transfer exists,
+		// still return the credit_transfer information
+		result := &TransactionResult{
 			TransactionID: e2eID,
-			Error:         "No workflow execution found for this E2E ID",
+			PartnerTxID:   partnerTxID,
+			RPPStatus:     creditTransferStatus,
+			// Don't set Error - we have valid credit_transfer data
 		}
+
+		// Set minimal RPP workflow info - we don't have workflow details
+		result.RPPWorkflow.RunID = partnerTxID
+		// Set RPP info for display
+		result.RPPInfo = fmt.Sprintf("RPP Status: %s (workflow execution not found)", creditTransferStatus)
+
+		return result
 	}
 
 	// Build result

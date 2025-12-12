@@ -1,6 +1,7 @@
 package txn
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"os"
@@ -8,18 +9,13 @@ import (
 
 // WriteBatchResults writes transaction results to an output file in the new format
 func WriteBatchResults(results []TransactionResult, outputPath string) error {
-	file, err := os.Create(outputPath)
-	if err != nil {
-		return fmt.Errorf("failed to create output file: %v", err)
-	}
-	defer func() {
-		if err := file.Close(); err != nil {
-			fmt.Printf("Warning: failed to close output file %s: %v\n", outputPath, err)
-		}
-	}()
-
+	var buffer bytes.Buffer
 	for idx, result := range results {
-		writeResult(file, result, idx+1)
+		writeResult(&buffer, result, idx+1)
+	}
+
+	if err := os.WriteFile(outputPath, buffer.Bytes(), 0o644); err != nil {
+		return fmt.Errorf("failed to write output file: %v", err)
 	}
 
 	return nil
