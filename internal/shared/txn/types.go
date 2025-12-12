@@ -112,7 +112,7 @@ const NotFoundStatus = "NOT_FOUND"
 type SOPCase string
 
 const (
-	SOPCaseNone                             SOPCase = ""
+	SOPCaseNone                             SOPCase = NotFoundStatus
 	SOPCasePcExternalPaymentFlow200_11      SOPCase = "pc_external_payment_flow_200_11"
 	SOPCasePcExternalPaymentFlow201_0RPP210 SOPCase = "pc_external_payment_flow_201_0_RPP_210"
 	SOPCasePcExternalPaymentFlow201_0RPP900 SOPCase = "pc_external_payment_flow_201_0_RPP_900"
