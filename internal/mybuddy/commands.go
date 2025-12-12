@@ -11,6 +11,5 @@ func GetCommands(appCtx *app.Context) []*cobra.Command {
 		NewRppCmd(appCtx),
 		NewRppResumeCmd(appCtx),
 		NewEcoTxnCmd(appCtx),
-		TransferCmd,
 	}
 }

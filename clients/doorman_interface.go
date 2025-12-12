@@ -24,5 +24,4 @@ type DoormanInterface interface {
 
 	// Partnerpay Engine queries - Malaysia only
 	QueryPartnerpayEngine(query string) ([]map[string]interface{}, error)
-
 }

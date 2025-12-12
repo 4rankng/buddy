@@ -19,6 +19,13 @@ type AuthInfo struct {
 	Password string
 }
 
+// DBInfo holds database connection information
+type DBInfo struct {
+	ClusterName  string
+	InstanceName string
+	Schema       string
+}
+
 // DoormanConfig holds environment-specific configuration
 type DoormanConfig struct {
 	Host string
@@ -28,11 +35,11 @@ type DoormanConfig struct {
 	AccountID string
 
 	// Database cluster/instance names
-	PaymentEngine    string
-	PaymentCore      string
-	FastAdapter      string
-	RppAdapter       string
-	PartnerpayEngine string
+	PaymentEngine    DBInfo
+	PaymentCore      DBInfo
+	FastAdapter      DBInfo
+	RppAdapter       DBInfo
+	PartnerpayEngine DBInfo
 }
 
 // DoormanClient singleton with configuration
@@ -42,11 +49,6 @@ type DoormanClient struct {
 	mu            sync.RWMutex
 	authenticated bool
 }
-
-var (
-	singleton *DoormanClient
-	once      sync.Once
-)
 
 // Ensure DoormanClient implements DoormanInterface
 var _ DoormanInterface = (*DoormanClient)(nil)
@@ -59,12 +61,24 @@ var configs = map[string]DoormanConfig{
 			Username: config.Get("DOORMAN_USERNAME", ""),
 			Password: config.Get("DOORMAN_PASSWORD", ""),
 		},
-		AccountID:        "748118206017", // Singapore environment account ID
-		PaymentEngine:    "sg-prd-m-payment-engine",
-		PaymentCore:      "sg-prd-m-payment-core",
-		FastAdapter:      "sg-prd-m-fast-adapter",
-		RppAdapter:       "", // Not available in SG
-		PartnerpayEngine: "", // Not available in SG
+		AccountID: "748118206017", // Singapore environment account ID
+		PaymentEngine: DBInfo{
+			ClusterName:  "sg-prd-m-payment-engine",
+			InstanceName: "sg-prd-m-payment-engine",
+			Schema:       "payment_engine",
+		},
+		PaymentCore: DBInfo{
+			ClusterName:  "sg-prd-m-payment-core",
+			InstanceName: "sg-prd-m-payment-core",
+			Schema:       "payment_core",
+		},
+		FastAdapter: DBInfo{
+			ClusterName:  "sg-prd-m-fast-adapter",
+			InstanceName: "sg-prd-m-fast-adapter",
+			Schema:       "fast_adapter",
+		},
+		RppAdapter:       DBInfo{}, // Not available in SG
+		PartnerpayEngine: DBInfo{}, // Not available in SG
 	},
 	"my": {
 		Host: "https://doorman.infra.prd.g-bank.app",
@@ -72,48 +86,64 @@ var configs = map[string]DoormanConfig{
 			Username: config.Get("DOORMAN_USERNAME", ""),
 			Password: config.Get("DOORMAN_PASSWORD", ""),
 		},
-		AccountID:        "559634300081", // Malaysia environment account ID
-		PaymentEngine:    "prd-payments-payment-engine-rds-mysql",
-		PaymentCore:      "prd-payments-payment-core-rds-mysql",
-		FastAdapter:      "", // Not available in MY
-		RppAdapter:       "prd-payments-rpp-adapter-rds-mysql",
-		PartnerpayEngine: "prd-payments-partnerpay-engine-rds-mysql",
+		AccountID: "559634300081", // Malaysia environment account ID
+		PaymentEngine: DBInfo{
+			ClusterName:  "prd-payments-payment-engine-rds-mysql",
+			InstanceName: "prd-payments-payment-engine-rds-mysql",
+			Schema:       "payment_engine",
+		},
+		PaymentCore: DBInfo{
+			ClusterName:  "prd-payments-payment-core-rds-mysql",
+			InstanceName: "prd-payments-payment-core-rds-mysql",
+			Schema:       "payment_core",
+		},
+		FastAdapter: DBInfo{}, // Not available in MY
+		RppAdapter: DBInfo{
+			ClusterName:  "prd-payments-rpp-adapter-rds-mysql",
+			InstanceName: "prd-payments-rpp-adapter-rds-mysql",
+			Schema:       "rpp_adapter",
+		},
+		PartnerpayEngine: DBInfo{
+			ClusterName:  "prd-payments-partnerpay-engine-rds-mysql",
+			InstanceName: "prd-payments-partnerpay-engine-rds-mysql",
+			Schema:       "partnerpay_engine",
+		},
 	},
 }
 
+var Doorman DoormanInterface
+
 // GetDoormanClient returns singleton DoormanClient instance
-func GetDoormanClient(env string) (*DoormanClient, error) {
-	var err error
+func GetDoormanClient(env string) (DoormanInterface, error) {
+	if Doorman != nil {
+		return Doorman, nil
+	}
+	cfg, exists := configs[env]
+	if !exists {
+		cfg = configs["my"] // Default to Malaysia
+	}
 
-	once.Do(func() {
-		cfg, exists := configs[env]
-		if !exists {
-			cfg = configs["my"] // Default to Malaysia
-		}
+	Doorman = &DoormanClient{
+		config: cfg,
+		httpClient: &http.Client{
+			Timeout: 30 * time.Second,
+		},
+	}
 
-		singleton = &DoormanClient{
-			config: cfg,
-			httpClient: &http.Client{
-				Timeout: 30 * time.Second,
-			},
-		}
-	})
-
-	return singleton, err
+	return Doorman, nil
 }
 
 // GetConfig returns configuration for client
 func (c *DoormanClient) GetConfig() DoormanConfig {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
 	return c.config
 }
 
 // ResetSingleton resets the singleton instance (useful for testing)
-func ResetSingleton() {
-	once = sync.Once{}
-	singleton = nil
-}
+// Note: This function is temporarily disabled due to refactoring
+// func ResetSingleton() {
+// 	once = sync.Once{}
+// 	singleton = nil
+// }
 
 // Authenticate performs authentication with doorman service
 func (c *DoormanClient) Authenticate() error {
@@ -150,9 +180,7 @@ func (c *DoormanClient) Authenticate() error {
 		return err
 	}
 	defer func() {
-		if err := resp.Body.Close(); err != nil {
-			// Log error if close fails
-		}
+		_ = resp.Body.Close()
 	}()
 
 	if resp.StatusCode >= 300 {
@@ -196,9 +224,7 @@ func (c *DoormanClient) ExecuteQuery(cluster, instance, schema, query string) ([
 		return nil, err
 	}
 	defer func() {
-		if err := resp.Body.Close(); err != nil {
-			// Log error if close fails
-		}
+		_ = resp.Body.Close()
 	}()
 
 	if resp.StatusCode >= 300 {
@@ -236,38 +262,43 @@ func (c *DoormanClient) ExecuteQuery(cluster, instance, schema, query string) ([
 // QueryPaymentEngine queries the payment engine database
 func (c *DoormanClient) QueryPaymentEngine(query string) ([]map[string]interface{}, error) {
 	cfg := c.GetConfig()
-	return c.ExecuteQuery(cfg.PaymentEngine, cfg.PaymentEngine, "prod_payment_engine_db01", query)
+	dbInfo := cfg.PaymentEngine
+	return c.ExecuteQuery(dbInfo.ClusterName, dbInfo.InstanceName, dbInfo.Schema, query)
 }
 
 // QueryPaymentCore queries the payment core database
 func (c *DoormanClient) QueryPaymentCore(query string) ([]map[string]interface{}, error) {
 	cfg := c.GetConfig()
-	return c.ExecuteQuery(cfg.PaymentCore, cfg.PaymentCore, "prod_payment_core_db01", query)
+	dbInfo := cfg.PaymentCore
+	return c.ExecuteQuery(dbInfo.ClusterName, dbInfo.InstanceName, dbInfo.Schema, query)
 }
 
 // QueryFastAdapter queries the fast adapter database (Singapore only)
 func (c *DoormanClient) QueryFastAdapter(query string) ([]map[string]interface{}, error) {
 	cfg := c.GetConfig()
-	if cfg.FastAdapter == "" {
+	dbInfo := cfg.FastAdapter
+	if dbInfo.ClusterName == "" {
 		return nil, errors.New("fast adapter is not available in this environment")
 	}
-	return c.ExecuteQuery(cfg.FastAdapter, cfg.FastAdapter, "prod_fast_adapter_db01", query)
+	return c.ExecuteQuery(dbInfo.ClusterName, dbInfo.InstanceName, dbInfo.Schema, query)
 }
 
 // QueryRppAdapter queries the rpp adapter database (Malaysia only)
 func (c *DoormanClient) QueryRppAdapter(query string) ([]map[string]interface{}, error) {
 	cfg := c.GetConfig()
-	if cfg.RppAdapter == "" {
+	dbInfo := cfg.RppAdapter
+	if dbInfo.ClusterName == "" {
 		return nil, errors.New("rpp adapter is not available in this environment")
 	}
-	return c.ExecuteQuery(cfg.RppAdapter, cfg.RppAdapter, "prd-payments-rpp-adapter-rds-mysql", query)
+	return c.ExecuteQuery(dbInfo.ClusterName, dbInfo.InstanceName, dbInfo.Schema, query)
 }
 
 // QueryPartnerpayEngine queries the partnerpay engine database (Malaysia only)
 func (c *DoormanClient) QueryPartnerpayEngine(query string) ([]map[string]interface{}, error) {
 	cfg := c.GetConfig()
-	if cfg.PartnerpayEngine == "" {
+	dbInfo := cfg.PartnerpayEngine
+	if dbInfo.ClusterName == "" {
 		return nil, errors.New("partnerpay engine is not available in this environment")
 	}
-	return c.ExecuteQuery(cfg.PartnerpayEngine, cfg.PartnerpayEngine, "partnerpay_engine", query)
+	return c.ExecuteQuery(dbInfo.ClusterName, dbInfo.InstanceName, dbInfo.Schema, query)
 }
