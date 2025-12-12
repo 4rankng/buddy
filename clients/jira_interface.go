@@ -1,6 +1,7 @@
 package clients
 
 import (
+	"context"
 	"time"
 )
 
@@ -8,15 +9,15 @@ import (
 // This interface provides a clean abstraction for JIRA API interactions
 type JiraInterface interface {
 	// Core ticket operations
-	GetAssignedIssues(projectKey string, emails []string) ([]JiraTicket, error)
-	GetIssueDetails(issueKey string) (*JiraTicket, error)
+	GetAssignedIssues(ctx context.Context, projectKey string, emails []string) ([]JiraTicket, error)
+	GetIssueDetails(ctx context.Context, issueKey string) (*JiraTicket, error)
 
 	// Attachment operations
-	GetAttachmentContent(attachmentURL string) ([]byte, error)
+	GetAttachmentContent(ctx context.Context, attachmentURL string) ([]byte, error)
 	ParseCSVAttachment(content string) ([]CSVRow, error)
 
 	// Ticket lifecycle operations
-	CloseTicket(issueKey string, reasonType string) error
+	CloseTicket(ctx context.Context, issueKey string, reasonType string) error
 }
 
 // JiraTicket represents a JIRA issue/ticket

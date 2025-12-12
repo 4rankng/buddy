@@ -55,9 +55,12 @@ Examples:
 				os.Exit(1)
 			}
 
-			// Get assigned issues
-			emails := []string{jiraConfig.Auth.Username}
-			issues, err := clients.Jira.GetAssignedIssues(jiraConfig.Project, emails)
+			// Create context with timeout
+			ctx := cmd.Context()
+
+			// Get assigned issues using currentUser() for more efficient query
+			emails := []string{"currentUser()"}
+			issues, err := clients.Jira.GetAssignedIssues(ctx, jiraConfig.Project, emails)
 			if err != nil {
 				fmt.Printf("Error fetching JIRA issues: %v\n", err)
 				os.Exit(1)

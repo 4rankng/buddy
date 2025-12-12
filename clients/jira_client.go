@@ -2,6 +2,7 @@ package clients
 
 import (
 	"bytes"
+	"context"
 	"encoding/base64"
 	"encoding/csv"
 	"encoding/json"
@@ -32,22 +33,32 @@ func NewJiraClient(env string) *JiraClient {
 	}
 }
 
-// GetAssignedIssues fetches issues assigned to specified emails
-func (c *JiraClient) GetAssignedIssues(projectKey string, emails []string) ([]JiraTicket, error) {
+// GetAssignedIssues fetches issues assigned to specified emails or currentUser()
+func (c *JiraClient) GetAssignedIssues(ctx context.Context, projectKey string, emails []string) ([]JiraTicket, error) {
 	// Build JQL query
-	emailList := make([]string, len(emails))
-	for i, email := range emails {
-		emailList[i] = fmt.Sprintf(`"%s"`, email)
+	var jql string
+	if len(emails) == 1 && emails[0] == "currentUser()" {
+		// Use currentUser() function when explicitly requested
+		jql = fmt.Sprintf(
+			"project = %s AND assignee = currentUser() AND status NOT IN (Completed, Closed) ORDER BY created DESC",
+			projectKey,
+		)
+	} else {
+		// Build email list for specific users
+		emailList := make([]string, len(emails))
+		for i, email := range emails {
+			emailList[i] = fmt.Sprintf(`"%s"`, email)
+		}
+
+		jql = fmt.Sprintf(
+			"assignee IN (%s) AND project = %s AND status NOT IN (Done, Resolved, Closed, Completed) ORDER BY created ASC",
+			strings.Join(emailList, ", "),
+			projectKey,
+		)
 	}
 
-	jql := fmt.Sprintf(
-		"assignee IN (%s) AND project = %s AND status NOT IN (Done, Resolved, Closed, Completed) ORDER BY created ASC",
-		strings.Join(emailList, ", "),
-		projectKey,
-	)
-
-	// Build request URL
-	apiURL, err := url.Parse(c.config.Domain + "/rest/api/3/search/jql")
+	// Build request URL with correct endpoint
+	apiURL, err := url.Parse(c.config.Domain + "/rest/api/3/search")
 	if err != nil {
 		return nil, &JiraError{
 			StatusCode: 0,
@@ -61,8 +72,8 @@ func (c *JiraClient) GetAssignedIssues(projectKey string, emails []string) ([]Ji
 	params.Set("maxResults", strconv.Itoa(c.config.MaxItems))
 	apiURL.RawQuery = params.Encode()
 
-	// Create and execute request
-	req, err := http.NewRequest("GET", apiURL.String(), nil)
+	// Create and execute request with context
+	req, err := http.NewRequestWithContext(ctx, "GET", apiURL.String(), nil)
 	if err != nil {
 		return nil, &JiraError{
 			StatusCode: 0,
@@ -113,10 +124,10 @@ func (c *JiraClient) GetAssignedIssues(projectKey string, emails []string) ([]Ji
 }
 
 // GetIssueDetails fetches full details for a specific issue
-func (c *JiraClient) GetIssueDetails(issueKey string) (*JiraTicket, error) {
+func (c *JiraClient) GetIssueDetails(ctx context.Context, issueKey string) (*JiraTicket, error) {
 	apiURL := fmt.Sprintf("%s/rest/api/3/issue/%s", c.config.Domain, issueKey)
 
-	req, err := http.NewRequest("GET", apiURL, nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", apiURL, nil)
 	if err != nil {
 		return nil, &JiraError{
 			StatusCode: 0,
@@ -153,8 +164,8 @@ func (c *JiraClient) GetIssueDetails(issueKey string) (*JiraTicket, error) {
 }
 
 // GetAttachmentContent downloads attachment content
-func (c *JiraClient) GetAttachmentContent(attachmentURL string) ([]byte, error) {
-	// Handle redirects
+func (c *JiraClient) GetAttachmentContent(ctx context.Context, attachmentURL string) ([]byte, error) {
+	// Handle redirects with context
 	client := &http.Client{
 		Timeout: c.httpClient.Timeout,
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
@@ -164,7 +175,7 @@ func (c *JiraClient) GetAttachmentContent(attachmentURL string) ([]byte, error) 
 		},
 	}
 
-	req, err := http.NewRequest("GET", attachmentURL, nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", attachmentURL, nil)
 	if err != nil {
 		return nil, &JiraError{
 			StatusCode: 0,
@@ -254,12 +265,12 @@ func (c *JiraClient) ParseCSVAttachment(content string) ([]CSVRow, error) {
 }
 
 // CloseTicket closes a JIRA ticket by transitioning it
-func (c *JiraClient) CloseTicket(issueKey string, reasonType string) error {
+func (c *JiraClient) CloseTicket(ctx context.Context, issueKey string, reasonType string) error {
 	// First get available transitions
 	apiURL := fmt.Sprintf("%s/rest/api/3/issue/%s/transitions", c.config.Domain, issueKey)
 
 	// Get transitions
-	req, err := http.NewRequest("GET", apiURL, nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", apiURL, nil)
 	if err != nil {
 		return &JiraError{
 			StatusCode: 0,
@@ -323,9 +334,15 @@ func (c *JiraClient) CloseTicket(issueKey string, reasonType string) error {
 	}{}
 	transitionReq.Transition.ID = targetTransitionID
 
-	reqBody, _ := json.Marshal(transitionReq)
+	reqBody, err := json.Marshal(transitionReq)
+	if err != nil {
+		return &JiraError{
+			StatusCode: 0,
+			Message:    fmt.Sprintf("failed to marshal transition request: %v", err),
+		}
+	}
 
-	req, err = http.NewRequest("POST", apiURL, bytes.NewReader(reqBody))
+	req, err = http.NewRequestWithContext(ctx, "POST", apiURL, bytes.NewReader(reqBody))
 	if err != nil {
 		return &JiraError{
 			StatusCode: 0,
@@ -386,12 +403,28 @@ type jiraIssueResponse struct {
 }
 
 func (c *JiraClient) setAuthHeaders(req *http.Request) {
+	// Validate credentials before setting headers
+	if c.config.Auth.Username == "" || c.config.Auth.APIKey == "" {
+		// This should never happen if config is validated during initialization
+		return
+	}
+	
+	// Create Basic Auth header
 	auth := base64.StdEncoding.EncodeToString(
 		[]byte(fmt.Sprintf("%s:%s", c.config.Auth.Username, c.config.Auth.APIKey)),
 	)
 	req.Header.Set("Authorization", fmt.Sprintf("Basic %s", auth))
+	
+	// Set standard headers
 	req.Header.Set("Accept", "application/json")
-	req.Header.Set("Content-Type", "application/json")
+	
+	// Only set Content-Type for requests with a body
+	if req.Method != "GET" && req.Method != "HEAD" {
+		req.Header.Set("Content-Type", "application/json")
+	}
+	
+	// Add user agent for better debugging
+	req.Header.Set("User-Agent", "buddy-jira-client/1.0")
 }
 
 func (c *JiraClient) convertIssueResponse(issue *jiraIssueResponse) (*JiraTicket, error) {
