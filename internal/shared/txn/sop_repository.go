@@ -62,12 +62,17 @@ func getDefaultSOPRules() []SOPCaseRule {
 		},
 		{
 			CaseType:    SOPCasePeTransferPayment210_0,
-			Description: "PE Transfer Payment stuck at state 220 with attempt 0",
+			Description: "PE Transfer Payment stuck at state 210 with attempt 0",
 			Conditions: []RuleCondition{
 				{
 					FieldPath: "PaymentEngine.Workflow.State",
 					Operator:  "eq",
-					Value:     "220",
+					Value:     "210",
+				},
+				{
+					FieldPath: "PaymentEngine.Workflow.WorkflowID",
+					Operator:  "eq",
+					Value:     "workflow_transfer_payment",
 				},
 				{
 					FieldPath: "PaymentEngine.Workflow.Attempt",
