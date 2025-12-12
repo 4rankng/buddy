@@ -1,0 +1,186 @@
+create sgbuddy txn 9392fb12b6c64db18e779ae60bdf4307    // for single transaction
+or sgbuddy txn file-path.txt    // for multiple transactions
+
+to print to stdout or output text file in this format
+
+### [1] transaction_id: 9392fb12b6c64db18e779ae60bdf4307
+[payment-engine]
+status: PROCESSING
+created_at: 2025-12-08T18:19:57.525858Z
+workflow_transfer_payment: state=stTransferProcessing(220) attempt=0 run_id=d800f759-d271-4db9-8b9e-f567323b0bb9
+[payment-core]
+internal_transaction: AUTH SUCCESS
+external_transaction: TRANSFER PROCESSING
+payment_core_workflow_internal_payment_flow: state=stPrepareUpdateAuth(900) attempt=0 run_id=04b54792c3f843418fe9ab9a31803b59
+payment_core_workflow_external_payment_flow: state=stSubmitted(200) attempt=11 run_id=717101d108744edcb6d117fcb6bd2c4c
+[fast-adapter]
+
+[Classification]
+no_case_matched
+
+
+Doorman Host: https://doorman.sgbank.pr/rds/query
+List of queries
+
+sg-prd-m-payment-engine
+select transaction_id, reference_id, status, external_id, created_at from transfer where transaction_id='9392fb12b6c64db18e779ae60bdf4307';
+
+select workflow_id, attempt, state from workflow_execution where run_id='040932776da74d9db6f5aad2f4715516' // use reference_id from above
+
+workflow_transfer_collection mapping
+	stTransferPersisted        = we.State(100)
+	stProcessingPublished      = we.State(101)
+	stPreTransactionLimitCheck = we.State(102)
+	stPreRiskCheck             = we.State(103)
+
+	stTransferProcessing      = we.State(210)
+	stTransferStreamPersisted = we.State(211)
+
+	stAuthProcessing      = we.State(220)
+	stAuthStreamPersisted = we.State(221)
+
+	stAuthSuccess = we.State(300)
+
+	stCapturePrepared        = we.State(230)
+	stCaptureProcessing      = we.State(231)
+	stCaptureStreamPersisted = we.State(232)
+
+	stCancelPrepared        = we.State(240)
+	stCancelProcessing      = we.State(241)
+	stCancelStreamPersisted = we.State(242)
+
+	stResumePrepared = we.State(250)
+
+	stPrepareFailureHandling      = we.State(501) // asynchronous flow failure, transitioned to this state after consuming stream msg
+	stTransactionLimitCheckFailed = we.State(502) // synchronous flow failure, transitioned to this state based on transaction-limit API resp
+	stRiskCheckError              = we.State(503) // when risk check service's internal error occurs
+	stRiskCheckDeny               = we.State(504) // when risk check return Deny response
+	stFailurePublished            = we.State(505)
+	stFailureNotified             = we.State(510)
+
+	stCanceled          = we.State(600)
+	stCanceledPublished = we.State(610)
+
+	// investigation required for 7xx states
+	stCaptureFailed                  = we.State(701)
+	stCancelFailed                   = we.State(702)
+	stInvestigationRequiredPublished = we.State(721)
+	stInvestigationRequiredNotified  = we.State(722)
+
+	stValidateSuccess = we.State(800)
+
+	stTransferCompleted            = we.State(900)
+	stCaptureCompleted             = we.State(901)
+	stTransferCompletedAutoPublish = we.State(902)
+	stCompletedPublished           = we.State(905)
+	stCompletedNotified            = we.State(910)
+
+
+
+
+
+
+sg-prd-m-payment-core
+select tx_id, tx_type, status from internal_transaction 
+where created_at >= '2025-08-28T02:38:27Z' // created_at get from above transfer table
+and created_at <= '2025-08-28T03:38:27Z' // created_at + 1 hour
+and group_id = '9392fb12b6c64db18e779ae60bdf4307' // use transaction_id from above
+
+select ref_id, tx_type, status from external_transaction 
+where created_at >= '2025-08-28T02:38:27Z'
+and created_at <= '2025-08-28T03:38:27Z'
+and group_id = '9392fb12b6c64db18e779ae60bdf4307'
+
+select workflow_id, run_id, state, attempt from workflow_execution 
+where run_id in (
+    'b4f3e1f3e1b14c2fa6f4e5b6c7d8e9f0', // use internal_transaction tx_id from above
+    'c1d2e3f4a5b6478899aabbccddeeff00'  // use external_transaction ref_id from above
+)
+
+sg-prd-m-fast-adapter
+
+SELECT type, instruction_id, status, cancel_reason_code, reject_reason_code FROM transactions where 
+instruction_id='20250828OCBCSGSGBRT6958702' // use external_id from transfer table above
+and created_at >= '2025-08-28T02:38:27Z' // created_at get from above transfer table
+and created_at <= '2025-08-28T03:38:27Z' // created_at + 1 hour
+
+status mapping for type=cashin
+
+	StAuthed             = sm.State(1)
+	StAuthUnknown        = sm.State(2)
+	StConfirmUnknown     = sm.State(3)
+	StCancelUnknown      = sm.State(4)
+	StErraneous          = sm.State(5)
+	StConfirmed          = sm.State(6)
+	StCanceled           = sm.State(7)
+	StCanceledManual     = sm.State(8)
+	StRejected           = sm.State(9)
+	StReversed           = sm.State(11)
+	StReversedUnknown    = sm.State(12)
+	StReversedManual     = sm.State(13)
+	StCancelAcknowledged = sm.State(15)
+	StAuthedNoStatus     = sm.State(17)
+	StRejectedNoStatus   = sm.State(18)
+
+status mapping for type=cashout
+	StPending   = sm.State(1)
+	StErraneous = sm.State(2)
+	StAccepted  = sm.State(3)
+	StRejected  = sm.State(4)
+
+
+
+
+
+how do you login doorman for Singapore 
+
+Request URL
+https://doorman.sgbank.pr/api/login/ldap/signin
+Request Method
+POST
+Status Code
+200 OK
+Remote Address
+10.144.64.127:443
+Referrer Policy
+strict-origin-when-cross-origin
+
+{
+    "username": "DOORMAN_USERNAME",
+    "password": "DOORMAN_PASSWORD"
+}
+Response Body
+{
+    "code": 200,
+    "errors": null,
+    "message": null,
+    "result": {
+        "name": "frank.nguyen",
+        "role": {
+            "config": "engineer",
+            "ddb": "engineer",
+            "elasticache": "engineer",
+            "elasticsearch": "engineer",
+            "entity": "engineer",
+            "network": "engineer",
+            "rds": "engineer",
+            "scylla": "engineer"
+        },
+        "env": "GT"
+    },
+    "requestID": "17127d4b-8d87-4f35-b879-739218fd9f0d"
+}
+
+Response HEader
+connection
+keep-alive
+content-length
+312
+content-type
+application/json; charset=utf-8
+date
+Fri, 12 Dec 2025 08:41:04 GMT
+server
+nginx/1.15.8
+set-cookie
+cookie-name=MTc2NTUi; Path=/; Expires=Sat, 13 Dec 2025 08:41:04 GMT; Max-Age=86400; HttpOnly; SameSite=Lax
