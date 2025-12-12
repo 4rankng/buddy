@@ -53,12 +53,12 @@ func loadEnvFile(filename string) error {
 		if len(parts) == 2 {
 			key := strings.TrimSpace(parts[0])
 			value := strings.TrimSpace(parts[1])
-			
+
 			// Remove surrounding quotes if present
 			if strings.HasPrefix(value, `"`) && strings.HasSuffix(value, `"`) {
 				value = strings.Trim(value, `"`)
 			}
-			
+
 			if err := os.Setenv(key, value); err != nil {
 				fmt.Printf("Warning: failed to set env variable %s: %v\n", key, err)
 			}

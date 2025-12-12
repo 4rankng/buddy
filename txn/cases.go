@@ -189,7 +189,8 @@ func promptForInput(prompt string) (string, error) {
 
 // checkRPPAdapterStatusByReqBizMsgID performs the nested query to find run_id/partner_tx_id via req_biz_msg_id
 func checkRPPAdapterStatusByReqBizMsgID(reqBizMsgID string) (string, string, int) {
-	client, err := clients.NewDoormanClient(30 * time.Second)
+	factory := clients.NewDoormanClientFactory("my")
+	client, err := factory.CreateClient(30 * time.Second)
 	if err != nil {
 		fmt.Printf("Error creating doorman client: %v\n", err)
 		return "ERROR", "", 0
@@ -235,7 +236,8 @@ func checkRPPAdapterStatusByReqBizMsgID(reqBizMsgID string) (string, string, int
 func checkRPPAdapterStatus(partnerTxID string) (string, string) {
 	fmt.Printf("Checking RPP Adapter for partner_tx_id: %s...\n", partnerTxID)
 
-	client, err := clients.NewDoormanClient(30 * time.Second)
+	factory := clients.NewDoormanClientFactory("my")
+	client, err := factory.CreateClient(30 * time.Second)
 	if err != nil {
 		fmt.Printf("Error creating doorman client: %v\n", err)
 		return "ERROR", ""

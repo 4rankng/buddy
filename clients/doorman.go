@@ -14,11 +14,6 @@ import (
 	"buddy/output"
 )
 
-const (
-	sgDoormanBaseURL = "https://doorman.sgbank.pr"
-	myDoormanBaseURL = "https://doorman.infra.prd.g-bank.app"
-)
-
 type DoormanClient struct {
 	BaseURL string
 	User    string
@@ -46,24 +41,12 @@ type queryResponse struct {
 	} `json:"result"`
 }
 
+// NewDoormanClient creates a Doorman client using the factory pattern
+// This function now delegates to the factory for proper environment-specific credential handling
 func NewDoormanClient(timeout time.Duration) (*DoormanClient, error) {
-	var base string
-	
-	// Use environment-specific base URL
-	switch config.GetEnvironment() {
-	case "sg":
-		base = sgDoormanBaseURL
-	case "my":
-		base = myDoormanBaseURL
-	default:
-		return nil, errors.New("unsupported environment: " + config.GetEnvironment())
-	}
-	
-	user := config.Get("DOORMAN_USERNAME", "")
-	pass := config.Get("DOORMAN_PASSWORD", "")
-	jar, _ := cookiejar.New(nil)
-	cli := &http.Client{Timeout: timeout, Jar: jar}
-	return &DoormanClient{BaseURL: base, User: user, Pass: pass, HTTP: cli}, nil
+	env := config.GetEnvironment()
+	factory := NewDoormanClientFactory(env)
+	return factory.CreateClient(timeout)
 }
 
 func NewDoormanClientWithConfig(baseURL, username, password string, timeout time.Duration) (*DoormanClient, error) {
@@ -76,7 +59,7 @@ func (c *DoormanClient) Authenticate() error {
 	loginURL, _ := url.JoinPath(c.BaseURL, "/api/login/ldap/signin")
 	loginReq := doormanLoginReq{Username: c.User, Password: c.Pass}
 	b, _ := json.Marshal(loginReq)
-	
+
 	// Debug logging
 	output.LogEvent("doorman_auth_attempt", map[string]any{
 		"url":      loginURL,
@@ -84,7 +67,7 @@ func (c *DoormanClient) Authenticate() error {
 		"password": c.Pass,
 		"request":  string(b),
 	})
-	
+
 	req, _ := http.NewRequest(http.MethodPost, loginURL, bytes.NewReader(b))
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := c.HTTP.Do(req)
@@ -167,30 +150,46 @@ func (c *DoormanClient) ExecuteQuery(cluster, instance, schema, query string) ([
 }
 
 // Convenience wrappers matching Python service names
+// Legacy convenience methods - delegate to factory for consistency
+
 func (c *DoormanClient) QueryPaymentEngine(query string) ([]map[string]interface{}, error) {
-	return c.ExecuteQuery("sg-prd-m-payment-engine", "sg-prd-m-payment-engine", "prod_payment_engine_db01", query)
+	// Singapore-specific method with hardcoded schema
+	factory := NewDoormanClientFactory("sg")
+	return factory.QueryDatabase("payment-engine", "prod_payment_engine_db01", query)
 }
 
 func (c *DoormanClient) QueryPrdPaymentsPaymentEngine(query string) ([]map[string]interface{}, error) {
-	return c.ExecuteQuery("prd-payments-payment-engine-rds-mysql", "prd-payments-payment-engine-rds-mysql", "payment_engine", query)
+	// Malaysia-specific method with hardcoded schema
+	factory := NewDoormanClientFactory("my")
+	return factory.QueryDatabase("payment-engine", "payment_engine", query)
 }
 
 func (c *DoormanClient) QueryPrdPaymentsPaymentCore(query string) ([]map[string]interface{}, error) {
-	return c.ExecuteQuery("prd-payments-payment-core-rds-mysql", "prd-payments-payment-core-rds-mysql", "payment_core", query)
+	// Malaysia-specific method with hardcoded schema
+	factory := NewDoormanClientFactory("my")
+	return factory.QueryDatabase("payment-core", "payment_core", query)
 }
 
 func (c *DoormanClient) QueryPrdPaymentsRppAdapter(query string) ([]map[string]interface{}, error) {
-	return c.ExecuteQuery("prd-payments-rpp-adapter-rds-mysql", "prd-payments-rpp-adapter-rds-mysql", "rpp_adapter", query)
+	// Malaysia-specific method with hardcoded schema
+	factory := NewDoormanClientFactory("my")
+	return factory.QueryDatabase("rpp-adapter", "rpp_adapter", query)
 }
 
 func (c *DoormanClient) QueryPrdPaymentsPartnerpayEngine(query string) ([]map[string]interface{}, error) {
-	return c.ExecuteQuery("prd-payments-partnerpay-engine-rds-mysql", "prd-payments-partnerpay-engine-rds-mysql", "partnerpay_engine", query)
+	// Malaysia-specific method with hardcoded schema
+	factory := NewDoormanClientFactory("my")
+	return factory.QueryDatabase("partnerpay-engine", "partnerpay_engine", query)
 }
 
 func (c *DoormanClient) QuerySGPaymentCore(query string) ([]map[string]interface{}, error) {
-	return c.ExecuteQuery("sg-prd-m-payment-core", "sg-prd-m-payment-core", "payment_core", query)
+	// Singapore-specific method with hardcoded schema
+	factory := NewDoormanClientFactory("sg")
+	return factory.QueryDatabase("payment-core", "payment_core", query)
 }
 
 func (c *DoormanClient) QuerySGFastAdapter(query string) ([]map[string]interface{}, error) {
-	return c.ExecuteQuery("sg-prd-m-fast-adapter", "sg-prd-m-fast-adapter", "fast_adapter", query)
+	// Singapore-specific method with hardcoded schema
+	factory := NewDoormanClientFactory("sg")
+	return factory.QueryDatabase("fast-adapter", "fast_adapter", query)
 }

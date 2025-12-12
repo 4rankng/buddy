@@ -107,3 +107,30 @@ func (f *DoormanClientFactory) QueryDatabase(service, schema, query string) ([]m
 	cluster := f.strategy.GetDatabaseCluster(service)
 	return client.ExecuteQuery(cluster, cluster, schema, query)
 }
+
+// Convenience methods for backward compatibility with legacy client
+
+// QueryPaymentEngine queries the payment-engine database
+func (f *DoormanClientFactory) QueryPaymentEngine(schema, query string) ([]map[string]interface{}, error) {
+	return f.QueryDatabase("payment-engine", schema, query)
+}
+
+// QueryPaymentCore queries the payment-core database
+func (f *DoormanClientFactory) QueryPaymentCore(schema, query string) ([]map[string]interface{}, error) {
+	return f.QueryDatabase("payment-core", schema, query)
+}
+
+// QueryRppAdapter queries the rpp-adapter database (Malaysia only)
+func (f *DoormanClientFactory) QueryRppAdapter(schema, query string) ([]map[string]interface{}, error) {
+	return f.QueryDatabase("rpp-adapter", schema, query)
+}
+
+// QueryPartnerpayEngine queries the partnerpay-engine database (Malaysia only)
+func (f *DoormanClientFactory) QueryPartnerpayEngine(schema, query string) ([]map[string]interface{}, error) {
+	return f.QueryDatabase("partnerpay-engine", schema, query)
+}
+
+// QueryFastAdapter queries the fast-adapter database (Singapore only)
+func (f *DoormanClientFactory) QueryFastAdapter(schema, query string) ([]map[string]interface{}, error) {
+	return f.QueryDatabase("fast-adapter", schema, query)
+}
