@@ -89,8 +89,8 @@ created_at: {transfers.created_at}
 [payment-core]
 internal_transaction: {tx_type} {tx_status} | {tx_type} {tx_status}
 external_transaction: {tx_type} {tx_status} | {tx_type} {tx_status}
-workflow_internal_payment_flow: state=stPrepareUpdateAuth(900) attempt=0 run_id=04b54792c3f843418fe9ab9a31803b59
-workflow_external_payment_flow: state=stSubmitted(200) attempt=11 run_id=717101d108744edcb6d117fcb6bd2c4c
+internal_payment_flow: state=stSuccess(900) attempt=0 run_id=04b54792c3f843418fe9ab9a31803b59
+external_payment_flow: state=stSubmitted(200) attempt=11 run_id=717101d108744edcb6d117fcb6bd2c4c
 ```
 
 #### Fast-Adapter Section

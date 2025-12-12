@@ -100,6 +100,11 @@ func QueryTransactionStatusWithEnv(transactionID string, env string) *Transactio
 		result.PaymentEngine.Transfers.TxnDomain = txDomain
 	}
 
+	// Extract external_id for fast adapter lookup
+	if externalID, ok := transfer["external_id"].(string); ok {
+		result.PaymentEngine.Transfers.ExternalID = externalID
+	}
+
 	// Get reference_id if available
 	referenceID, ok := transfer["reference_id"].(string)
 	if ok && referenceID != "" {
@@ -249,6 +254,13 @@ func QueryTransactionStatusWithEnv(transactionID string, env string) *Transactio
 					}
 				}
 			}
+		}
+	}
+
+	// Query fast adapter if we have external_id
+	if result.PaymentEngine.Transfers.ExternalID != "" {
+		if fastAdapterInfo, err := queryFastAdapter(client, result.PaymentEngine.Transfers.ExternalID); err == nil && fastAdapterInfo != nil {
+			result.FastAdapter = *fastAdapterInfo
 		}
 	}
 
@@ -471,4 +483,55 @@ func QueryPartnerpayEngineTransactionWithEnv(runID string, env string) *Transact
 	}
 
 	return result
+}
+
+// queryFastAdapter retrieves fast adapter information using external_id
+func queryFastAdapter(client clients.DoormanInterface, externalID string) (*FastAdapterInfo, error) {
+	if externalID == "" {
+		return nil, nil // Skip if no external_id
+	}
+
+	// Query instruction table
+	query := fmt.Sprintf(`
+        SELECT instruction_id, type, status, status_code,
+               cancel_reason_code, reject_reason_code
+        FROM instruction
+        WHERE instruction_id = '%s' OR external_id = '%s'
+        LIMIT 1`, externalID, externalID)
+
+	results, err := client.QueryFastAdapter(query)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(results) == 0 {
+		return nil, nil // No fast adapter data found
+	}
+
+	row := results[0]
+	info := &FastAdapterInfo{
+		InstructionID: getStringValue(row, "instruction_id"),
+		Type:          getStringValue(row, "type"),
+		Status:        getStringValue(row, "status"),
+	}
+
+	// Parse numeric status code
+	if statusCode, ok := row["status_code"].(float64); ok {
+		info.StatusCode = int(statusCode)
+	}
+
+	info.CancelReasonCode = getStringValue(row, "cancel_reason_code")
+	info.RejectReasonCode = getStringValue(row, "reject_reason_code")
+
+	return info, nil
+}
+
+// Helper function to safely extract string values
+func getStringValue(row map[string]interface{}, key string) string {
+	if val, ok := row[key]; ok {
+		if str, ok := val.(string); ok {
+			return str
+		}
+	}
+	return ""
 }

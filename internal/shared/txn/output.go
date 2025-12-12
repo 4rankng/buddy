@@ -123,6 +123,24 @@ func writeResult(w io.Writer, result TransactionResult, index int) {
 		if _, err := fmt.Fprintln(w, "[payment-engine]"); err != nil {
 			fmt.Printf("Warning: failed to write payment-engine header: %v\n", err)
 		}
+
+		// Add type, subtype, domain fields
+		if result.PaymentEngine.Transfers.Type != "" {
+			if _, err := fmt.Fprintf(w, "type: %s\n", result.PaymentEngine.Transfers.Type); err != nil {
+				fmt.Printf("Warning: failed to write transfer type: %v\n", err)
+			}
+		}
+		if result.PaymentEngine.Transfers.TxnSubtype != "" {
+			if _, err := fmt.Fprintf(w, "subtype: %s\n", result.PaymentEngine.Transfers.TxnSubtype); err != nil {
+				fmt.Printf("Warning: failed to write transfer subtype: %v\n", err)
+			}
+		}
+		if result.PaymentEngine.Transfers.TxnDomain != "" {
+			if _, err := fmt.Fprintf(w, "domain: %s\n", result.PaymentEngine.Transfers.TxnDomain); err != nil {
+				fmt.Printf("Warning: failed to write transfer domain: %v\n", err)
+			}
+		}
+
 		if peStatus != "" {
 			if _, err := fmt.Fprintf(w, "status: %s\n", peStatus); err != nil {
 				fmt.Printf("Warning: failed to write transfer status: %v\n", err)
@@ -146,52 +164,111 @@ func writeResult(w io.Writer, result TransactionResult, index int) {
 			fmt.Printf("Warning: failed to write payment-core header: %v\n", err)
 		}
 
-		if len(result.PaymentCore.InternalTxns) > 0 {
-			var statuses []string
-			for _, tx := range result.PaymentCore.InternalTxns {
-				var parts []string
-				if tx.TxType != "" {
-					parts = append(parts, tx.TxType)
+		// Check if we have any payment-core transactions
+		hasPaymentCoreData := len(result.PaymentCore.InternalTxns) > 0 || len(result.PaymentCore.ExternalTxns) > 0
+
+		if hasPaymentCoreData {
+			if len(result.PaymentCore.InternalTxns) > 0 {
+				var statuses []string
+				for _, tx := range result.PaymentCore.InternalTxns {
+					var parts []string
+					if tx.TxType != "" {
+						parts = append(parts, tx.TxType)
+					}
+					if tx.TxStatus != "" {
+						parts = append(parts, tx.TxStatus)
+					}
+					if len(parts) > 0 {
+						statuses = append(statuses, strings.Join(parts, " "))
+					}
 				}
-				if tx.TxStatus != "" {
-					parts = append(parts, tx.TxStatus)
-				}
-				if len(parts) > 0 {
-					statuses = append(statuses, strings.Join(parts, " "))
+				if len(statuses) > 0 {
+					if _, err := fmt.Fprintf(w, "internal_transaction: %s\n", strings.Join(statuses, " , ")); err != nil {
+						fmt.Printf("Warning: failed to write internal tx status: %v\n", err)
+					}
 				}
 			}
-			if len(statuses) > 0 {
-				if _, err := fmt.Fprintf(w, "internal_transaction: %s\n", strings.Join(statuses, " , ")); err != nil {
-					fmt.Printf("Warning: failed to write internal tx status: %v\n", err)
+
+			if len(result.PaymentCore.ExternalTxns) > 0 {
+				var statuses []string
+				for _, tx := range result.PaymentCore.ExternalTxns {
+					var parts []string
+					if tx.TxType != "" {
+						parts = append(parts, tx.TxType)
+					}
+					if tx.TxStatus != "" {
+						parts = append(parts, tx.TxStatus)
+					}
+					if len(parts) > 0 {
+						statuses = append(statuses, strings.Join(parts, " "))
+					}
 				}
+				if len(statuses) > 0 {
+					if _, err := fmt.Fprintf(w, "external_transaction: %s\n", strings.Join(statuses, " , ")); err != nil {
+						fmt.Printf("Warning: failed to write external tx status: %v\n", err)
+					}
+				}
+			}
+
+			for _, workflow := range result.PaymentCore.Workflow {
+				var workflowName string
+				switch workflow.WorkflowID {
+				case "internal_payment_flow":
+					workflowName = "workflow_internal_payment_flow"
+				case "external_payment_flow":
+					workflowName = "workflow_external_payment_flow"
+				default:
+					workflowName = workflow.WorkflowID
+				}
+
+				line := fmt.Sprintf("state=%s attempt=%d", FormatWorkflowState(workflow.WorkflowID, workflow.State), workflow.Attempt)
+				if _, err := fmt.Fprintf(w, "%s: %s run_id=%s\n", workflowName, line, workflow.RunID); err != nil {
+					fmt.Printf("Warning: failed to write payment core workflow: %v\n", err)
+				}
+			}
+		} else {
+			// Show NOT_FOUND when no transactions exist
+			if _, err := fmt.Fprintln(w, "NOT_FOUND"); err != nil {
+				fmt.Printf("Warning: failed to write NOT_FOUND: %v\n", err)
+			}
+		}
+	}
+
+	// Add fast-adapter section if available
+	if result.FastAdapter.InstructionID != "" {
+		if _, err := fmt.Fprintln(w, "[fast-adapter]"); err != nil {
+			fmt.Printf("Warning: failed to write fast-adapter header: %v\n", err)
+		}
+
+		if _, err := fmt.Fprintf(w, "FAST ID: %s\n", result.FastAdapter.InstructionID); err != nil {
+			fmt.Printf("Warning: failed to write FAST ID: %v\n", err)
+		}
+
+		if result.FastAdapter.Type != "" {
+			if _, err := fmt.Fprintf(w, "type: %s\n", result.FastAdapter.Type); err != nil {
+				fmt.Printf("Warning: failed to write fast adapter type: %v\n", err)
 			}
 		}
 
-		if len(result.PaymentCore.ExternalTxns) > 0 {
-			var statuses []string
-			for _, tx := range result.PaymentCore.ExternalTxns {
-				var parts []string
-				if tx.TxType != "" {
-					parts = append(parts, tx.TxType)
-				}
-				if tx.TxStatus != "" {
-					parts = append(parts, tx.TxStatus)
-				}
-				if len(parts) > 0 {
-					statuses = append(statuses, strings.Join(parts, " "))
-				}
+		if result.FastAdapter.Status != "" {
+			statusStr := result.FastAdapter.Status
+			if result.FastAdapter.StatusCode > 0 {
+				statusStr = fmt.Sprintf("%s (%d)", statusStr, result.FastAdapter.StatusCode)
 			}
-			if len(statuses) > 0 {
-				if _, err := fmt.Fprintf(w, "external_transaction: %s\n", strings.Join(statuses, " , ")); err != nil {
-					fmt.Printf("Warning: failed to write external tx status: %v\n", err)
-				}
+			if _, err := fmt.Fprintf(w, "transactions.status: %s\n", statusStr); err != nil {
+				fmt.Printf("Warning: failed to write fast adapter status: %v\n", err)
 			}
 		}
 
-		for _, workflow := range result.PaymentCore.Workflow {
-			line := fmt.Sprintf("state=%s attempt=%d", FormatWorkflowState(workflow.WorkflowID, workflow.State), workflow.Attempt)
-			if _, err := fmt.Fprintf(w, "%s: %s run_id=%s\n", workflow.WorkflowID, line, workflow.RunID); err != nil {
-				fmt.Printf("Warning: failed to write payment core workflow: %v\n", err)
+		if result.FastAdapter.CancelReasonCode != "" {
+			if _, err := fmt.Fprintf(w, "cancel_reason_code: %s\n", result.FastAdapter.CancelReasonCode); err != nil {
+				fmt.Printf("Warning: failed to write cancel reason code: %v\n", err)
+			}
+		}
+
+		if result.FastAdapter.RejectReasonCode != "" {
+			if _, err := fmt.Fprintf(w, "reject_reason_code: %s\n", result.FastAdapter.RejectReasonCode); err != nil {
+				fmt.Printf("Warning: failed to write reject reason code: %v\n", err)
 			}
 		}
 	}

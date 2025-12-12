@@ -61,11 +61,12 @@ type PaymentCoreInfo struct {
 
 // FastAdapterInfo contains fast adapter related information
 type FastAdapterInfo struct {
-	InstructionID string // instruction_id or external_id
-	Type          string // cashin, cashout, etc.
-	Status        string // StErraneous, etc.
-	CancelCode    string
-	RejectCode    string
+	InstructionID    string // instruction_id or external_id
+	Type             string // cashin, cashout, etc.
+	Status           string // StErraneous, etc.
+	StatusCode       int    // Numeric status code
+	CancelReasonCode string // cancel_reason_code
+	RejectReasonCode string // reject_reason_code
 }
 
 // RPPAdapterInfo contains RPP adapter related information
