@@ -5,43 +5,84 @@ import (
 	"strconv"
 )
 
+// PETransfersInfo contains payment-engine transfer information
+type PETransfersInfo struct {
+	Type        string // payment-engine transfers.type
+	TxnSubtype  string // payment-engine transfers.txn_subtype
+	TxnDomain   string // payment-engine transfers.txn_domain
+	TransactionID string // payment-engine transfers.transaction_id
+	ReferenceID string // payment-engine transfers.reference_id
+	Status      string // payment-engine transfers.status
+	ExternalID  string // payment-engine transfers.external_id
+	CreatedAt   string // payment-engine transfers.created_at
+}
+
 // WorkflowInfo contains information about a specific workflow execution
 type WorkflowInfo struct {
-	Type    string // workflow_charge, internal_transaction etc. it is workflow_execution.workflow_id
-	RunID   string
-	State   string
-	Attempt int
+	WorkflowID string // workflow_execution.workflow_id
+	Attempt    int    // workflow_execution.attempt
+	State      string // workflow_execution.state
+	RunID      string // workflow_execution.run_id
 }
 
 // GetFormattedState returns the formatted state with name and number
 func (w *WorkflowInfo) GetFormattedState() string {
-	return FormatWorkflowState(w.Type, w.State)
+	return FormatWorkflowState(w.WorkflowID, w.State)
+}
+
+// PaymentEngineInfo contains payment-engine related information
+type PaymentEngineInfo struct {
+	Transfers PETransfersInfo
+	Workflow  WorkflowInfo
+}
+
+// PCInternalTxnInfo contains payment-core internal transaction information
+type PCInternalTxnInfo struct {
+	TxID      string // payment-core internal transaction ID
+	GroupID   string // payment-core transaction group ID
+	TxType    string // payment-core transaction type
+	TxStatus  string // payment-core transaction status
+}
+
+// PCExternalTxnInfo contains payment-core external transaction information
+type PCExternalTxnInfo struct {
+	RefID     string // payment-core external transaction reference ID
+	GroupID   string // payment-core transaction group ID
+	TxType    string // payment-core transaction type
+	TxStatus  string // payment-core transaction status
+}
+
+// PaymentCoreInfo contains payment-core related information
+type PaymentCoreInfo struct {
+	InternalTxn PCInternalTxnInfo
+	ExternalTxn PCExternalTxnInfo
+	Workflow    []WorkflowInfo
+}
+
+// FastAdapterInfo contains fast adapter related information
+type FastAdapterInfo struct {
+	InstructionID string // instruction_id or external_id
+	Type          string // cashin, cashout, etc.
+	Status        string // StErraneous, etc.
+	CancelCode    string
+	RejectCode    string
+}
+
+// RPPAdapterInfo contains RPP adapter related information
+type RPPAdapterInfo struct {
+	ReqBizMsgID string // RPP request business message ID
+	PartnerTxID string // RPP partner transaction ID
+	Status      string // RPP status
 }
 
 // TransactionResult represents the result of a transaction query
 type TransactionResult struct {
-	TransactionID  string // payment-engine transfers.transaction_id
-	TransferStatus string // payment-engine transfers.status
-	CreatedAt      string // payment-engine transfers.created_at
-	Error          string
-
-	// Workflow information from different systems
-	PaymentEngineWorkflow WorkflowInfo
-	PaymentCoreWorkflows  []WorkflowInfo
-	RPPWorkflow           WorkflowInfo
-
-	// Payment-core transaction statuses
-	InternalTxStatus string
-	ExternalTxStatus string
-
-	// RPP / Interactive Data
-	ReqBizMsgID string
-	PartnerTxID string
-	RPPStatus   string
-	RPPInfo     string
-
-	// SOP Case identification
-	SOPCase SOPCase // Store the identified SOP case to avoid re-identification
+	PaymentEngine PaymentEngineInfo
+	PaymentCore   PaymentCoreInfo
+	FastAdapter   FastAdapterInfo
+	RPPAdapter    RPPAdapterInfo
+	CaseType      SOPCase // Store the identified SOP case to avoid re-identification
+	Error         string
 }
 
 // SOPCase represents the supported remediation cases from SOP.md
@@ -244,5 +285,5 @@ type DMLTicket struct {
 
 // TemplateConfig defines the parameters required for a SQL template
 type TemplateConfig struct {
-	Parameters []string // List of parameter types: [\"run_ids\"], [\"run_ids\", \"workflow_ids\"]
+	Parameters []string // List of parameter types: ["run_ids"], ["run_ids", "workflow_ids"]
 }

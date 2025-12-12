@@ -1,4 +1,70 @@
 
+type PETransfersInfo struct {
+	Type          string
+	TxnSubtype    string
+	TxnDomain     string
+	TransactionID string
+	ReferenceID   string
+	Status        string
+	ExternalID    string
+	CreatedAt     string
+}
+
+type WorkflowInfo struct {
+	WorkflowID string
+	Attempt    int
+	State      string
+	RunID      string
+}
+
+type PaymentEngineInfo struct {
+	Transfers PETransfersInfo
+	Workflow  WorkflowInfo
+}
+
+type PCInternalTxnInfo struct {
+	TxID     string
+	GroupID  string
+	TxType   string
+	TxStatus string
+}
+
+type PCExternalTxnInfo struct {
+	RefID    string
+	GroupID  string
+	TxType   string
+	TxStatus string
+}
+
+type PaymentCoreInfo struct {
+	InternalTxn PCInternalTxn
+	ExternalTxn PCExternalTxn
+	Workflow    []WorkflowInfo
+}
+
+type FastAdapterInfo struct {
+	InstructionID string
+	Type          string
+	Status        string
+	CancelCode    string
+	RejectCode    string
+}
+
+type RPPAdapterInfo struct {
+	ReqBizMsgID string
+	PartnerTxID string
+	Status      string
+}
+
+type TransactionResult struct {
+	PaymentEngine PaymentEngineInfo
+	PaymentCore   PaymentCoreInfo
+	FastAdapter   FastAdapterInfo
+	RPPAdapter    RPPAdapterInfo
+	CaseType      SOPCase // identified SOP case to avoid re-identification, apply to both Singapore and Malaysia
+}
+
+
 ### [1] transaction_id: 9392fb12b6c64db18e779ae60bdf4307
 [payment-engine]
 type: {transfers.type}

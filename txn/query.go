@@ -29,8 +29,8 @@ func QueryTransactionStatus(transactionID string) *TransactionResult {
 		return queryRPPE2EID(client, transactionID)
 	}
 
-	// Query transfer table with specific fields including timestamps
-	transferQuery := fmt.Sprintf("SELECT transaction_id, status, reference_id, created_at, updated_at FROM transfer WHERE transaction_id='%s'", transactionID)
+	// Query transfer table with specific fields including timestamps and type details
+	transferQuery := fmt.Sprintf("SELECT transaction_id, status, reference_id, created_at, updated_at, type, txn_subtype, txn_domain FROM transfer WHERE transaction_id='%s'", transactionID)
 	transfers, err := client.QueryPrdPaymentsPaymentEngine(transferQuery)
 	if err != nil {
 		return &TransactionResult{
@@ -71,6 +71,17 @@ func QueryTransactionStatus(transactionID string) *TransactionResult {
 		result.CreatedAt = createdAtStr
 	}
 	// UpdatedAt field removed - no longer needed
+
+	// Extract type details for new format
+	if txType, ok := transfer["type"].(string); ok {
+		result.Type = txType
+	}
+	if txSubtype, ok := transfer["txn_subtype"].(string); ok {
+		result.Subtype = txSubtype
+	}
+	if txDomain, ok := transfer["txn_domain"].(string); ok {
+		result.Domain = txDomain
+	}
 
 	// Get reference_id if available
 	referenceID, ok := transfer["reference_id"].(string)
