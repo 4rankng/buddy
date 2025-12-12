@@ -3,7 +3,6 @@ package sgbuddy
 import (
 	"fmt"
 	"os"
-	"strings"
 
 	"buddy/clients"
 	"buddy/internal/app"
@@ -24,21 +23,13 @@ func NewJiraCmd(appCtx *app.Context) *cobra.Command {
 }
 
 func NewJiraListCmd(appCtx *app.Context) *cobra.Command {
-	var (
-		status string
-		limit  int
-	)
-
 	cmd := &cobra.Command{
 		Use:   "list",
 		Short: "List JIRA tickets assigned to you",
-		Long: `List JIRA tickets assigned to the current user (based on JIRA_USERNAME configuration).
+		Long: `List JIRA tickets assigned to the current user that are not completed or closed.
 
-Examples:
-  sgbuddy jira list                    # List open tickets (default)
-  sgbuddy jira list --status=all       # List all tickets
-  sgbuddy jira list --status=done      # List completed tickets
-  sgbuddy jira list --limit=10         # List maximum 10 tickets`,
+This command fetches tickets assigned to you from JIRA that are currently in progress.
+Only tickets with status NOT IN (COMPLETED, CLOSED) will be shown.`,
 		Run: func(cmd *cobra.Command, args []string) {
 			// Check if JIRA client is initialized
 			if clients.Jira == nil {
@@ -66,53 +57,21 @@ Examples:
 				os.Exit(1)
 			}
 
-			// Filter by status if specified
-			if status != "all" {
-				var filteredIssues []clients.JiraTicket
-				for _, issue := range issues {
-					issueStatus := strings.ToLower(issue.Status)
-					switch status {
-					case "open":
-						if issueStatus == "to do" || issueStatus == "open" {
-							filteredIssues = append(filteredIssues, issue)
-						}
-					case "in-progress":
-						if issueStatus == "in progress" || issueStatus == "progress" {
-							filteredIssues = append(filteredIssues, issue)
-						}
-					case "done":
-						if issueStatus == "done" || issueStatus == "closed" || issueStatus == "resolved" {
-							filteredIssues = append(filteredIssues, issue)
-						}
-					}
-				}
-				issues = filteredIssues
-			}
-
-			// Apply limit if specified
-			if limit > 0 && len(issues) > limit {
-				issues = issues[:limit]
-			}
-
 			// Display results
-			printJiraIssues(issues, jiraConfig.Project, status)
+			printJiraIssues(issues, jiraConfig.Project)
 		},
 	}
-
-	cmd.Flags().StringVar(&status, "status", "open", "Filter by status (open, in-progress, done, all)")
-	cmd.Flags().IntVar(&limit, "limit", 0, "Maximum number of issues to display (0 = no limit)")
 
 	return cmd
 }
 
-func printJiraIssues(issues []clients.JiraTicket, project, statusFilter string) {
+func printJiraIssues(issues []clients.JiraTicket, project string) {
 	fmt.Printf("[jira]\n")
 	fmt.Printf("project: %s\n", project)
-	fmt.Printf("status_filter: %s\n", statusFilter)
 	fmt.Printf("total: %d\n\n", len(issues))
 
 	if len(issues) == 0 {
-		fmt.Printf("No issues found matching your criteria.\n")
+		fmt.Printf("No issues found.\n")
 		return
 	}
 
