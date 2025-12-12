@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"buddy/internal/app"
-	"buddy/txn"
+	"buddy/internal/shared/txn"
 
 	"github.com/spf13/cobra"
 )
