@@ -22,6 +22,11 @@ func main() {
 		log.Fatalf("Failed to initialize Doorman client: %v", err)
 	}
 
+	// Initialize Jira client
+	if err := clients.NewJiraClientSingleton(appCtx.Environment); err != nil {
+		log.Fatalf("Failed to initialize Jira client: %v", err)
+	}
+
 	// 1. Get the base command
 	rootCmd := cli.NewRootCommand(appCtx)
 
