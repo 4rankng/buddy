@@ -160,8 +160,15 @@ func QuerySGTransaction(transactionID string) *SGTransactionResult {
 // getString safely extracts string value from map
 func getString(m map[string]interface{}, key string) string {
 	if val, ok := m[key]; ok {
-		if s, ok := val.(string); ok {
-			return s
+		switch v := val.(type) {
+		case string:
+			return v
+		case int:
+			return strconv.Itoa(v)
+		case int64:
+			return strconv.FormatInt(v, 10)
+		case float64:
+			return strconv.FormatFloat(v, 'f', 0, 64)
 		}
 	}
 	return ""
