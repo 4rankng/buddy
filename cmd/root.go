@@ -1,9 +1,10 @@
 package cmd
 
 import (
+	"buddy/cmd/mybuddy"
+	"buddy/cmd/sgbuddy"
 	"buddy/internal/app"
 	"fmt"
-
 	"github.com/spf13/cobra"
 )
 
@@ -26,9 +27,15 @@ func Execute(appCtx *app.Context) error {
 	})
 
 	// Add all subcommands
-	rootCmd.AddCommand(NewTxnCmd(appCtx))
-	rootCmd.AddCommand(NewRppCmd(appCtx))
-	rootCmd.AddCommand(NewEcoTxnCmd(appCtx))
+	rootCmd.AddCommand(mybuddy.NewTxnCmd(appCtx))
+	rootCmd.AddCommand(mybuddy.NewRppCmd(appCtx))
+	rootCmd.AddCommand(mybuddy.NewRppResumeCmd(appCtx))
+	rootCmd.AddCommand(mybuddy.NewEcoTxnCmd(appCtx))
+
+	// Add SG-specific commands only for sgbuddy
+	if appCtx.IsSG() {
+		rootCmd.AddCommand(sgbuddy.NewTxnCmd(appCtx))
+	}
 
 	return rootCmd.Execute()
 }

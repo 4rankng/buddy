@@ -1,4 +1,4 @@
-package cmd
+package mybuddy
 
 import (
 	"buddy/internal/app"

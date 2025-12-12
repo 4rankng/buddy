@@ -1,4 +1,4 @@
-package cmd
+package mybuddy
 
 import (
 	"fmt"
@@ -99,10 +99,17 @@ func processBatchFile(appCtx *app.Context, filePath string) {
 		fmt.Printf("%sError creating output file: %v\n", appCtx.GetPrefix(), err)
 		return
 	}
-	defer outputFile.Close()
+	defer func() {
+		if err := outputFile.Close(); err != nil {
+			fmt.Printf("%sError closing output file: %v\n", appCtx.GetPrefix(), err)
+		}
+	}()
 
 	fmt.Printf("\n%s--- RPP Transaction Status for All Transactions ---\n", appCtx.GetPrefix())
-	fmt.Fprintf(outputFile, "--- RPP Transaction Status for All Transactions ---\n")
+	if _, err := fmt.Fprintf(outputFile, "--- RPP Transaction Status for All Transactions ---\n"); err != nil {
+		fmt.Printf("%sError writing to output file: %v\n", appCtx.GetPrefix(), err)
+		return
+	}
 
 	for i, result := range allResults {
 		// Always write the result in the proper format, even if there's an error

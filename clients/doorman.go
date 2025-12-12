@@ -50,6 +50,12 @@ func NewDoormanClient(timeout time.Duration) (*DoormanClient, error) {
 	return &DoormanClient{BaseURL: base, User: user, Pass: pass, HTTP: cli}, nil
 }
 
+func NewDoormanClientWithConfig(baseURL, username, password string, timeout time.Duration) (*DoormanClient, error) {
+	jar, _ := cookiejar.New(nil)
+	cli := &http.Client{Timeout: timeout, Jar: jar}
+	return &DoormanClient{BaseURL: baseURL, User: username, Pass: password, HTTP: cli}, nil
+}
+
 func (c *DoormanClient) Authenticate() error {
 	loginURL, _ := url.JoinPath(c.BaseURL, "/api/login/ldap/signin")
 	b, _ := json.Marshal(doormanLoginReq{Username: c.User, Password: c.Pass})
@@ -153,4 +159,12 @@ func (c *DoormanClient) QueryPrdPaymentsRppAdapter(query string) ([]map[string]i
 
 func (c *DoormanClient) QueryPrdPaymentsPartnerpayEngine(query string) ([]map[string]interface{}, error) {
 	return c.ExecuteQuery("prd-payments-partnerpay-engine-rds-mysql", "prd-payments-partnerpay-engine-rds-mysql", "partnerpay_engine", query)
+}
+
+func (c *DoormanClient) QuerySGPaymentCore(query string) ([]map[string]interface{}, error) {
+	return c.ExecuteQuery("sg-prd-m-payment-core", "sg-prd-m-payment-core", "payment_core", query)
+}
+
+func (c *DoormanClient) QuerySGFastAdapter(query string) ([]map[string]interface{}, error) {
+	return c.ExecuteQuery("sg-prd-m-fast-adapter", "sg-prd-m-fast-adapter", "fast_adapter", query)
 }

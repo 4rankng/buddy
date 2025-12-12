@@ -9,12 +9,16 @@ status: PROCESSING
 created_at: 2025-12-08T18:19:57.525858Z
 workflow_transfer_payment: state=stTransferProcessing(220) attempt=0 run_id=d800f759-d271-4db9-8b9e-f567323b0bb9
 [payment-core]
-internal_transaction: AUTH SUCCESS
-external_transaction: TRANSFER PROCESSING
-payment_core_workflow_internal_payment_flow: state=stPrepareUpdateAuth(900) attempt=0 run_id=04b54792c3f843418fe9ab9a31803b59
-payment_core_workflow_external_payment_flow: state=stSubmitted(200) attempt=11 run_id=717101d108744edcb6d117fcb6bd2c4c
+internal_transaction: AUTH SUCCESS | CAPTURE SUCCESS // if exist due to query can return multiple rows
+external_transaction: TRANSFER PROCESSING | CAPTURE PROCESSING // if exist due to query can return multiple rows
+workflow_internal_payment_flow: state=stPrepareUpdateAuth(900) attempt=0 run_id=04b54792c3f843418fe9ab9a31803b59
+workflow_external_payment_flow: state=stSubmitted(200) attempt=11 run_id=717101d108744edcb6d117fcb6bd2c4c
 [fast-adapter]
-
+FAST ID: 123 (instruction_id or external_id from above)
+type: cashin
+transactions.status: StErraneous
+cancel_reason_code: 123
+reject_reason_code: 123
 [Classification]
 no_case_matched
 
@@ -81,17 +85,17 @@ workflow_transfer_collection mapping
 
 
 sg-prd-m-payment-core
-select tx_id, tx_type, status from internal_transaction 
+select tx_id, tx_type, status from internal_transaction
 where created_at >= '2025-08-28T02:38:27Z' // created_at get from above transfer table
 and created_at <= '2025-08-28T03:38:27Z' // created_at + 1 hour
 and group_id = '9392fb12b6c64db18e779ae60bdf4307' // use transaction_id from above
 
-select ref_id, tx_type, status from external_transaction 
+select ref_id, tx_type, status from external_transaction
 where created_at >= '2025-08-28T02:38:27Z'
 and created_at <= '2025-08-28T03:38:27Z'
 and group_id = '9392fb12b6c64db18e779ae60bdf4307'
 
-select workflow_id, run_id, state, attempt from workflow_execution 
+select workflow_id, run_id, state, attempt from workflow_execution
 where run_id in (
     'b4f3e1f3e1b14c2fa6f4e5b6c7d8e9f0', // use internal_transaction tx_id from above
     'c1d2e3f4a5b6478899aabbccddeeff00'  // use external_transaction ref_id from above
@@ -99,7 +103,7 @@ where run_id in (
 
 sg-prd-m-fast-adapter
 
-SELECT type, instruction_id, status, cancel_reason_code, reject_reason_code FROM transactions where 
+SELECT type, instruction_id, status, cancel_reason_code, reject_reason_code FROM transactions where
 instruction_id='20250828OCBCSGSGBRT6958702' // use external_id from transfer table above
 and created_at >= '2025-08-28T02:38:27Z' // created_at get from above transfer table
 and created_at <= '2025-08-28T03:38:27Z' // created_at + 1 hour
@@ -132,7 +136,7 @@ status mapping for type=cashout
 
 
 
-how do you login doorman for Singapore 
+how do you login doorman for Singapore
 
 Request URL
 https://doorman.sgbank.pr/api/login/ldap/signin
