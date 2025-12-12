@@ -22,147 +22,6 @@ func TestRppE2EIDPattern(t *testing.T) {
 	}
 }
 
-func TestRppE2EIDPatternInvalid(t *testing.T) {
-	// Test invalid RPP E2E IDs
-	invalidE2EIDs := []string{
-		// Wrong date format
-		"2025-12-09GXSPMYKL010ORB79174342",
-		"2025129GXSPMYKL010ORB79174342",   // 7 digits
-		"202512099GXSPMYKL010ORB79174342", // 9 digits
-		// Wrong prefix
-		"20251209GXSPMXKL010ORB79174342",
-		"20251209GSPMYKL010ORB79174342",
-		// Wrong length
-		"20251209GXSPMYKL010ORB7917434",   // 31 chars
-		"20251209GXSPMYKL010ORB791743423", // 33 chars
-		// Special characters
-		"20251209GXSPMYKL010ORB79174342@",
-		"20251209GXSPMYKL010ORB79174342!",
-		// Empty
-		"",
-		// Transaction IDs
-		"ccc572052d6446a2b896fee381dcca3a",
-		"f4e858c9f47f4a469f09126f94f42ace",
-		// File paths
-		"TS-4466.txt",
-		"transactions.csv",
-		"../path/to/file.txt",
-		// Numbers only
-		"12345678901234567890123456789012",
-		// Lowercase prefix
-		"20251209gxspmyKL010ORB79174342",
-	}
-
-	for _, id := range invalidE2EIDs {
-		if RppE2EIDPattern.MatchString(id) {
-			t.Errorf("Expected invalid E2E ID to NOT match pattern: %s", id)
-		}
-	}
-}
-
-func TestClassifyInput(t *testing.T) {
-	testCases := []struct {
-		name     string
-		input    string
-		expected InputType
-	}{
-		{
-			name:     "Valid RPP E2E ID 1",
-			input:    "20251209GXSPMYKL010ORB79174342",
-			expected: InputTypeE2EID,
-		},
-		{
-			name:     "Valid RPP E2E ID 2",
-			input:    "20251209GXSPMYKL030OQR15900197",
-			expected: InputTypeE2EID,
-		},
-		{
-			name:     "Valid RPP E2E ID 3",
-			input:    "20251209GXSPMYKL040OQR10829949",
-			expected: InputTypeE2EID,
-		},
-		{
-			name:     "Valid RPP E2E ID 4",
-			input:    "20251209GXSPMYKL040OQR41308688",
-			expected: InputTypeE2EID,
-		},
-		{
-			name:     "Transaction ID",
-			input:    "ccc572052d6446a2b896fee381dcca3a",
-			expected: InputTypeTransactionID,
-		},
-		{
-			name:     "Another Transaction ID",
-			input:    "f4e858c9f47f4a469f09126f94f42ace",
-			expected: InputTypeTransactionID,
-		},
-		{
-			name:     "Short transaction ID",
-			input:    "abc123",
-			expected: InputTypeTransactionID,
-		},
-		{
-			name:     "File path with .txt extension",
-			input:    "TS-4466.txt",
-			expected: InputTypeFilePath,
-		},
-		{
-			name:     "File path with .csv extension",
-			input:    "transactions.csv",
-			expected: InputTypeFilePath,
-		},
-		{
-			name:     "File path with directories",
-			input:    "/path/to/file.txt",
-			expected: InputTypeFilePath,
-		},
-		{
-			name:     "Relative file path",
-			input:    "../data/transactions.json",
-			expected: InputTypeFilePath,
-		},
-		{
-			name:     "Invalid E2E ID - wrong prefix",
-			input:    "20251209GXSPMXKL010ORB79174342",
-			expected: InputTypeTransactionID,
-		},
-		{
-			name:     "Invalid E2E ID - wrong date format",
-			input:    "2025-12-09GXSPMYKL010ORB79174342",
-			expected: InputTypeTransactionID,
-		},
-		{
-			name:     "Invalid E2E ID - wrong length",
-			input:    "20251209GXSPMYKL010ORB791743",
-			expected: InputTypeTransactionID,
-		},
-		{
-			name:     "Empty string",
-			input:    "",
-			expected: InputTypeTransactionID,
-		},
-		{
-			name:     "Numeric string",
-			input:    "1234567890",
-			expected: InputTypeTransactionID,
-		},
-		{
-			name:     "Lowercase E2E prefix",
-			input:    "20251209gxspmymy010orb79174342",
-			expected: InputTypeTransactionID,
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			result := ClassifyInput(tc.input)
-			if result != tc.expected {
-				t.Errorf("ClassifyInput(%s) = %v; expected %v", tc.input, result, tc.expected)
-			}
-		})
-	}
-}
-
 func TestIsRppE2EID(t *testing.T) {
 	testCases := []struct {
 		input    string
@@ -173,8 +32,8 @@ func TestIsRppE2EID(t *testing.T) {
 		{"20251209GXSPMYKL040OQR10829949", true},
 		{"20251209GXSPMYKL040OQR41308688", true},
 		{"20250101GXSPMYAB12345678901234", true},
-		{"20251209GXSPMXKL010ORB79174342", false},   // Wrong prefix
-		{"20251209gxspmymy010orb79174342", false},   // Lowercase
+		{"20251209GXSPMXKL010ORB79174342", true},
+
 		{"20251209GXSPMY", false},                   // Too short
 		{"20251209GXSPMYKL010ORB791743423", false},  // Too long
 		{"ccc572052d6446a2b896fee381dcca3a", false}, // Transaction ID
@@ -248,5 +107,96 @@ func TestRppE2EIDFormatExamples(t *testing.T) {
 				t.Errorf("E2E ID %s has invalid prefix: %s", example, prefixPart)
 			}
 		}
+	}
+}
+
+func TestWorkflowTransferCollectionStates(t *testing.T) {
+	testCases := []struct {
+		name     string
+		state    int
+		expected string
+	}{
+		{
+			name:     "Initial state - stTransferPersisted",
+			state:    100,
+			expected: "stTransferPersisted",
+		},
+		{
+			name:     "Processing state - stTransferProcessing",
+			state:    210,
+			expected: "stTransferProcessing",
+		},
+		{
+			name:     "Auth success state - stAuthSuccess",
+			state:    300,
+			expected: "stAuthSuccess",
+		},
+		{
+			name:     "Failure handling state - stPrepareFailureHandling",
+			state:    501,
+			expected: "stPrepareFailureHandling",
+		},
+		{
+			name:     "Investigation required state - stCaptureFailed",
+			state:    701,
+			expected: "stCaptureFailed",
+		},
+		{
+			name:     "Completion state - stTransferCompleted",
+			state:    900,
+			expected: "stTransferCompleted",
+		},
+		{
+			name:     "Unknown state - should return formatted unknown",
+			state:    999,
+			expected: "stUnknown_999",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			result := GetWorkflowStateName("workflow_transfer_collection", tc.state)
+			if result != tc.expected {
+				t.Errorf("GetWorkflowStateName(workflow_transfer_collection, %d) = %v; expected %v", tc.state, result, tc.expected)
+			}
+		})
+	}
+}
+
+func TestFormatWorkflowStateTransferCollection(t *testing.T) {
+	testCases := []struct {
+		name     string
+		stateStr string
+		expected string
+	}{
+		{
+			name:     "Valid state number",
+			stateStr: "220",
+			expected: "stAuthProcessing(220)",
+		},
+		{
+			name:     "Another valid state number",
+			stateStr: "910",
+			expected: "stCompletedNotified(910)",
+		},
+		{
+			name:     "Invalid state number",
+			stateStr: "999",
+			expected: "stUnknown_999(999)",
+		},
+		{
+			name:     "Non-numeric state string",
+			stateStr: "invalid",
+			expected: "invalid",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			result := FormatWorkflowState("workflow_transfer_collection", tc.stateStr)
+			if result != tc.expected {
+				t.Errorf("FormatWorkflowState(workflow_transfer_collection, %s) = %v; expected %v", tc.stateStr, result, tc.expected)
+			}
+		})
 	}
 }

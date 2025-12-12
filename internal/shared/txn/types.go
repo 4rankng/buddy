@@ -234,6 +234,42 @@ var WorkflowStateMaps = map[string]map[int]string{
 		501: "stCancelFailed",
 		502: "stFailureNotified",
 	},
+	"workflow_transfer_collection": {
+		100: "stTransferPersisted",
+		101: "stProcessingPublished",
+		102: "stPreTransactionLimitCheck",
+		103: "stPreRiskCheck",
+		210: "stTransferProcessing",
+		211: "stTransferStreamPersisted",
+		220: "stAuthProcessing",
+		221: "stAuthStreamPersisted",
+		300: "stAuthSuccess",
+		230: "stCapturePrepared",
+		231: "stCaptureProcessing",
+		232: "stCaptureStreamPersisted",
+		240: "stCancelPrepared",
+		241: "stCancelProcessing",
+		242: "stCancelStreamPersisted",
+		250: "stResumePrepared",
+		501: "stPrepareFailureHandling",
+		502: "stTransactionLimitCheckFailed",
+		503: "stRiskCheckError",
+		504: "stRiskCheckDeny",
+		505: "stFailurePublished",
+		510: "stFailureNotified",
+		600: "stCanceled",
+		610: "stCanceledPublished",
+		701: "stCaptureFailed",
+		702: "stCancelFailed",
+		721: "stInvestigationRequiredPublished",
+		722: "stInvestigationRequiredNotified",
+		800: "stValidateSuccess",
+		900: "stTransferCompleted",
+		901: "stCaptureCompleted",
+		902: "stTransferCompletedAutoPublish",
+		905: "stCompletedPublished",
+		910: "stCompletedNotified",
+	},
 }
 
 // GetWorkflowStateName returns the human-readable state name for a given workflow type and state number
@@ -253,6 +289,8 @@ func GetWorkflowStateName(workflowType string, state int) string {
 		mapKey = "wf_ct_cashin"
 	case "workflow_charge":
 		mapKey = "workflow_charge"
+	case "workflow_transfer_collection":
+		mapKey = "workflow_transfer_collection"
 	default:
 		mapKey = "workflow_transfer_payment"
 	}

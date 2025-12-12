@@ -93,7 +93,7 @@ func displayPaymentEngineSection(w io.Writer, pe PaymentEngineInfo) error {
 	// Write workflow if exists
 	if pe.Workflow.RunID != "" {
 		line := fmt.Sprintf("state=%s attempt=%d", pe.Workflow.GetFormattedState(), pe.Workflow.Attempt)
-		if _, err := fmt.Fprintf(w, "workflow_transfer_payment: %s run_id=%s\n", line, pe.Workflow.RunID); err != nil {
+		if _, err := fmt.Fprintf(w, "%s: %s run_id=%s\n", pe.Workflow.WorkflowID, line, pe.Workflow.RunID); err != nil {
 			fmt.Printf("Warning: failed to write payment engine workflow: %v\n", err)
 		}
 	}
@@ -211,7 +211,7 @@ func displayFastAdapterSection(w io.Writer, fa FastAdapterInfo) error {
 			statusStr = fmt.Sprintf("(%d)", fa.StatusCode)
 		}
 	}
-	if _, err := fmt.Fprintf(w, "transactions.status: %s\n", statusStr); err != nil {
+	if _, err := fmt.Fprintf(w, "status: %s\n", statusStr); err != nil {
 		fmt.Printf("Warning: failed to write fast adapter status: %v\n", err)
 	}
 
