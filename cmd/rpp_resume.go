@@ -55,6 +55,10 @@ func processSingleE2E(appCtx *app.Context, e2eID string) {
 		return
 	}
 
+	// Always display the RPP transaction status and workflow info
+	fmt.Printf("\n%s--- RPP Transaction Status ---\n", appCtx.GetPrefix())
+	txn.WriteResult(os.Stdout, *result, 1)
+
 	// Check if it matches the resume criteria
 	if !txn.MatchSOPCaseRppNoResponseResume(*result) {
 		fmt.Printf("%sThis E2E ID does not match the resume criteria (state=210, attempt=0, workflow_id in ('wf_ct_cashout', 'wf_ct_qr_payment'))\n", appCtx.GetPrefix())
@@ -77,12 +81,40 @@ func processBatchFile(appCtx *app.Context, filePath string) {
 
 	// Process transactions and collect matching ones
 	var matchingResults []txn.TransactionResult
+	var allResults []txn.TransactionResult
+
 	for _, id := range transactionIDs {
 		result := queryRPPAdapterForE2E(id)
+		allResults = append(allResults, *result)
 		if result.Error == "" && txn.MatchSOPCaseRppNoResponseResume(*result) {
 			matchingResults = append(matchingResults, *result)
 		}
 	}
+
+	// Always display RPP transaction status and workflow info for all transactions
+	// Write to output file instead of stdout
+	outputPath := filePath + "_RPP_Status.txt"
+	outputFile, err := os.Create(outputPath)
+	if err != nil {
+		fmt.Printf("%sError creating output file: %v\n", appCtx.GetPrefix(), err)
+		return
+	}
+	defer outputFile.Close()
+
+	fmt.Printf("\n%s--- RPP Transaction Status for All Transactions ---\n", appCtx.GetPrefix())
+	fmt.Fprintf(outputFile, "--- RPP Transaction Status for All Transactions ---\n")
+
+	for i, result := range allResults {
+		// Always write the result in the proper format, even if there's an error
+		txn.WriteResult(outputFile, result, i+1)
+
+		// Also show error messages on console for visibility
+		if result.Error != "" {
+			fmt.Printf("%sError for %s: %s\n", appCtx.GetPrefix(), result.TransactionID, result.Error)
+		}
+	}
+
+	fmt.Printf("%sTransaction status written to %s\n", appCtx.GetPrefix(), outputPath)
 
 	if len(matchingResults) == 0 {
 		fmt.Printf("%sNo transactions matched the resume criteria\n", appCtx.GetPrefix())

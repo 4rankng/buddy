@@ -31,9 +31,31 @@ func PrintTransactionStatus(transactionID string) {
 	writeResult(os.Stdout, *result, 1)
 }
 
+// WriteResult writes a single transaction result to the specified writer
+func WriteResult(w io.Writer, result TransactionResult, index int) {
+	writeResult(w, result, index)
+}
+
 func writeResult(w io.Writer, result TransactionResult, index int) {
 	if index <= 0 {
 		index = 1
+	}
+
+	// For RPP E2E IDs with errors, still show the RPP adapter section with NOT FOUND status
+	if IsRppE2EID(result.TransactionID) && result.Error != "" {
+		if _, err := fmt.Fprintf(w, "### [%d] e2e_id: %s\n", index, result.TransactionID); err != nil {
+			fmt.Printf("Warning: failed to write e2e_id: %v\n", err)
+		}
+		if _, err := fmt.Fprintln(w, "[rpp-adapter]"); err != nil {
+			fmt.Printf("Warning: failed to write rpp-adapter header: %v\n", err)
+		}
+		if _, err := fmt.Fprintln(w, "NOT FOUND"); err != nil {
+			fmt.Printf("Warning: failed to write NOT FOUND: %v\n", err)
+		}
+		if _, err := fmt.Fprintln(w); err != nil {
+			fmt.Printf("Warning: failed to write newline: %v\n", err)
+		}
+		return
 	}
 
 	if result.Error != "" && result.TransferStatus != "NOT_FOUND" {
@@ -50,8 +72,13 @@ func writeResult(w io.Writer, result TransactionResult, index int) {
 		return
 	}
 
-	if _, err := fmt.Fprintf(w, "### [%d] transaction_id: %s\n", index, result.TransactionID); err != nil {
-		fmt.Printf("Warning: failed to write transaction ID: %v\n", err)
+	// Use e2e_id for RPP E2E IDs, transaction_id for others
+	idLabel := "transaction_id"
+	if IsRppE2EID(result.TransactionID) {
+		idLabel = "e2e_id"
+	}
+	if _, err := fmt.Fprintf(w, "### [%d] %s: %s\n", index, idLabel, result.TransactionID); err != nil {
+		fmt.Printf("Warning: failed to write ID: %v\n", err)
 	}
 
 	// If this is an E2E ID lookup (determined by checking if it matches E2E ID pattern),

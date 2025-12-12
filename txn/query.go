@@ -335,12 +335,12 @@ func queryRPPE2EID(client *clients.DoormanClient, e2eID string) *TransactionResu
 		if stateInt, ok := state.(float64); ok {
 			stateNum := int(stateInt)
 			result.RPPWorkflow.State = fmt.Sprintf("%d", stateNum)
-			result.RPPStatus = result.RPPWorkflow.State
 		} else {
 			result.RPPWorkflow.State = fmt.Sprintf("%v", state)
-			result.RPPStatus = result.RPPWorkflow.State
 		}
 	}
+	// Keep the original creditTransferStatus from the database query
+	// Don't overwrite it with the workflow state
 
 	// Set created_at timestamp
 	if createdAt, createdAtOk := workflow["created_at"]; createdAtOk {
