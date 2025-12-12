@@ -210,7 +210,8 @@ func WriteEcoTransactionResult(w io.Writer, result TransactionResult, index int)
 		index = 1
 	}
 
-	if result.Error != "" && result.TransferStatus == "NOT_FOUND" {
+	// Check if this is a NOT_FOUND error
+	if result.TransferStatus == "NOT_FOUND" {
 		if _, err := fmt.Fprintf(w, "### [%d] transaction_id: %s\nError: %s\n\n", index, result.TransactionID, result.Error); err != nil {
 			fmt.Printf("Warning: failed to write error result: %v\n", err)
 		}
@@ -233,7 +234,7 @@ func WriteEcoTransactionResult(w io.Writer, result TransactionResult, index int)
 			fmt.Printf("Warning: failed to write charge status: %v\n", err)
 		}
 
-		// If there's an error message, append it
+		// If there's an error message (status_reason), append it
 		if result.Error != "" {
 			if _, err := fmt.Fprintf(w, " %s", result.Error); err != nil {
 				fmt.Printf("Warning: failed to write error message: %v\n", err)

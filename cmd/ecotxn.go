@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"fmt"
 	"os"
 
 	"buddy/internal/app"
@@ -32,10 +31,6 @@ Example:
 func processEcoTransaction(appCtx *app.Context, runID string) {
 	// Query the partnerpay-engine database
 	result := txn.QueryPartnerpayEngineTransaction(runID)
-	if result.Error != "" {
-		fmt.Printf("%sError: %s\n", appCtx.GetPrefix(), result.Error)
-		return
-	}
 
 	// Display the result in the required format
 	txn.WriteEcoTransactionResult(os.Stdout, *result, 1)
