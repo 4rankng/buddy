@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
-	"io"
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
@@ -12,7 +11,6 @@ import (
 	"time"
 
 	"buddy/config"
-	"buddy/output"
 )
 
 // AuthInfo holds authentication information
@@ -26,6 +24,9 @@ type DoormanConfig struct {
 	Host string
 	Auth AuthInfo
 
+	// Account ID for API requests
+	AccountID string
+
 	// Database cluster/instance names
 	PaymentEngine    string
 	PaymentCore      string
@@ -35,7 +36,7 @@ type DoormanConfig struct {
 }
 
 // DoormanClient singleton with configuration
-type DoormanClientSingleton struct {
+type DoormanClient struct {
 	config        DoormanConfig
 	httpClient    *http.Client
 	mu            sync.RWMutex
@@ -43,12 +44,12 @@ type DoormanClientSingleton struct {
 }
 
 var (
-	singleton *DoormanClientSingleton
+	singleton *DoormanClient
 	once      sync.Once
 )
 
-// Ensure DoormanClientSingleton implements DoormanInterface
-var _ DoormanInterface = (*DoormanClientSingleton)(nil)
+// Ensure DoormanClient implements DoormanInterface
+var _ DoormanInterface = (*DoormanClient)(nil)
 
 // Environment-specific configurations
 var configs = map[string]DoormanConfig{
@@ -58,9 +59,10 @@ var configs = map[string]DoormanConfig{
 			Username: config.Get("DOORMAN_USERNAME", ""),
 			Password: config.Get("DOORMAN_PASSWORD", ""),
 		},
-		PaymentEngine:    "payment-engine",
-		PaymentCore:      "payment-core",
-		FastAdapter:      "fast-adapter",
+		AccountID:        "748118206017", // Singapore environment account ID
+		PaymentEngine:    "sg-prd-m-payment-engine",
+		PaymentCore:      "sg-prd-m-payment-core",
+		FastAdapter:      "sg-prd-m-fast-adapter",
 		RppAdapter:       "", // Not available in SG
 		PartnerpayEngine: "", // Not available in SG
 	},
@@ -70,16 +72,17 @@ var configs = map[string]DoormanConfig{
 			Username: config.Get("DOORMAN_USERNAME", ""),
 			Password: config.Get("DOORMAN_PASSWORD", ""),
 		},
-		PaymentEngine:    "payment-engine",
-		PaymentCore:      "payment-core",
+		AccountID:        "559634300081", // Malaysia environment account ID
+		PaymentEngine:    "prd-payments-payment-engine-rds-mysql",
+		PaymentCore:      "prd-payments-payment-core-rds-mysql",
 		FastAdapter:      "", // Not available in MY
-		RppAdapter:       "rpp-adapter",
-		PartnerpayEngine: "partnerpay-engine",
+		RppAdapter:       "prd-payments-rpp-adapter-rds-mysql",
+		PartnerpayEngine: "prd-payments-partnerpay-engine-rds-mysql",
 	},
 }
 
-// GetDoormanClient returns the singleton DoormanClient instance
-func GetDoormanClient(env string) (*DoormanClientSingleton, error) {
+// GetDoormanClient returns singleton DoormanClient instance
+func GetDoormanClient(env string) (*DoormanClient, error) {
 	var err error
 
 	once.Do(func() {
@@ -88,7 +91,7 @@ func GetDoormanClient(env string) (*DoormanClientSingleton, error) {
 			cfg = configs["my"] // Default to Malaysia
 		}
 
-		singleton = &DoormanClientSingleton{
+		singleton = &DoormanClient{
 			config: cfg,
 			httpClient: &http.Client{
 				Timeout: 30 * time.Second,
@@ -99,8 +102,8 @@ func GetDoormanClient(env string) (*DoormanClientSingleton, error) {
 	return singleton, err
 }
 
-// GetConfig returns the configuration for the client
-func (c *DoormanClientSingleton) GetConfig() DoormanConfig {
+// GetConfig returns configuration for client
+func (c *DoormanClient) GetConfig() DoormanConfig {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return c.config
@@ -112,8 +115,8 @@ func ResetSingleton() {
 	singleton = nil
 }
 
-// Authenticate performs authentication with the doorman service
-func (c *DoormanClientSingleton) Authenticate() error {
+// Authenticate performs authentication with doorman service
+func (c *DoormanClient) Authenticate() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -134,13 +137,6 @@ func (c *DoormanClientSingleton) Authenticate() error {
 
 	reqBody, _ := json.Marshal(loginReq)
 
-	// Debug logging
-	output.LogEvent("doorman_auth_attempt", map[string]any{
-		"url":      loginURL,
-		"username": cfg.Auth.Username,
-		"request":  string(reqBody),
-	})
-
 	req, _ := http.NewRequest(http.MethodPost, loginURL, bytes.NewReader(reqBody))
 	req.Header.Set("Content-Type", "application/json")
 
@@ -151,22 +147,15 @@ func (c *DoormanClientSingleton) Authenticate() error {
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		output.LogEvent("doorman_auth_http_error", map[string]any{"error": err.Error()})
 		return err
 	}
 	defer func() {
 		if err := resp.Body.Close(); err != nil {
-			output.LogEvent("doorman_auth_close_error", map[string]any{"error": err.Error()})
+			// Log error if close fails
 		}
 	}()
 
 	if resp.StatusCode >= 300 {
-		var bodyBytes []byte
-		if resp.Body != nil {
-			bb, _ := io.ReadAll(resp.Body)
-			bodyBytes = bb
-		}
-		output.LogEvent("doorman_auth_failed", map[string]any{"status": resp.Status, "body": string(bodyBytes)})
 		return errors.New("doorman auth failed: " + resp.Status)
 	}
 
@@ -175,103 +164,107 @@ func (c *DoormanClientSingleton) Authenticate() error {
 }
 
 // ExecuteQuery executes a query against the specified database cluster
-func (c *DoormanClientSingleton) ExecuteQuery(cluster, instance, schema, query string) ([]map[string]interface{}, error) {
+func (c *DoormanClient) ExecuteQuery(cluster, instance, schema, query string) ([]map[string]interface{}, error) {
 	if err := c.Authenticate(); err != nil {
 		return nil, err
 	}
 
 	cfg := c.GetConfig()
-	queryURL, _ := url.JoinPath(cfg.Host, "/api/sql/query")
+	queryURL, _ := url.JoinPath(cfg.Host, "/api/rds/query/execute")
 
 	queryReq := struct {
-		Cluster  string `json:"cluster"`
-		Instance string `json:"instance"`
-		Schema   string `json:"schema"`
-		Query    string `json:"query"`
+		AccountID    string `json:"accountID"`
+		ClusterName  string `json:"clusterName"`
+		InstanceName string `json:"instanceName"`
+		Schema       string `json:"schema"`
+		Query        string `json:"query"`
 	}{
-		Cluster:  cluster,
-		Instance: instance,
-		Schema:   schema,
-		Query:    query,
+		AccountID:    cfg.AccountID, // Use configurable account ID
+		ClusterName:  cluster,
+		InstanceName: instance,
+		Schema:       schema,
+		Query:        query,
 	}
 
 	reqBody, _ := json.Marshal(queryReq)
-
-	// Debug logging
-	output.LogEvent("doorman_query_attempt", map[string]any{
-		"url":     queryURL,
-		"cluster": cluster,
-		"schema":  schema,
-		"query":   query,
-	})
 
 	req, _ := http.NewRequest(http.MethodPost, queryURL, bytes.NewReader(reqBody))
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		output.LogEvent("doorman_query_http_error", map[string]any{"error": err.Error()})
 		return nil, err
 	}
 	defer func() {
 		if err := resp.Body.Close(); err != nil {
-			output.LogEvent("doorman_query_close_error", map[string]any{"error": err.Error()})
+			// Log error if close fails
 		}
 	}()
 
 	if resp.StatusCode >= 300 {
-		var bodyBytes []byte
-		if resp.Body != nil {
-			bb, _ := io.ReadAll(resp.Body)
-			bodyBytes = bb
-		}
-		output.LogEvent("doorman_query_failed", map[string]any{"status": resp.Status, "body": string(bodyBytes)})
 		return nil, errors.New("doorman query failed: " + resp.Status)
 	}
 
 	var response struct {
-		Data []map[string]interface{} `json:"data"`
+		Code   int `json:"code"`
+		Result struct {
+			Headers []string        `json:"headers"`
+			Types   []string        `json:"types"`
+			Rows    [][]interface{} `json:"rows"`
+		} `json:"result"`
 	}
 
 	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
 		return nil, err
 	}
 
-	return response.Data, nil
+	// Convert the tabular response to a map-based format
+	var data []map[string]interface{}
+	for _, row := range response.Result.Rows {
+		rowMap := make(map[string]interface{})
+		for i, value := range row {
+			if i < len(response.Result.Headers) {
+				rowMap[response.Result.Headers[i]] = value
+			}
+		}
+		data = append(data, rowMap)
+	}
+
+	return data, nil
 }
 
 // QueryPaymentEngine queries the payment engine database
-func (c *DoormanClientSingleton) QueryPaymentEngine(query string) ([]map[string]interface{}, error) {
+func (c *DoormanClient) QueryPaymentEngine(query string) ([]map[string]interface{}, error) {
 	cfg := c.GetConfig()
-	return c.ExecuteQuery(cfg.PaymentEngine, cfg.PaymentEngine, "payment_engine", query)
+	return c.ExecuteQuery(cfg.PaymentEngine, cfg.PaymentEngine, "prod_payment_engine_db01", query)
 }
 
 // QueryPaymentCore queries the payment core database
-func (c *DoormanClientSingleton) QueryPaymentCore(query string) ([]map[string]interface{}, error) {
+func (c *DoormanClient) QueryPaymentCore(query string) ([]map[string]interface{}, error) {
 	cfg := c.GetConfig()
-	return c.ExecuteQuery(cfg.PaymentCore, cfg.PaymentCore, "payment_core", query)
+	return c.ExecuteQuery(cfg.PaymentCore, cfg.PaymentCore, "prod_payment_core_db01", query)
 }
 
 // QueryFastAdapter queries the fast adapter database (Singapore only)
-func (c *DoormanClientSingleton) QueryFastAdapter(query string) ([]map[string]interface{}, error) {
+func (c *DoormanClient) QueryFastAdapter(query string) ([]map[string]interface{}, error) {
 	cfg := c.GetConfig()
 	if cfg.FastAdapter == "" {
 		return nil, errors.New("fast adapter is not available in this environment")
 	}
-	return c.ExecuteQuery(cfg.FastAdapter, cfg.FastAdapter, "fast_adapter", query)
+	return c.ExecuteQuery(cfg.FastAdapter, cfg.FastAdapter, "prod_fast_adapter_db01", query)
 }
 
 // QueryRppAdapter queries the rpp adapter database (Malaysia only)
-func (c *DoormanClientSingleton) QueryRppAdapter(query string) ([]map[string]interface{}, error) {
+func (c *DoormanClient) QueryRppAdapter(query string) ([]map[string]interface{}, error) {
 	cfg := c.GetConfig()
 	if cfg.RppAdapter == "" {
 		return nil, errors.New("rpp adapter is not available in this environment")
 	}
-	return c.ExecuteQuery(cfg.RppAdapter, cfg.RppAdapter, "rpp_adapter", query)
+	return c.ExecuteQuery(cfg.RppAdapter, cfg.RppAdapter, "prd-payments-rpp-adapter-rds-mysql", query)
 }
 
 // QueryPartnerpayEngine queries the partnerpay engine database (Malaysia only)
-func (c *DoormanClientSingleton) QueryPartnerpayEngine(query string) ([]map[string]interface{}, error) {
+func (c *DoormanClient) QueryPartnerpayEngine(query string) ([]map[string]interface{}, error) {
 	cfg := c.GetConfig()
 	if cfg.PartnerpayEngine == "" {
 		return nil, errors.New("partnerpay engine is not available in this environment")
