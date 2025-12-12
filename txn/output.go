@@ -24,7 +24,12 @@ func WriteBatchResults(results []TransactionResult, outputPath string) error {
 
 // PrintTransactionStatus prints transaction information in the new format
 func PrintTransactionStatus(transactionID string) {
-	result := QueryTransactionStatus(transactionID)
+	PrintTransactionStatusWithEnv(transactionID, "my")
+}
+
+// PrintTransactionStatusWithEnv prints transaction information in the new format with specified environment
+func PrintTransactionStatusWithEnv(transactionID string, env string) {
+	result := QueryTransactionStatusWithEnv(transactionID, env)
 	writeResult(os.Stdout, *result, 1)
 }
 

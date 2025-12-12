@@ -189,7 +189,12 @@ func promptForInput(prompt string) (string, error) {
 
 // checkRPPAdapterStatusByReqBizMsgID performs the nested query to find run_id/partner_tx_id via req_biz_msg_id
 func checkRPPAdapterStatusByReqBizMsgID(reqBizMsgID string) (string, string, int) {
-	factory := clients.NewDoormanClientFactory("my")
+	return checkRPPAdapterStatusByReqBizMsgIDWithEnv(reqBizMsgID, "my")
+}
+
+// checkRPPAdapterStatusByReqBizMsgIDWithEnv performs the nested query to find run_id/partner_tx_id via req_biz_msg_id with environment
+func checkRPPAdapterStatusByReqBizMsgIDWithEnv(reqBizMsgID string, env string) (string, string, int) {
+	factory := clients.NewDoormanClientFactory(env)
 	client, err := factory.CreateClient(30 * time.Second)
 	if err != nil {
 		fmt.Printf("Error creating doorman client: %v\n", err)
@@ -234,9 +239,14 @@ func checkRPPAdapterStatusByReqBizMsgID(reqBizMsgID string) (string, string, int
 
 // checkRPPAdapterStatus queries the RPP Adapter database for the real workflow state and run_id using PartnerTxID
 func checkRPPAdapterStatus(partnerTxID string) (string, string) {
+	return checkRPPAdapterStatusWithEnv(partnerTxID, "my")
+}
+
+// checkRPPAdapterStatusWithEnv queries the RPP Adapter database for the real workflow state and run_id using PartnerTxID with environment
+func checkRPPAdapterStatusWithEnv(partnerTxID string, env string) (string, string) {
 	fmt.Printf("Checking RPP Adapter for partner_tx_id: %s...\n", partnerTxID)
 
-	factory := clients.NewDoormanClientFactory("my")
+	factory := clients.NewDoormanClientFactory(env)
 	client, err := factory.CreateClient(30 * time.Second)
 	if err != nil {
 		fmt.Printf("Error creating doorman client: %v\n", err)

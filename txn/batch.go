@@ -39,10 +39,15 @@ func ReadTransactionIDsFromFile(filePath string) ([]string, error) {
 
 // ProcessBatchTransactions processes multiple transaction IDs and returns results
 func ProcessBatchTransactions(transactionIDs []string) []TransactionResult {
+	return ProcessBatchTransactionsWithEnv(transactionIDs, "my")
+}
+
+// ProcessBatchTransactionsWithEnv processes multiple transaction IDs and returns results with specified environment
+func ProcessBatchTransactionsWithEnv(transactionIDs []string, env string) []TransactionResult {
 	results := make([]TransactionResult, 0, len(transactionIDs))
 
 	for _, transactionID := range transactionIDs {
-		result := QueryTransactionStatus(transactionID)
+		result := QueryTransactionStatusWithEnv(transactionID, env)
 		results = append(results, *result)
 	}
 
@@ -51,6 +56,11 @@ func ProcessBatchTransactions(transactionIDs []string) []TransactionResult {
 
 // ProcessBatchFile processes a file containing transaction IDs and writes results to an output file
 func ProcessBatchFile(filePath string) {
+	ProcessBatchFileWithEnv(filePath, "my")
+}
+
+// ProcessBatchFileWithEnv processes a file containing transaction IDs and writes results to an output file with specified environment
+func ProcessBatchFileWithEnv(filePath string, env string) {
 	// Read transaction IDs from file
 	transactionIDs, err := ReadTransactionIDsFromFile(filePath)
 	if err != nil {
@@ -61,7 +71,7 @@ func ProcessBatchFile(filePath string) {
 	fmt.Printf("Processing %d transaction IDs from %s\n", len(transactionIDs), filePath)
 
 	// Process transactions in batch
-	results := ProcessBatchTransactions(transactionIDs)
+	results := ProcessBatchTransactionsWithEnv(transactionIDs, env)
 
 	// Identify SOP cases for all transactions FIRST (before any output generation)
 	IdentifySOPCases(results)

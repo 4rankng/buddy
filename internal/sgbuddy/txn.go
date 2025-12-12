@@ -28,14 +28,14 @@ Each line in the file should contain a single transaction ID.`,
 
 			// Check if input is a file or a single transaction ID
 			if txn.IsFilePath(input) {
-				// Process batch file
-				txn.ProcessBatchFile(input)
+				// Process batch file with Singapore environment
+				txn.ProcessBatchFileWithEnv(input, "sg")
 			} else {
-				// Process single transaction
-				txn.PrintTransactionStatus(input)
+				// Process single transaction with Singapore environment
+				txn.PrintTransactionStatusWithEnv(input, "sg")
 
 				// Query again to check for errors
-				result := txn.QueryTransactionStatus(input)
+				result := txn.QueryTransactionStatusWithEnv(input, "sg")
 				if result.Error != "" {
 					os.Exit(1)
 				}

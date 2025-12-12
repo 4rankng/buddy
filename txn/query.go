@@ -14,8 +14,13 @@ var RppE2EIDPattern = regexp.MustCompile(`^\d{8}.{14}\d{8}$`)
 
 // QueryTransactionStatus returns structured data about a transaction
 func QueryTransactionStatus(transactionID string) *TransactionResult {
+	return QueryTransactionStatusWithEnv(transactionID, "my")
+}
+
+// QueryTransactionStatusWithEnv returns structured data about a transaction with specified environment
+func QueryTransactionStatusWithEnv(transactionID string, env string) *TransactionResult {
 	// Initialize doorman factory
-	factory := clients.NewDoormanClientFactory("my")
+	factory := clients.NewDoormanClientFactory(env)
 	client, err := factory.CreateClient(30 * time.Second)
 	if err != nil {
 		return &TransactionResult{
@@ -360,8 +365,13 @@ func queryRPPE2EID(client *clients.DoormanClient, e2eID string) *TransactionResu
 
 // QueryPartnerpayEngineTransaction queries the partnerpay-engine database for a transaction by run_id
 func QueryPartnerpayEngineTransaction(runID string) *TransactionResult {
+	return QueryPartnerpayEngineTransactionWithEnv(runID, "my")
+}
+
+// QueryPartnerpayEngineTransactionWithEnv queries the partnerpay-engine database for a transaction by run_id with specified environment
+func QueryPartnerpayEngineTransactionWithEnv(runID string, env string) *TransactionResult {
 	// Initialize doorman factory
-	factory := clients.NewDoormanClientFactory("my")
+	factory := clients.NewDoormanClientFactory(env)
 	client, err := factory.CreateClient(30 * time.Second)
 	if err != nil {
 		return &TransactionResult{
