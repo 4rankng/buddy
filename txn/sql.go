@@ -15,7 +15,7 @@ func GenerateSQLStatements(results []TransactionResult) SQLStatements {
 
 	for i := range results {
 		// SOP cases should already be identified by IdentifySOPCases
-		caseType := results[i].SOPCase
+		caseType := results[i].CaseType
 
 		// Get the template function for this case
 		if templateFunc, exists := sqlTemplates[caseType]; exists {
@@ -65,7 +65,7 @@ func GetDMLTicketForRppResume(result TransactionResult) *DMLTicket {
 	}
 
 	return &DMLTicket{
-		RunIDs:      []string{result.RPPWorkflow.RunID},
+		RunIDs:      []string{result.RPPAdapter.Workflow.RunID},
 		WorkflowIDs: []string{"'wf_ct_cashout'", "'wf_ct_qr_payment'"},
 		DeployTemplate: `-- rpp_no_response_resume_acsp
 -- RPP did not respond in time, but status at Paynet is ACSP (Accepted Settlement in Process) or ACTC (Accepted Technical Validation)

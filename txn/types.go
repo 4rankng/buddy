@@ -7,14 +7,14 @@ import (
 
 // PETransfersInfo contains payment-engine transfer information
 type PETransfersInfo struct {
-	Type        string // payment-engine transfers.type
-	TxnSubtype  string // payment-engine transfers.txn_subtype
-	TxnDomain   string // payment-engine transfers.txn_domain
+	Type          string // payment-engine transfers.type
+	TxnSubtype    string // payment-engine transfers.txn_subtype
+	TxnDomain     string // payment-engine transfers.txn_domain
 	TransactionID string // payment-engine transfers.transaction_id
-	ReferenceID string // payment-engine transfers.reference_id
-	Status      string // payment-engine transfers.status
-	ExternalID  string // payment-engine transfers.external_id
-	CreatedAt   string // payment-engine transfers.created_at
+	ReferenceID   string // payment-engine transfers.reference_id
+	Status        string // payment-engine transfers.status
+	ExternalID    string // payment-engine transfers.external_id
+	CreatedAt     string // payment-engine transfers.created_at
 }
 
 // WorkflowInfo contains information about a specific workflow execution
@@ -38,25 +38,25 @@ type PaymentEngineInfo struct {
 
 // PCInternalTxnInfo contains payment-core internal transaction information
 type PCInternalTxnInfo struct {
-	TxID      string // payment-core internal transaction ID
-	GroupID   string // payment-core transaction group ID
-	TxType    string // payment-core transaction type
-	TxStatus  string // payment-core transaction status
+	TxID     string // payment-core internal transaction ID
+	GroupID  string // payment-core transaction group ID
+	TxType   string // payment-core transaction type
+	TxStatus string // payment-core transaction status
 }
 
 // PCExternalTxnInfo contains payment-core external transaction information
 type PCExternalTxnInfo struct {
-	RefID     string // payment-core external transaction reference ID
-	GroupID   string // payment-core transaction group ID
-	TxType    string // payment-core transaction type
-	TxStatus  string // payment-core transaction status
+	RefID    string // payment-core external transaction reference ID
+	GroupID  string // payment-core transaction group ID
+	TxType   string // payment-core transaction type
+	TxStatus string // payment-core transaction status
 }
 
 // PaymentCoreInfo contains payment-core related information
 type PaymentCoreInfo struct {
-	InternalTxn PCInternalTxnInfo
-	ExternalTxn PCExternalTxnInfo
-	Workflow    []WorkflowInfo
+	InternalTxns []PCInternalTxnInfo
+	ExternalTxns []PCExternalTxnInfo
+	Workflow     []WorkflowInfo
 }
 
 // FastAdapterInfo contains fast adapter related information
@@ -73,17 +73,38 @@ type RPPAdapterInfo struct {
 	ReqBizMsgID string // RPP request business message ID
 	PartnerTxID string // RPP partner transaction ID
 	Status      string // RPP status
+	Workflow    WorkflowInfo
+	Info        string // optional extra context (e.g. status reason description)
+}
+
+// PPEChargeInfo contains partnerpay-engine charge information
+type PPEChargeInfo struct {
+	TransactionID           string // partnerpay-engine charge.transaction_id
+	Status                  string // partnerpay-engine charge.status
+	StatusReason            string // partnerpay-engine charge.status_reason
+	StatusReasonDescription string // partnerpay-engine charge.status_reason_description
+}
+
+// PartnerpayEngineInfo contains partnerpay-engine related information
+type PartnerpayEngineInfo struct {
+	Transfers PPEChargeInfo
+	Workflow  WorkflowInfo
 }
 
 // TransactionResult represents the result of a transaction query
 type TransactionResult struct {
-	PaymentEngine PaymentEngineInfo
-	PaymentCore   PaymentCoreInfo
-	FastAdapter   FastAdapterInfo
-	RPPAdapter    RPPAdapterInfo
-	CaseType      SOPCase // Store the identified SOP case to avoid re-identification
-	Error         string
+	TransactionID    string
+	PaymentEngine    PaymentEngineInfo
+	PartnerpayEngine PartnerpayEngineInfo
+	PaymentCore      PaymentCoreInfo
+	FastAdapter      FastAdapterInfo
+	RPPAdapter       RPPAdapterInfo
+	CaseType         SOPCase // Store the identified SOP case to avoid re-identification
+	Error            string
 }
+
+// Common status values
+const NotFoundStatus = "NOT_FOUND"
 
 // SOPCase represents the supported remediation cases from SOP.md
 type SOPCase string

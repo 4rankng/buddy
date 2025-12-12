@@ -54,8 +54,8 @@ func appendStatements(main *SQLStatements, new SQLStatements) {
 
 // getPcExtPayment200_11RunID extracts the relevant run_id for Case 1
 func getPcExtPayment200_11RunID(result TransactionResult) string {
-	for _, w := range result.PaymentCoreWorkflows {
-		if w.Type == "external_payment_flow" && w.State == "200" && w.Attempt == 11 {
+	for _, w := range result.PaymentCore.Workflow {
+		if w.WorkflowID == "external_payment_flow" && w.State == "200" && w.Attempt == 11 {
 			return w.RunID
 		}
 	}

@@ -55,7 +55,7 @@ WHERE run_id IN (%s);`,
 	// ========================================
 	SOPCasePeTransferPayment210_0: func(result TransactionResult) *DMLTicket {
 		return &DMLTicket{
-			RunIDs: []string{result.PaymentEngineWorkflow.RunID},
+			RunIDs: []string{result.PaymentEngine.Workflow.RunID},
 			DeployTemplate: `-- Reject PE stuck 210. Reject transactions since it hasn't reached Paynet yet
 UPDATE workflow_execution
 SET state = 221,
@@ -91,7 +91,7 @@ AND workflow_id = 'workflow_transfer_payment';`,
 	// ========================================
 	SOPCasePcExternalPaymentFlow201_0RPP210: func(result TransactionResult) *DMLTicket {
 		return &DMLTicket{
-			RunIDs: []string{result.RPPWorkflow.RunID},
+			RunIDs: []string{result.RPPAdapter.Workflow.RunID},
 			DeployTemplate: `-- RPP 210, PE 220, PC 201. No response from RPP. Move to 222 to resume. ACSP
 UPDATE workflow_execution
 SET state = 222,
@@ -112,7 +112,7 @@ WHERE run_id IN (%s);`,
 
 	SOPCasePcExternalPaymentFlow201_0RPP900: func(result TransactionResult) *DMLTicket {
 		return &DMLTicket{
-			RunIDs: []string{result.RPPWorkflow.RunID},
+			RunIDs: []string{result.RPPAdapter.Workflow.RunID},
 			DeployTemplate: `-- RPP 900, PE 220, PC 201. Republish from RPP to resume. ACSP
 UPDATE workflow_execution
 SET state = 301,
@@ -133,7 +133,7 @@ WHERE run_id IN (%s);`,
 
 	SOPCaseRppCashoutReject101_19: func(result TransactionResult) *DMLTicket {
 		return &DMLTicket{
-			RunIDs: []string{result.RPPWorkflow.RunID},
+			RunIDs: []string{result.RPPAdapter.Workflow.RunID},
 			DeployTemplate: `-- rpp_cashout_reject_101_19, manual reject
 UPDATE workflow_execution
 SET state = 221,
@@ -158,7 +158,7 @@ AND workflow_id = 'wf_ct_cashout';`,
 
 	SOPCaseRppQrPaymentReject210_0: func(result TransactionResult) *DMLTicket {
 		return &DMLTicket{
-			RunIDs: []string{result.RPPWorkflow.RunID},
+			RunIDs: []string{result.RPPAdapter.Workflow.RunID},
 			DeployTemplate: `-- rpp_qr_payment_reject_210_0, manual reject
 UPDATE workflow_execution
 SET state = 221,
@@ -183,7 +183,7 @@ AND workflow_id = 'wf_ct_qr_payment';`,
 
 	SOPCaseRppNoResponseResume: func(result TransactionResult) *DMLTicket {
 		return &DMLTicket{
-			RunIDs:      []string{result.RPPWorkflow.RunID},
+			RunIDs:      []string{result.RPPAdapter.Workflow.RunID},
 			WorkflowIDs: []string{"'wf_ct_cashout'", "'wf_ct_qr_payment'"},
 			DeployTemplate: `-- rpp_no_response_resume_acsp
 -- RPP did not respond in time, but status at Paynet is ACSP (Accepted Settlement in Process) or ACTC (Accepted Technical Validation)

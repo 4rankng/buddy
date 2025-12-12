@@ -110,7 +110,7 @@ func processSingleTransaction(appCtx *app.Context, transactionID string) {
 	// We query again here to get the struct needed for SQL generation.
 	// (Efficiency note: In a larger app, PrintTransactionStatus might return the result to avoid re-query)
 	result := txn.QueryTransactionStatus(transactionID)
-	if result.TransferStatus == "NOT_FOUND" || result.Error != "" {
+	if result.PaymentEngine.Transfers.Status == txn.NotFoundStatus || result.PartnerpayEngine.Transfers.Status == txn.NotFoundStatus || result.Error != "" {
 		return
 	}
 

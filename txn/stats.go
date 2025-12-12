@@ -43,13 +43,18 @@ func calculateSummaryStats(results []TransactionResult) {
 		// Use pointer to access enriched data
 		result := &results[i]
 
-		if result.TransferStatus == "NOT_FOUND" {
+		notFound := result.PaymentEngine.Transfers.Status == NotFoundStatus || result.PartnerpayEngine.Transfers.Status == NotFoundStatus
+
+		if notFound {
 			errorCount++
 		} else if result.Error == "" {
 			foundCount++
 
 			// Check classification
-			caseType := identifySOPCase(result)
+			caseType := result.CaseType
+			if caseType == SOPCaseNone {
+				caseType = identifySOPCase(result)
+			}
 			if caseType != SOPCaseNone {
 				caseCounts[caseType]++
 			}

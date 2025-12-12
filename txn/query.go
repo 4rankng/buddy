@@ -41,14 +41,23 @@ func QueryTransactionStatus(transactionID string) *TransactionResult {
 
 	if len(transfers) == 0 {
 		return &TransactionResult{
-			TransactionID:  transactionID,
-			TransferStatus: "NOT_FOUND",
-			Error:          "No transaction found with the given ID",
+			TransactionID: transactionID,
+			PaymentEngine: PaymentEngineInfo{
+				Transfers: PETransfersInfo{
+					TransactionID: transactionID,
+					Status:        NotFoundStatus,
+				},
+			},
+			Error: "No transaction found with the given ID",
 		}
 	}
 
 	// Get transfer information
 	transfer := transfers[0]
+
+	result := &TransactionResult{
+		TransactionID: transactionID,
+	}
 
 	// Check status
 	status, ok := transfer["status"].(string)
@@ -58,34 +67,39 @@ func QueryTransactionStatus(transactionID string) *TransactionResult {
 			Error:         "could not determine transaction status",
 		}
 	}
+	result.PaymentEngine.Transfers.Status = status
 
-	result := &TransactionResult{
-		TransactionID:  transactionID,
-		TransferStatus: status,
+	// Extract transaction_id if available
+	if txID, ok := transfer["transaction_id"].(string); ok && txID != "" {
+		result.TransactionID = txID
+		result.PaymentEngine.Transfers.TransactionID = txID
+	} else {
+		result.PaymentEngine.Transfers.TransactionID = transactionID
 	}
 
 	// Extract created_at and updated_at from transfer
 	var createdAtStr string
 	if createdAt, createdAtOk := transfer["created_at"]; createdAtOk {
 		createdAtStr = fmt.Sprintf("%v", createdAt)
-		result.CreatedAt = createdAtStr
+		result.PaymentEngine.Transfers.CreatedAt = createdAtStr
 	}
 	// UpdatedAt field removed - no longer needed
 
 	// Extract type details for new format
 	if txType, ok := transfer["type"].(string); ok {
-		result.Type = txType
+		result.PaymentEngine.Transfers.Type = txType
 	}
 	if txSubtype, ok := transfer["txn_subtype"].(string); ok {
-		result.Subtype = txSubtype
+		result.PaymentEngine.Transfers.TxnSubtype = txSubtype
 	}
 	if txDomain, ok := transfer["txn_domain"].(string); ok {
-		result.Domain = txDomain
+		result.PaymentEngine.Transfers.TxnDomain = txDomain
 	}
 
 	// Get reference_id if available
 	referenceID, ok := transfer["reference_id"].(string)
 	if ok && referenceID != "" {
+		result.PaymentEngine.Transfers.ReferenceID = referenceID
 		// Query workflow_execution table with specific fields including timestamps
 		workflowQuery := fmt.Sprintf("SELECT run_id, workflow_id, state, attempt, created_at, updated_at FROM workflow_execution WHERE run_id='%s'", referenceID)
 		workflows, err := client.QueryPrdPaymentsPaymentEngine(workflowQuery)
@@ -99,126 +113,98 @@ func QueryTransactionStatus(transactionID string) *TransactionResult {
 			return result
 		}
 
-		// Get workflow information
 		workflow := workflows[0]
 
-		// Extract workflow_id
 		if workflowID, workflowIDOk := workflow["workflow_id"]; workflowIDOk {
-			result.PaymentEngineWorkflow.Type = fmt.Sprintf("%v", workflowID)
+			result.PaymentEngine.Workflow.WorkflowID = fmt.Sprintf("%v", workflowID)
 		}
-		result.PaymentEngineWorkflow.RunID = ""
 		if runID, runIDOk := workflow["run_id"]; runIDOk {
-			result.PaymentEngineWorkflow.RunID = fmt.Sprintf("%v", runID)
+			result.PaymentEngine.Workflow.RunID = fmt.Sprintf("%v", runID)
 		}
 
-		// Extract attempt if available
-		var workflowAttempt int
 		if attemptVal, attemptOk := workflow["attempt"]; attemptOk {
 			if attemptFloat, ok := attemptVal.(float64); ok {
-				workflowAttempt = int(attemptFloat)
+				result.PaymentEngine.Workflow.Attempt = int(attemptFloat)
 			}
 		}
-		result.PaymentEngineWorkflow.Attempt = workflowAttempt
 
-		// Extract workflow_id
-		if workflowID, workflowIDOk := workflow["workflow_id"]; workflowIDOk {
-			result.PaymentEngineWorkflow.Type = fmt.Sprintf("%v", workflowID)
-		}
-
-		// Extract state
 		if state, stateOk := workflow["state"]; stateOk {
-			// Try to convert state to int for mapping
 			if stateInt, ok := state.(float64); ok {
 				stateNum := int(stateInt)
-				result.PaymentEngineWorkflow.State = fmt.Sprintf("%d", stateNum)
+				result.PaymentEngine.Workflow.State = fmt.Sprintf("%d", stateNum)
 			} else {
-				result.PaymentEngineWorkflow.State = fmt.Sprintf("%v", state)
+				result.PaymentEngine.Workflow.State = fmt.Sprintf("%v", state)
 			}
 		}
 
 		// If we don't have created_at from transfer, use workflow timestamps
-		if result.CreatedAt == "" {
+		if result.PaymentEngine.Transfers.CreatedAt == "" {
 			if createdAt, createdAtOk := workflow["created_at"]; createdAtOk {
-				result.CreatedAt = fmt.Sprintf("%v", createdAt)
+				result.PaymentEngine.Transfers.CreatedAt = fmt.Sprintf("%v", createdAt)
 			}
 		}
 	}
 
 	// Query payment-core database if we have created_at timestamp
-	if result.CreatedAt != "" {
+	if result.PaymentEngine.Transfers.CreatedAt != "" {
 		// Parse created_at timestamp to add 1 hour
-		createdAt, err := time.Parse(time.RFC3339, result.CreatedAt)
+		createdAt, err := time.Parse(time.RFC3339, result.PaymentEngine.Transfers.CreatedAt)
 		if err == nil {
 			endTime := createdAt.Add(1 * time.Hour)
 			endTimeStr := endTime.Format(time.RFC3339)
 			internalQuery := fmt.Sprintf("SELECT tx_id, tx_type, status FROM internal_transaction WHERE group_id='%s' AND created_at >= '%s' AND created_at <= '%s'",
-				transactionID, result.CreatedAt, endTimeStr)
+				transactionID, result.PaymentEngine.Transfers.CreatedAt, endTimeStr)
 			externalQuery := fmt.Sprintf("SELECT ref_id, tx_type, status FROM external_transaction WHERE group_id='%s' AND created_at >= '%s' AND created_at <= '%s'",
-				transactionID, result.CreatedAt, endTimeStr)
+				transactionID, result.PaymentEngine.Transfers.CreatedAt, endTimeStr)
 			// Query internal_transaction table
 			internalTxs, err := client.QueryPrdPaymentsPaymentCore(internalQuery)
 			if err == nil && len(internalTxs) > 0 {
-				var internalStatuses []string
 				for _, internalTx := range internalTxs {
 					txType, _ := internalTx["tx_type"].(string)
 					status, _ := internalTx["status"].(string)
 					txType = strings.TrimSpace(strings.ToUpper(txType))
 					status = strings.TrimSpace(strings.ToUpper(status))
-					var parts []string
-					if txType != "" {
-						parts = append(parts, txType)
+
+					info := PCInternalTxnInfo{
+						TxID:     fmt.Sprintf("%v", internalTx["tx_id"]),
+						GroupID:  transactionID,
+						TxType:   txType,
+						TxStatus: status,
 					}
-					if status != "" {
-						parts = append(parts, status)
-					}
-					if len(parts) > 0 {
-						internalStatuses = append(internalStatuses, strings.Join(parts, " "))
-					}
-				}
-				if len(internalStatuses) > 0 {
-					result.InternalTxStatus = strings.Join(internalStatuses, " , ")
+
+					result.PaymentCore.InternalTxns = append(result.PaymentCore.InternalTxns, info)
 				}
 			}
 
 			// Query external_transaction table
 			externalTxs, err := client.QueryPrdPaymentsPaymentCore(externalQuery)
 			if err == nil && len(externalTxs) > 0 {
-				var externalStatuses []string
 				for _, externalTx := range externalTxs {
 					txType, _ := externalTx["tx_type"].(string)
 					status, _ := externalTx["status"].(string)
 					txType = strings.TrimSpace(strings.ToUpper(txType))
 					status = strings.TrimSpace(strings.ToUpper(status))
-					var parts []string
-					if txType != "" {
-						parts = append(parts, txType)
+					info := PCExternalTxnInfo{
+						RefID:    fmt.Sprintf("%v", externalTx["ref_id"]),
+						GroupID:  transactionID,
+						TxType:   txType,
+						TxStatus: status,
 					}
-					if status != "" {
-						parts = append(parts, status)
-					}
-					if len(parts) > 0 {
-						externalStatuses = append(externalStatuses, strings.Join(parts, " "))
-					}
-				}
-				if len(externalStatuses) > 0 {
-					result.ExternalTxStatus = strings.Join(externalStatuses, " , ")
+
+					result.PaymentCore.ExternalTxns = append(result.PaymentCore.ExternalTxns, info)
 				}
 			}
 
 			// Query workflow_execution table for payment-core using tx_id and ref_id
 			var runIDs []string
-			if len(internalTxs) > 0 {
-				for _, internalTx := range internalTxs {
-					if txID, ok := internalTx["tx_id"].(string); ok && txID != "" {
-						runIDs = append(runIDs, txID)
-					}
+			for _, internalTx := range result.PaymentCore.InternalTxns {
+				if internalTx.TxID != "" {
+					runIDs = append(runIDs, internalTx.TxID)
 				}
 			}
-			if len(externalTxs) > 0 {
-				for _, externalTx := range externalTxs {
-					if refID, ok := externalTx["ref_id"].(string); ok && refID != "" {
-						runIDs = append(runIDs, refID)
-					}
+			for _, externalTx := range result.PaymentCore.ExternalTxns {
+				if externalTx.RefID != "" {
+					runIDs = append(runIDs, externalTx.RefID)
 				}
 			}
 
@@ -248,14 +234,14 @@ func QueryTransactionStatus(transactionID string) *TransactionResult {
 
 						// Create WorkflowInfo for this payment core workflow
 						workflowInfo := WorkflowInfo{
-							Type:    workflowID,
-							RunID:   runID,
-							State:   fmt.Sprintf("%d", stateNum),
-							Attempt: attempt,
+							WorkflowID: workflowID,
+							RunID:      runID,
+							State:      fmt.Sprintf("%d", stateNum),
+							Attempt:    attempt,
 						}
 
-						// Add to PaymentCoreWorkflows slice
-						result.PaymentCoreWorkflows = append(result.PaymentCoreWorkflows, workflowInfo)
+						// Add to payment-core workflow slice
+						result.PaymentCore.Workflow = append(result.PaymentCore.Workflow, workflowInfo)
 					}
 				}
 			}
@@ -279,8 +265,8 @@ func queryRPPE2EID(client *clients.DoormanClient, e2eID string) *TransactionResu
 	if len(rppResults) == 0 {
 		return &TransactionResult{
 			TransactionID: e2eID,
-			// TransferStatus remains empty since we're not querying payment-engine
-			Error: "No transaction found with the given E2E ID",
+			RPPAdapter:    RPPAdapterInfo{Status: NotFoundStatus},
+			Error:         "No transaction found with the given E2E ID",
 		}
 	}
 
@@ -315,15 +301,17 @@ func queryRPPE2EID(client *clients.DoormanClient, e2eID string) *TransactionResu
 		// still return the credit_transfer information
 		result := &TransactionResult{
 			TransactionID: e2eID,
-			PartnerTxID:   partnerTxID,
-			RPPStatus:     creditTransferStatus,
-			// Don't set Error - we have valid credit_transfer data
+			RPPAdapter: RPPAdapterInfo{
+				PartnerTxID: partnerTxID,
+				Status:      creditTransferStatus,
+				Workflow: WorkflowInfo{
+					RunID: partnerTxID,
+				},
+			},
 		}
 
-		// Set minimal RPP workflow info - we don't have workflow details
-		result.RPPWorkflow.RunID = partnerTxID
 		// Set RPP info for display
-		result.RPPInfo = fmt.Sprintf("RPP Status: %s (workflow execution not found)", creditTransferStatus)
+		result.RPPAdapter.Info = fmt.Sprintf("RPP Status: %s (workflow execution not found)", creditTransferStatus)
 
 		return result
 	}
@@ -332,22 +320,22 @@ func queryRPPE2EID(client *clients.DoormanClient, e2eID string) *TransactionResu
 	workflow := workflows[0]
 	result := &TransactionResult{
 		TransactionID: e2eID,
-		// Note: TransferStatus is not set here because we're not querying payment-engine
-		// It should remain empty unless we query payment-engine
-		PartnerTxID: partnerTxID,
-		RPPStatus:   creditTransferStatus, // Set credit_transfer status
+		RPPAdapter: RPPAdapterInfo{
+			PartnerTxID: partnerTxID,
+			Status:      creditTransferStatus, // Set credit_transfer status
+		},
 	}
 
 	// Set RPP workflow info
 	if workflowID, workflowIDOk := workflow["workflow_id"]; workflowIDOk {
-		result.RPPWorkflow.Type = fmt.Sprintf("%v", workflowID)
+		result.RPPAdapter.Workflow.WorkflowID = fmt.Sprintf("%v", workflowID)
 	}
-	result.RPPWorkflow.RunID = partnerTxID
+	result.RPPAdapter.Workflow.RunID = partnerTxID
 
 	// Extract attempt if available
 	if attemptVal, attemptOk := workflow["attempt"]; attemptOk {
 		if attemptFloat, ok := attemptVal.(float64); ok {
-			result.RPPWorkflow.Attempt = int(attemptFloat)
+			result.RPPAdapter.Workflow.Attempt = int(attemptFloat)
 		}
 	}
 
@@ -355,22 +343,17 @@ func queryRPPE2EID(client *clients.DoormanClient, e2eID string) *TransactionResu
 	if state, stateOk := workflow["state"]; stateOk {
 		if stateInt, ok := state.(float64); ok {
 			stateNum := int(stateInt)
-			result.RPPWorkflow.State = fmt.Sprintf("%d", stateNum)
+			result.RPPAdapter.Workflow.State = fmt.Sprintf("%d", stateNum)
 		} else {
-			result.RPPWorkflow.State = fmt.Sprintf("%v", state)
+			result.RPPAdapter.Workflow.State = fmt.Sprintf("%v", state)
 		}
 	}
 	// Keep the original creditTransferStatus from the database query
 	// Don't overwrite it with the workflow state
 
-	// Set created_at timestamp
-	if createdAt, createdAtOk := workflow["created_at"]; createdAtOk {
-		result.CreatedAt = fmt.Sprintf("%v", createdAt)
-	}
-
 	// Also set RPP info for display
-	result.RPPInfo = fmt.Sprintf("RPP Workflow: %s, State: %s, Attempt: %d",
-		result.RPPWorkflow.Type, result.RPPWorkflow.State, result.RPPWorkflow.Attempt)
+	result.RPPAdapter.Info = fmt.Sprintf("RPP Workflow: %s, State: %s, Attempt: %d",
+		result.RPPAdapter.Workflow.WorkflowID, result.RPPAdapter.Workflow.State, result.RPPAdapter.Workflow.Attempt)
 
 	return result
 }
@@ -399,9 +382,14 @@ func QueryPartnerpayEngineTransaction(runID string) *TransactionResult {
 
 	if len(charges) == 0 {
 		return &TransactionResult{
-			TransactionID:  runID,
-			TransferStatus: "NOT_FOUND",
-			Error:          "No transaction found with the given run_id",
+			TransactionID: runID,
+			PartnerpayEngine: PartnerpayEngineInfo{
+				Transfers: PPEChargeInfo{
+					TransactionID: runID,
+					Status:        NotFoundStatus,
+				},
+			},
+			Error: "No transaction found with the given run_id",
 		}
 	}
 
@@ -414,22 +402,25 @@ func QueryPartnerpayEngineTransaction(runID string) *TransactionResult {
 	// Extract transaction_id if available
 	if transactionID, ok := charge["transaction_id"].(string); ok && transactionID != "" {
 		result.TransactionID = transactionID
+		result.PartnerpayEngine.Transfers.TransactionID = transactionID
+	} else {
+		result.PartnerpayEngine.Transfers.TransactionID = runID
 	}
 
 	// Extract status
 	if status, ok := charge["status"].(string); ok {
-		result.TransferStatus = status
+		result.PartnerpayEngine.Transfers.Status = status
 	}
 
 	// Extract status_reason
 	if statusReason, ok := charge["status_reason"].(string); ok {
+		result.PartnerpayEngine.Transfers.StatusReason = statusReason
 		result.Error = statusReason
 	}
 
 	// Extract status_reason_description
 	if statusReasonDesc, ok := charge["status_reason_description"].(string); ok {
-		// Store this in a custom field for display
-		result.RPPInfo = statusReasonDesc
+		result.PartnerpayEngine.Transfers.StatusReasonDescription = statusReasonDesc
 	}
 
 	// Query workflow_execution table for workflow_charge information
@@ -437,7 +428,9 @@ func QueryPartnerpayEngineTransaction(runID string) *TransactionResult {
 	workflows, err := client.QueryPrdPaymentsPartnerpayEngine(workflowQuery)
 	if err != nil {
 		// Don't fail the whole operation if workflow query fails
-		result.RPPInfo = fmt.Sprintf("Failed to query workflow: %v", err)
+		if result.PartnerpayEngine.Transfers.StatusReasonDescription == "" {
+			result.PartnerpayEngine.Transfers.StatusReasonDescription = fmt.Sprintf("Failed to query workflow: %v", err)
+		}
 		return result
 	}
 
@@ -447,14 +440,14 @@ func QueryPartnerpayEngineTransaction(runID string) *TransactionResult {
 
 		// Set PartnerpayEngineWorkflow info
 		if workflowID, workflowIDOk := workflow["workflow_id"]; workflowIDOk {
-			result.PaymentEngineWorkflow.Type = fmt.Sprintf("%v", workflowID)
+			result.PartnerpayEngine.Workflow.WorkflowID = fmt.Sprintf("%v", workflowID)
 		}
-		result.PaymentEngineWorkflow.RunID = runID
+		result.PartnerpayEngine.Workflow.RunID = runID
 
 		// Extract attempt if available
 		if attemptVal, attemptOk := workflow["attempt"]; attemptOk {
 			if attemptFloat, ok := attemptVal.(float64); ok {
-				result.PaymentEngineWorkflow.Attempt = int(attemptFloat)
+				result.PartnerpayEngine.Workflow.Attempt = int(attemptFloat)
 			}
 		}
 
@@ -462,9 +455,9 @@ func QueryPartnerpayEngineTransaction(runID string) *TransactionResult {
 		if state, stateOk := workflow["state"]; stateOk {
 			if stateInt, ok := state.(float64); ok {
 				stateNum := int(stateInt)
-				result.PaymentEngineWorkflow.State = fmt.Sprintf("%d", stateNum)
+				result.PartnerpayEngine.Workflow.State = fmt.Sprintf("%d", stateNum)
 			} else {
-				result.PaymentEngineWorkflow.State = fmt.Sprintf("%v", state)
+				result.PartnerpayEngine.Workflow.State = fmt.Sprintf("%v", state)
 			}
 		}
 	}
