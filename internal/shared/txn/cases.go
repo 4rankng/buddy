@@ -135,7 +135,8 @@ func identifySOPCase(result *TransactionResult) SOPCase {
 	}
 
 	// 2. Check for RPP Stuck Candidate (Ambiguous Case 2 vs Case 3)
-	if isRPPStuckCandidate(*result) {
+	// Only check if external_id is empty (no RPP link available)
+	if result.PaymentEngine.Transfers.ExternalID == "" && isRPPStuckCandidate(*result) {
 		fmt.Printf("\n--- Analyzing Potential RPP Stuck Case for TxID: %s ---\n", result.TransactionID)
 
 		// Step A: Prompt for req_biz_msg_id if missing

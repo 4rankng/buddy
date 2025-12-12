@@ -74,6 +74,7 @@ type FastAdapterInfo struct {
 type RPPAdapterInfo struct {
 	ReqBizMsgID string // RPP request business message ID
 	PartnerTxID string // RPP partner transaction ID
+	EndToEndID  string // = payment-engine.transfers.external_id
 	Status      string // RPP status
 	Workflow    WorkflowInfo
 	Info        string // optional extra context (e.g. status reason description)

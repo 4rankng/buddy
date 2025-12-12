@@ -103,6 +103,14 @@ func QueryTransactionStatusWithEnv(transactionID string, env string) *Transactio
 		result.PaymentEngine.Transfers.ExternalID = externalID
 	}
 
+	// Query RPP adapter if we have external_id (Malaysia only)
+	// This enriches the data before SOP case identification
+	if env == "my" && result.PaymentEngine.Transfers.ExternalID != "" {
+		if rppInfo, err := queryRPPAdapterByExternalID(client, result.PaymentEngine.Transfers.ExternalID); err == nil && rppInfo != nil {
+			result.RPPAdapter = *rppInfo
+		}
+	}
+
 	// Get reference_id if available
 	referenceID, ok := transfer["reference_id"].(string)
 	if ok && referenceID != "" {
@@ -376,6 +384,58 @@ func queryRPPE2EID(client clients.DoormanInterface, e2eID string) *TransactionRe
 		result.RPPAdapter.Workflow.WorkflowID, result.RPPAdapter.Workflow.State, result.RPPAdapter.Workflow.Attempt)
 
 	return result
+}
+
+// queryRPPAdapterByExternalID queries RPP adapter using external_id (end_to_end_id)
+func queryRPPAdapterByExternalID(client clients.DoormanInterface, externalID string) (*RPPAdapterInfo, error) {
+	// Query RPP adapter database
+	rppQuery := fmt.Sprintf("SELECT req_biz_msg_id, partner_tx_id, partner_tx_sts AS status FROM credit_transfer WHERE end_to_end_id = '%s'", externalID)
+	rppResults, err := client.ExecuteQuery("prd-payments-rpp-adapter-rds-mysql", "prd-payments-rpp-adapter-rds-mysql", "rpp_adapter", rppQuery)
+	if err != nil {
+		return nil, err
+	}
+	if len(rppResults) == 0 {
+		return nil, nil // No RPP data found
+	}
+
+	// Extract fields from credit_transfer
+	row := rppResults[0]
+	info := &RPPAdapterInfo{
+		ReqBizMsgID: getStringValue(row, "req_biz_msg_id"),
+		PartnerTxID: getStringValue(row, "partner_tx_id"),
+		EndToEndID:  externalID, // This is the external_id we queried with
+		Status:      getStringValue(row, "status"),
+	}
+
+	// Query workflow_execution if we have partner_tx_id
+	if info.PartnerTxID != "" {
+		workflowQuery := fmt.Sprintf("SELECT run_id, workflow_id, state, attempt FROM workflow_execution WHERE run_id='%s'", info.PartnerTxID)
+		workflows, err := client.QueryRppAdapter(workflowQuery)
+		if err == nil && len(workflows) > 0 {
+			workflow := workflows[0]
+			info.Workflow.RunID = info.PartnerTxID
+			if workflowID, ok := workflow["workflow_id"]; ok {
+				info.Workflow.WorkflowID = fmt.Sprintf("%v", workflowID)
+			}
+			if state, ok := workflow["state"]; ok {
+				if stateInt, ok := state.(float64); ok {
+					info.Workflow.State = fmt.Sprintf("%d", int(stateInt))
+				} else {
+					info.Workflow.State = fmt.Sprintf("%v", state)
+				}
+			}
+			if attempt, ok := workflow["attempt"]; ok {
+				if attemptFloat, ok := attempt.(float64); ok {
+					info.Workflow.Attempt = int(attemptFloat)
+				}
+			}
+		}
+	}
+
+	// Set info field for display
+	info.Info = fmt.Sprintf("RPP Status: %s", info.Status)
+
+	return info, nil
 }
 
 // QueryPartnerpayEngine queries the partnerpay-engine database for a transaction by run_id
