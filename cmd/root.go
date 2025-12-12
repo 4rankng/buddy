@@ -3,6 +3,7 @@ package cmd
 import (
 	"buddy/internal/app"
 	"fmt"
+
 	"github.com/spf13/cobra"
 )
 
@@ -27,6 +28,7 @@ func Execute(appCtx *app.Context) error {
 	// Add all subcommands
 	rootCmd.AddCommand(NewTxnCmd(appCtx))
 	rootCmd.AddCommand(NewRppCmd(appCtx))
+	rootCmd.AddCommand(NewEcoTxnCmd(appCtx))
 
 	return rootCmd.Execute()
 }

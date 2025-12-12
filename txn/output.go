@@ -203,3 +203,69 @@ func writeResult(w io.Writer, result TransactionResult, index int) {
 		fmt.Printf("Warning: failed to write final newline: %v\n", err)
 	}
 }
+
+// WriteEcoTransactionResult writes a partnerpay-engine transaction result in the required format
+func WriteEcoTransactionResult(w io.Writer, result TransactionResult, index int) {
+	if index <= 0 {
+		index = 1
+	}
+
+	if result.Error != "" && result.TransferStatus == "NOT_FOUND" {
+		if _, err := fmt.Fprintf(w, "### [%d] transaction_id: %s\nError: %s\n\n", index, result.TransactionID, result.Error); err != nil {
+			fmt.Printf("Warning: failed to write error result: %v\n", err)
+		}
+		return
+	}
+
+	// Write the transaction ID header
+	if _, err := fmt.Fprintf(w, "### [%d] transaction_id: %s\n", index, result.TransactionID); err != nil {
+		fmt.Printf("Warning: failed to write transaction ID: %v\n", err)
+	}
+
+	// Write the partnerpay-engine section
+	if _, err := fmt.Fprintln(w, "[partnerpay-engine]"); err != nil {
+		fmt.Printf("Warning: failed to write partnerpay-engine header: %v\n", err)
+	}
+
+	// Write the charge status
+	if result.TransferStatus != "" {
+		if _, err := fmt.Fprintf(w, "charge.status: %s", result.TransferStatus); err != nil {
+			fmt.Printf("Warning: failed to write charge status: %v\n", err)
+		}
+
+		// If there's an error message, append it
+		if result.Error != "" {
+			if _, err := fmt.Fprintf(w, " %s", result.Error); err != nil {
+				fmt.Printf("Warning: failed to write error message: %v\n", err)
+			}
+		}
+
+		// If there's a status reason description, append it
+		if result.RPPInfo != "" {
+			if _, err := fmt.Fprintf(w, " %s", result.RPPInfo); err != nil {
+				fmt.Printf("Warning: failed to write status reason description: %v\n", err)
+			}
+		}
+
+		if _, err := fmt.Fprintln(w); err != nil {
+			fmt.Printf("Warning: failed to write newline after charge status: %v\n", err)
+		}
+	}
+
+	// Write the workflow_charge information if available
+	if result.PaymentEngineWorkflow.RunID != "" {
+		line := fmt.Sprintf("workflow_charge: %s Attempt=%d run_id=%s",
+			result.PaymentEngineWorkflow.GetFormattedState(),
+			result.PaymentEngineWorkflow.Attempt,
+			result.PaymentEngineWorkflow.RunID)
+
+		if _, err := fmt.Fprintf(w, "%s\n", line); err != nil {
+			fmt.Printf("Warning: failed to write workflow_charge: %v\n", err)
+		}
+	}
+
+	// Add a final newline
+	if _, err := fmt.Fprintln(w); err != nil {
+		fmt.Printf("Warning: failed to write final newline: %v\n", err)
+	}
+}

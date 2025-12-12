@@ -150,3 +150,7 @@ func (c *DoormanClient) QueryPrdPaymentsPaymentCore(query string) ([]map[string]
 func (c *DoormanClient) QueryPrdPaymentsRppAdapter(query string) ([]map[string]interface{}, error) {
 	return c.ExecuteQuery("prd-payments-rpp-adapter-rds-mysql", "prd-payments-rpp-adapter-rds-mysql", "rpp_adapter", query)
 }
+
+func (c *DoormanClient) QueryPrdPaymentsPartnerpayEngine(query string) ([]map[string]interface{}, error) {
+	return c.ExecuteQuery("prd-payments-partnerpay-engine-rds-mysql", "prd-payments-partnerpay-engine-rds-mysql", "partnerpay_engine", query)
+}

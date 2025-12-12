@@ -362,3 +362,99 @@ func queryRPPE2EID(client *clients.DoormanClient, e2eID string) *TransactionResu
 
 	return result
 }
+
+// QueryPartnerpayEngineTransaction queries the partnerpay-engine database for a transaction by run_id
+func QueryPartnerpayEngineTransaction(runID string) *TransactionResult {
+	// Initialize doorman client
+	client, err := clients.NewDoormanClient(30 * time.Second)
+	if err != nil {
+		return &TransactionResult{
+			TransactionID: runID,
+			Error:         fmt.Sprintf("failed to create doorman client: %v", err),
+		}
+	}
+
+	// Query the charge table with specific fields
+	chargeQuery := fmt.Sprintf("SELECT status, status_reason, status_reason_description, transaction_id FROM charge WHERE transaction_id='%s'", runID)
+	charges, err := client.QueryPrdPaymentsPartnerpayEngine(chargeQuery)
+	if err != nil {
+		return &TransactionResult{
+			TransactionID: runID,
+			Error:         fmt.Sprintf("failed to query charge table: %v", err),
+		}
+	}
+
+	if len(charges) == 0 {
+		return &TransactionResult{
+			TransactionID:  runID,
+			TransferStatus: "NOT_FOUND",
+			Error:          "No transaction found with the given run_id",
+		}
+	}
+
+	// Get charge information
+	charge := charges[0]
+	result := &TransactionResult{
+		TransactionID: runID,
+	}
+
+	// Extract transaction_id if available
+	if transactionID, ok := charge["transaction_id"].(string); ok && transactionID != "" {
+		result.TransactionID = transactionID
+	}
+
+	// Extract status
+	if status, ok := charge["status"].(string); ok {
+		result.TransferStatus = status
+	}
+
+	// Extract status_reason
+	if statusReason, ok := charge["status_reason"].(string); ok {
+		result.Error = statusReason
+	}
+
+	// Extract status_reason_description
+	if statusReasonDesc, ok := charge["status_reason_description"].(string); ok {
+		// Store this in a custom field for display
+		result.RPPInfo = statusReasonDesc
+	}
+
+	// Query workflow_execution table for workflow_charge information
+	workflowQuery := fmt.Sprintf("SELECT run_id, workflow_id, state, attempt FROM workflow_execution WHERE run_id='%s' AND workflow_id='workflow_charge'", runID)
+	workflows, err := client.QueryPrdPaymentsPartnerpayEngine(workflowQuery)
+	if err != nil {
+		// Don't fail the whole operation if workflow query fails
+		result.RPPInfo = fmt.Sprintf("Failed to query workflow: %v", err)
+		return result
+	}
+
+	if len(workflows) > 0 {
+		// Get workflow information
+		workflow := workflows[0]
+
+		// Set PartnerpayEngineWorkflow info
+		if workflowID, workflowIDOk := workflow["workflow_id"]; workflowIDOk {
+			result.PaymentEngineWorkflow.Type = fmt.Sprintf("%v", workflowID)
+		}
+		result.PaymentEngineWorkflow.RunID = runID
+
+		// Extract attempt if available
+		if attemptVal, attemptOk := workflow["attempt"]; attemptOk {
+			if attemptFloat, ok := attemptVal.(float64); ok {
+				result.PaymentEngineWorkflow.Attempt = int(attemptFloat)
+			}
+		}
+
+		// Extract state
+		if state, stateOk := workflow["state"]; stateOk {
+			if stateInt, ok := state.(float64); ok {
+				stateNum := int(stateInt)
+				result.PaymentEngineWorkflow.State = fmt.Sprintf("%d", stateNum)
+			} else {
+				result.PaymentEngineWorkflow.State = fmt.Sprintf("%v", state)
+			}
+		}
+	}
+
+	return result
+}
