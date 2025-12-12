@@ -34,7 +34,7 @@ func QueryTransactionStatusWithEnv(transactionID string, env string) *Transactio
 	}
 
 	// Query transfer table with specific fields including timestamps and type details
-	transferQuery := fmt.Sprintf("SELECT transaction_id, status, reference_id, created_at, updated_at, type, txn_subtype, txn_domain FROM transfer WHERE transaction_id='%s'", transactionID)
+	transferQuery := fmt.Sprintf("SELECT transaction_id, status, reference_id, created_at, updated_at, type, txn_subtype, txn_domain, external_id FROM transfer WHERE transaction_id='%s'", transactionID)
 	transfers, err := client.QueryPaymentEngine(transferQuery)
 	if err != nil {
 		return &TransactionResult{
@@ -259,7 +259,7 @@ func QueryTransactionStatusWithEnv(transactionID string, env string) *Transactio
 
 	// Query fast adapter if we have external_id
 	if result.PaymentEngine.Transfers.ExternalID != "" {
-		if fastAdapterInfo, err := queryFastAdapter(client, result.PaymentEngine.Transfers.ExternalID); err == nil && fastAdapterInfo != nil {
+		if fastAdapterInfo, err := queryFastAdapter(client, result.PaymentEngine.Transfers.ExternalID, result.PaymentEngine.Transfers.CreatedAt); err == nil && fastAdapterInfo != nil {
 			result.FastAdapter = *fastAdapterInfo
 		}
 	}
@@ -486,24 +486,34 @@ func QueryPartnerpayEngineTransactionWithEnv(runID string, env string) *Transact
 }
 
 // queryFastAdapter retrieves fast adapter information using external_id
-func queryFastAdapter(client clients.DoormanInterface, externalID string) (*FastAdapterInfo, error) {
+func queryFastAdapter(client clients.DoormanInterface, externalID, createdAt string) (*FastAdapterInfo, error) {
 	if externalID == "" {
 		return nil, nil // Skip if no external_id
 	}
 
-	// Query instruction table
+	// Base query
 	query := fmt.Sprintf(`
-        SELECT instruction_id, type, status, status_code,
-               cancel_reason_code, reject_reason_code
-        FROM instruction
-        WHERE instruction_id = '%s' OR external_id = '%s'
-        LIMIT 1`, externalID, externalID)
+	SELECT type, instruction_id, status, cancel_reason_code, reject_reason_code, created_at
+	       FROM transactions
+	       WHERE instruction_id = '%s'`, externalID)
+
+	// Add time filtering if created_at is provided
+	if createdAt != "" {
+		// Parse created_at timestamp to add 1 hour
+		startTime, err := time.Parse(time.RFC3339, createdAt)
+		if err == nil {
+			endTime := startTime.Add(1 * time.Hour)
+			endTimeStr := endTime.Format(time.RFC3339)
+			query += fmt.Sprintf(" AND created_at >= '%s' AND created_at <= '%s'", createdAt, endTimeStr)
+		}
+	}
+
+	query += " LIMIT 1"
 
 	results, err := client.QueryFastAdapter(query)
 	if err != nil {
 		return nil, err
 	}
-
 	if len(results) == 0 {
 		return nil, nil // No fast adapter data found
 	}
@@ -513,6 +523,7 @@ func queryFastAdapter(client clients.DoormanInterface, externalID string) (*Fast
 		InstructionID: getStringValue(row, "instruction_id"),
 		Type:          getStringValue(row, "type"),
 		Status:        getStringValue(row, "status"),
+		CreatedAt:     getStringValue(row, "created_at"),
 	}
 
 	// Parse numeric status code

@@ -67,6 +67,7 @@ type FastAdapterInfo struct {
 	StatusCode       int    // Numeric status code
 	CancelReasonCode string // cancel_reason_code
 	RejectReasonCode string // reject_reason_code
+	CreatedAt        string // created_at timestamp
 }
 
 // RPPAdapterInfo contains RPP adapter related information
