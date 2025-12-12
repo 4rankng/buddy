@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
@@ -65,20 +66,24 @@ var configs = map[string]DoormanConfig{
 		PaymentEngine: DBInfo{
 			ClusterName:  "sg-prd-m-payment-engine",
 			InstanceName: "sg-prd-m-payment-engine",
-			Schema:       "payment_engine",
+			Schema:       "prod_payment_engine_db01",
 		},
 		PaymentCore: DBInfo{
 			ClusterName:  "sg-prd-m-payment-core",
 			InstanceName: "sg-prd-m-payment-core",
-			Schema:       "payment_core",
+			Schema:       "prod_payment_core_db01",
 		},
 		FastAdapter: DBInfo{
 			ClusterName:  "sg-prd-m-fast-adapter",
 			InstanceName: "sg-prd-m-fast-adapter",
-			Schema:       "fast_adapter",
+			Schema:       "prod_fast_adapter_db01",
 		},
-		RppAdapter:       DBInfo{}, // Not available in SG
-		PartnerpayEngine: DBInfo{}, // Not available in SG
+		RppAdapter: DBInfo{}, // Not available in SG
+		PartnerpayEngine: DBInfo{
+			ClusterName:  "sg-prd-m-partnerpay-engine",
+			InstanceName: "sg-prd-m-partnerpay-engine",
+			Schema:       "prod_partnerpay_engine_db01",
+		},
 	},
 	"my": {
 		Host: "https://doorman.infra.prd.g-bank.app",
@@ -228,7 +233,12 @@ func (c *DoormanClient) ExecuteQuery(cluster, instance, schema, query string) ([
 	}()
 
 	if resp.StatusCode >= 300 {
-		return nil, errors.New("doorman query failed: " + resp.Status)
+		// Read the response body to get more details about the error
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return nil, errors.New("doorman query failed: " + resp.Status + " (failed to read error response)")
+		}
+		return nil, errors.New("doorman query failed: " + resp.Status + " - " + string(body))
 	}
 
 	var response struct {
