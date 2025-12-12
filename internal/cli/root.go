@@ -1,14 +1,12 @@
-package cmd
+package cli
 
 import (
-	"buddy/cmd/mybuddy"
-	"buddy/cmd/sgbuddy"
 	"buddy/internal/app"
 	"fmt"
 	"github.com/spf13/cobra"
 )
 
-func Execute(appCtx *app.Context) error {
+func NewRootCommand(appCtx *app.Context) *cobra.Command {
 	rootCmd := &cobra.Command{
 		Use:               appCtx.BinaryName,
 		Short:             "Oncall CLI tool for G-Bank operations",
@@ -26,16 +24,5 @@ func Execute(appCtx *app.Context) error {
 		},
 	})
 
-	// Add all subcommands
-	rootCmd.AddCommand(mybuddy.NewTxnCmd(appCtx))
-	rootCmd.AddCommand(mybuddy.NewRppCmd(appCtx))
-	rootCmd.AddCommand(mybuddy.NewRppResumeCmd(appCtx))
-	rootCmd.AddCommand(mybuddy.NewEcoTxnCmd(appCtx))
-
-	// Add SG-specific commands only for sgbuddy
-	if appCtx.IsSG() {
-		rootCmd.AddCommand(sgbuddy.NewTxnCmd(appCtx))
-	}
-
-	return rootCmd.Execute()
+	return rootCmd
 }

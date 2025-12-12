@@ -48,7 +48,7 @@ func (s *MalaysiaDoormanStrategy) GetDatabaseCluster(service string) string {
 type SingaporeDoormanStrategy struct{}
 
 func (s *SingaporeDoormanStrategy) GetBaseURL() string {
-	return config.Get("DOORMAN_SG_BASE_URL", "https://doorman.sgbank.pr/rds/query")
+	return config.Get("DOORMAN_SG_BASE_URL", "https://doorman.sgbank.pr")
 }
 
 func (s *SingaporeDoormanStrategy) GetUsernameKey() string {
@@ -67,6 +67,20 @@ func (s *SingaporeDoormanStrategy) GetDatabaseCluster(service string) string {
 		return "sg-prd-m-payment-core"
 	case "fast-adapter":
 		return "sg-prd-m-fast-adapter"
+	default:
+		return service
+	}
+}
+
+// GetSchema returns the correct schema name for Singapore environment
+func (s *SingaporeDoormanStrategy) GetSchema(service string) string {
+	switch service {
+	case "payment-engine":
+		return "prod_payment_engine_db01"
+	case "payment-core":
+		return "prod_payment_core_db01"
+	case "fast-adapter":
+		return "prod_fast_adapter_db01"
 	default:
 		return service
 	}
@@ -94,6 +108,7 @@ func (f *DoormanClientFactory) CreateClient(timeout time.Duration) (*DoormanClie
 	username := config.Get(f.strategy.GetUsernameKey(), "")
 	password := config.Get(f.strategy.GetPasswordKey(), "")
 
+
 	return NewDoormanClientWithConfig(baseURL, username, password, timeout)
 }
 
@@ -105,6 +120,12 @@ func (f *DoormanClientFactory) QueryDatabase(service, schema, query string) ([]m
 	}
 
 	cluster := f.strategy.GetDatabaseCluster(service)
+	
+	// Use Singapore-specific schema mapping if available
+	if sgStrategy, ok := f.strategy.(*SingaporeDoormanStrategy); ok {
+		schema = sgStrategy.GetSchema(service)
+	}
+	
 	return client.ExecuteQuery(cluster, cluster, schema, query)
 }
 

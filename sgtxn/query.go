@@ -79,7 +79,7 @@ func QuerySGTransaction(transactionID string) *SGTransactionResult {
 				"SELECT tx_id, tx_type, status FROM internal_transaction WHERE created_at >= '%s' AND created_at <= '%s' AND group_id = '%s'",
 				timeStart, timeEnd, transactionID,
 			)
-			internalResults, err := factory.QueryDatabase("payment-core", "payment_core", internalQuery)
+			internalResults, err := factory.QueryDatabase("payment-core", "", internalQuery)
 			if err == nil && len(internalResults) > 0 {
 				// Collect all internal transaction statuses
 				for _, internal := range internalResults {
@@ -92,7 +92,7 @@ func QuerySGTransaction(transactionID string) *SGTransactionResult {
 				"SELECT ref_id, tx_type, status FROM external_transaction WHERE created_at >= '%s' AND created_at <= '%s' AND group_id = '%s'",
 				timeStart, timeEnd, transactionID,
 			)
-			externalResults, err := factory.QueryDatabase("payment-core", "payment_core", externalQuery)
+			externalResults, err := factory.QueryDatabase("payment-core", "", externalQuery)
 			if err == nil && len(externalResults) > 0 {
 				// Collect all external transaction statuses
 				for _, external := range externalResults {
@@ -139,7 +139,7 @@ func QuerySGTransaction(transactionID string) *SGTransactionResult {
 					"SELECT type, instruction_id, status, cancel_reason_code, reject_reason_code FROM transactions WHERE instruction_id='%s' AND created_at >= '%s' AND created_at <= '%s'",
 					result.ExternalID, timeStart, timeEnd,
 				)
-				fastResults, err := factory.QueryDatabase("fast-adapter", "fast_adapter", fastQuery)
+				fastResults, err := factory.QueryDatabase("fast-adapter", "", fastQuery)
 				if err == nil && len(fastResults) > 0 {
 					fast := fastResults[0]
 					result.FastAdapterType = getString(fast, "type")
