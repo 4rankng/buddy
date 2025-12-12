@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"strings"
-	"time"
 
 	"buddy/clients"
 )
@@ -194,10 +193,9 @@ func checkRPPAdapterStatusByReqBizMsgID(reqBizMsgID string) (string, string, int
 
 // checkRPPAdapterStatusByReqBizMsgIDWithEnv performs the nested query to find run_id/partner_tx_id via req_biz_msg_id with environment
 func checkRPPAdapterStatusByReqBizMsgIDWithEnv(reqBizMsgID string, env string) (string, string, int) {
-	factory := clients.NewDoormanClientFactory(env)
-	client, err := factory.CreateClient(30 * time.Second)
+	client, err := clients.GetDoormanClient(env)
 	if err != nil {
-		fmt.Printf("Error creating doorman client: %v\n", err)
+		fmt.Printf("Error getting doorman client: %v\n", err)
 		return "ERROR", "", 0
 	}
 
@@ -246,10 +244,9 @@ func checkRPPAdapterStatus(partnerTxID string) (string, string) {
 func checkRPPAdapterStatusWithEnv(partnerTxID string, env string) (string, string) {
 	fmt.Printf("Checking RPP Adapter for partner_tx_id: %s...\n", partnerTxID)
 
-	factory := clients.NewDoormanClientFactory(env)
-	client, err := factory.CreateClient(30 * time.Second)
+	client, err := clients.GetDoormanClient(env)
 	if err != nil {
-		fmt.Printf("Error creating doorman client: %v\n", err)
+		fmt.Printf("Error getting doorman client: %v\n", err)
 		return "ERROR", ""
 	}
 

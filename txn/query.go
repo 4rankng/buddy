@@ -19,13 +19,12 @@ func QueryTransactionStatus(transactionID string) *TransactionResult {
 
 // QueryTransactionStatusWithEnv returns structured data about a transaction with specified environment
 func QueryTransactionStatusWithEnv(transactionID string, env string) *TransactionResult {
-	// Initialize doorman factory
-	factory := clients.NewDoormanClientFactory(env)
-	client, err := factory.CreateClient(30 * time.Second)
+	// Get singleton doorman client
+	client, err := clients.GetDoormanClient(env)
 	if err != nil {
 		return &TransactionResult{
 			TransactionID: transactionID,
-			Error:         fmt.Sprintf("failed to create doorman client: %v", err),
+			Error:         fmt.Sprintf("failed to get doorman client: %v", err),
 		}
 	}
 
@@ -36,7 +35,7 @@ func QueryTransactionStatusWithEnv(transactionID string, env string) *Transactio
 
 	// Query transfer table with specific fields including timestamps and type details
 	transferQuery := fmt.Sprintf("SELECT transaction_id, status, reference_id, created_at, updated_at, type, txn_subtype, txn_domain FROM transfer WHERE transaction_id='%s'", transactionID)
-	transfers, err := client.QueryPrdPaymentsPaymentEngine(transferQuery)
+	transfers, err := client.QueryPaymentEngine(transferQuery)
 	if err != nil {
 		return &TransactionResult{
 			TransactionID: transactionID,
@@ -107,7 +106,7 @@ func QueryTransactionStatusWithEnv(transactionID string, env string) *Transactio
 		result.PaymentEngine.Transfers.ReferenceID = referenceID
 		// Query workflow_execution table with specific fields including timestamps
 		workflowQuery := fmt.Sprintf("SELECT run_id, workflow_id, state, attempt, created_at, updated_at FROM workflow_execution WHERE run_id='%s'", referenceID)
-		workflows, err := client.QueryPrdPaymentsPaymentEngine(workflowQuery)
+		workflows, err := client.QueryPaymentEngine(workflowQuery)
 		if err != nil {
 			result.Error = fmt.Sprintf("failed to query workflow_execution table: %v", err)
 			return result
@@ -162,7 +161,7 @@ func QueryTransactionStatusWithEnv(transactionID string, env string) *Transactio
 			externalQuery := fmt.Sprintf("SELECT ref_id, tx_type, status FROM external_transaction WHERE group_id='%s' AND created_at >= '%s' AND created_at <= '%s'",
 				transactionID, result.PaymentEngine.Transfers.CreatedAt, endTimeStr)
 			// Query internal_transaction table
-			internalTxs, err := client.QueryPrdPaymentsPaymentCore(internalQuery)
+			internalTxs, err := client.QueryPaymentCore(internalQuery)
 			if err == nil && len(internalTxs) > 0 {
 				for _, internalTx := range internalTxs {
 					txType, _ := internalTx["tx_type"].(string)
@@ -182,7 +181,7 @@ func QueryTransactionStatusWithEnv(transactionID string, env string) *Transactio
 			}
 
 			// Query external_transaction table
-			externalTxs, err := client.QueryPrdPaymentsPaymentCore(externalQuery)
+			externalTxs, err := client.QueryPaymentCore(externalQuery)
 			if err == nil && len(externalTxs) > 0 {
 				for _, externalTx := range externalTxs {
 					txType, _ := externalTx["tx_type"].(string)
@@ -217,7 +216,7 @@ func QueryTransactionStatusWithEnv(transactionID string, env string) *Transactio
 				// Create IN clause for multiple run_ids
 				runIDsStr := "'" + strings.Join(runIDs, "', '") + "'"
 				workflowQuery := fmt.Sprintf("SELECT run_id, workflow_id, state, attempt FROM workflow_execution WHERE run_id IN (%s)", runIDsStr)
-				paymentCoreWorkflows, err := client.QueryPrdPaymentsPaymentCore(workflowQuery)
+				paymentCoreWorkflows, err := client.QueryPaymentCore(workflowQuery)
 
 				if err == nil {
 					for _, workflow := range paymentCoreWorkflows {
@@ -257,7 +256,7 @@ func QueryTransactionStatusWithEnv(transactionID string, env string) *Transactio
 }
 
 // queryRPPE2EID handles RPP E2E ID lookups
-func queryRPPE2EID(client *clients.DoormanClient, e2eID string) *TransactionResult {
+func queryRPPE2EID(client *clients.DoormanClientSingleton, e2eID string) *TransactionResult {
 	// First query RPP adapter database to get partner_tx_id and credit_transfer status
 	rppQuery := fmt.Sprintf("SELECT partner_tx_id, partner_tx_sts AS status FROM credit_transfer WHERE end_to_end_id = '%s'", e2eID)
 	rppResults, err := client.ExecuteQuery("prd-payments-rpp-adapter-rds-mysql", "prd-payments-rpp-adapter-rds-mysql", "rpp_adapter", rppQuery)
@@ -294,7 +293,7 @@ func queryRPPE2EID(client *clients.DoormanClient, e2eID string) *TransactionResu
 
 	// Now query the workflow_execution table using partner_tx_id as run_id
 	workflowQuery := fmt.Sprintf("SELECT run_id, workflow_id, state, attempt, created_at, updated_at FROM workflow_execution WHERE run_id='%s'", partnerTxID)
-	workflows, err := client.QueryPrdPaymentsRppAdapter(workflowQuery)
+	workflows, err := client.QueryRppAdapter(workflowQuery)
 	if err != nil {
 		return &TransactionResult{
 			TransactionID: e2eID,
@@ -370,19 +369,18 @@ func QueryPartnerpayEngineTransaction(runID string) *TransactionResult {
 
 // QueryPartnerpayEngineTransactionWithEnv queries the partnerpay-engine database for a transaction by run_id with specified environment
 func QueryPartnerpayEngineTransactionWithEnv(runID string, env string) *TransactionResult {
-	// Initialize doorman factory
-	factory := clients.NewDoormanClientFactory(env)
-	client, err := factory.CreateClient(30 * time.Second)
+	// Get singleton doorman client
+	client, err := clients.GetDoormanClient(env)
 	if err != nil {
 		return &TransactionResult{
 			TransactionID: runID,
-			Error:         fmt.Sprintf("failed to create doorman client: %v", err),
+			Error:         fmt.Sprintf("failed to get doorman client: %v", err),
 		}
 	}
 
 	// Query the charge table with specific fields
 	chargeQuery := fmt.Sprintf("SELECT status, status_reason, status_reason_description, transaction_id FROM charge WHERE transaction_id='%s'", runID)
-	charges, err := client.QueryPrdPaymentsPartnerpayEngine(chargeQuery)
+	charges, err := client.QueryPartnerpayEngine(chargeQuery)
 	if err != nil {
 		return &TransactionResult{
 			TransactionID: runID,
@@ -435,7 +433,7 @@ func QueryPartnerpayEngineTransactionWithEnv(runID string, env string) *Transact
 
 	// Query workflow_execution table for workflow_charge information
 	workflowQuery := fmt.Sprintf("SELECT run_id, workflow_id, state, attempt FROM workflow_execution WHERE run_id='%s' AND workflow_id='workflow_charge'", runID)
-	workflows, err := client.QueryPrdPaymentsPartnerpayEngine(workflowQuery)
+	workflows, err := client.QueryPartnerpayEngine(workflowQuery)
 	if err != nil {
 		// Don't fail the whole operation if workflow query fails
 		if result.PartnerpayEngine.Transfers.StatusReasonDescription == "" {
