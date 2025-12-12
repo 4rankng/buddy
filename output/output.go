@@ -8,6 +8,11 @@ import (
 )
 
 func LogEvent(event string, data map[string]any) {
+	// Filter out authentication logs
+	if event == "doorman_auth_attempt" {
+		return
+	}
+	
 	logEntry := map[string]any{
 		"event": event,
 		"data":  data,

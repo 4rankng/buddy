@@ -1,3 +1,33 @@
+
+### [1] transaction_id: 9392fb12b6c64db18e779ae60bdf4307
+[payment-engine]
+type: {transfers.type}
+subtype: {transfers.txn_subtype}
+domain: {transfers.txn_domain}
+status: {transfers.status}
+created_at: 2025-12-08T18:19:57.525858Z
+{workflow_execution.workflow_id}: state=stTransferProcessing(220) attempt=0 run_id=d800f759-d271-4db9-8b9e-f567323b0bb9
+[payment-core]
+internal_transaction: {tx_type} {tx_status} | {tx_type} {tx_status} // if exist due to query can return multiple rows, if none exists then show NOT_FOUND
+external_transaction: {tx_type} {tx_status} | {tx_type} {tx_status}// if exist due to query can return multiple rows, if none exists then show NOT_FOUND
+workflow_internal_payment_flow: state=stPrepareUpdateAuth(900) attempt=0 run_id=04b54792c3f843418fe9ab9a31803b59
+workflow_external_payment_flow: state=stSubmitted(200) attempt=11 run_id=717101d108744edcb6d117fcb6bd2c4c
+[fast-adapter]
+FAST ID: 123 (instruction_id or external_id from above)
+type: cashin
+transactions.status: StErraneous (4)
+cancel_reason_code: 123
+reject_reason_code: 123
+[Classification]
+no_case_matched
+
+sg-prd-m-payment-engine
+select type, txn_domain, txn_subtype, transaction_id, reference_id, status, external_id, created_at from transfer where transaction_id='9392fb12b6c64db18e779ae60bdf4307';
+
+
+
+
+
 DB:sg-prd-m-fast-adapter
 
 QUERY:
@@ -58,7 +88,7 @@ Doorman Host: https://doorman.sgbank.pr/rds/query
 List of queries
 
 sg-prd-m-payment-engine
-select transaction_id, reference_id, status, external_id, created_at from transfer where transaction_id='9392fb12b6c64db18e779ae60bdf4307';
+select type, txn_domain, txn_subtype, transaction_id, reference_id, status, external_id, created_at from transfer where transaction_id='9392fb12b6c64db18e779ae60bdf4307';
 
 select workflow_id, attempt, state from workflow_execution where run_id='040932776da74d9db6f5aad2f4715516' // use reference_id from above
 

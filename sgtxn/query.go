@@ -217,7 +217,7 @@ func formatFastAdapterStatus(txType, statusStr string) string {
 		default:
 			stateName = "unknown"
 		}
-		return stateName
+		return fmt.Sprintf("%s(%d)", stateName, statusNum)
 	}
 	return statusStr
 }
