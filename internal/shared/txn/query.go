@@ -1,12 +1,12 @@
 package txn
 
 import (
+	"buddy/clients"
 	"fmt"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
-
-	"buddy/clients"
 )
 
 // RppE2EIDPattern matches RPP E2E ID format: first 8 chars are digits (YYYYMMDD) and last 8 chars are digits, total 30 chars
@@ -522,13 +522,39 @@ func queryFastAdapter(client clients.DoormanInterface, externalID, createdAt str
 	info := &FastAdapterInfo{
 		InstructionID: getStringValue(row, "instruction_id"),
 		Type:          getStringValue(row, "type"),
-		Status:        getStringValue(row, "status"),
 		CreatedAt:     getStringValue(row, "created_at"),
 	}
 
-	// Parse numeric status code
+	// Parse numeric status code first
 	if statusCode, ok := row["status_code"].(float64); ok {
 		info.StatusCode = int(statusCode)
+	}
+
+	// Handle status field - always convert to numeric and format as "name(number)"
+	if statusVal, ok := row["status"]; ok {
+		var statusNum int
+		var err error
+		switch v := statusVal.(type) {
+		case string:
+			if statusNum, err = strconv.Atoi(v); err != nil {
+				statusNum = -1
+			}
+		case int:
+			statusNum = v
+		case float64:
+			statusNum = int(v)
+		default:
+			statusNum = -1
+		}
+
+		// Get status name and format as "name(number)"
+		statusName := getFastAdapterStatusName(statusNum)
+		info.Status = fmt.Sprintf("%s(%d)", statusName, statusNum)
+
+		// If StatusCode is not set, use the numeric status
+		if info.StatusCode == 0 {
+			info.StatusCode = statusNum
+		}
 	}
 
 	info.CancelReasonCode = getStringValue(row, "cancel_reason_code")
@@ -545,4 +571,31 @@ func getStringValue(row map[string]interface{}, key string) string {
 		}
 	}
 	return ""
+}
+
+// getFastAdapterStatusName maps fast adapter status codes to human-readable names
+func getFastAdapterStatusName(statusCode int) string {
+	// Fast adapter status mapping based on common patterns
+	switch statusCode {
+	case 0:
+		return "INITIATED"
+	case 1:
+		return "PENDING"
+	case 2:
+		return "PROCESSING"
+	case 3:
+		return "SUCCESS"
+	case 4:
+		return "FAILED"
+	case 5:
+		return "CANCELLED"
+	case 6:
+		return "REJECTED"
+	case 7:
+		return "TIMEOUT"
+	case 8:
+		return "ERROR"
+	default:
+		return "UNKNOWN"
+	}
 }

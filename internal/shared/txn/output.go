@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"strings"
 )
 
 // WriteBatchResults writes transaction results to an output file in the new format
@@ -153,6 +152,18 @@ func writeResult(w io.Writer, result TransactionResult, index int) {
 			}
 		}
 
+		if result.PaymentEngine.Transfers.ReferenceID != "" {
+			if _, err := fmt.Fprintf(w, "reference_id: %s\n", result.PaymentEngine.Transfers.ReferenceID); err != nil {
+				fmt.Printf("Warning: failed to write reference id: %v\n", err)
+			}
+		}
+
+		if result.PaymentEngine.Transfers.ExternalID != "" {
+			if _, err := fmt.Fprintf(w, "external_id: %s\n", result.PaymentEngine.Transfers.ExternalID); err != nil {
+				fmt.Printf("Warning: failed to write external id: %v\n", err)
+			}
+		}
+
 		if result.PaymentEngine.Workflow.RunID != "" {
 			line := fmt.Sprintf("state=%s attempt=%d", result.PaymentEngine.Workflow.GetFormattedState(), result.PaymentEngine.Workflow.Attempt)
 			if _, err := fmt.Fprintf(w, "workflow_transfer_payment: %s run_id=%s\n", line, result.PaymentEngine.Workflow.RunID); err != nil {
@@ -169,43 +180,53 @@ func writeResult(w io.Writer, result TransactionResult, index int) {
 
 		if hasPaymentCoreData {
 			if len(result.PaymentCore.InternalTxns) > 0 {
-				var statuses []string
 				for _, tx := range result.PaymentCore.InternalTxns {
-					var parts []string
+					if _, err := fmt.Fprintf(w, "internal_transaction: tx_id=%s", tx.TxID); err != nil {
+						fmt.Printf("Warning: failed to write internal tx id: %v\n", err)
+					}
+					if tx.GroupID != "" {
+						if _, err := fmt.Fprintf(w, " group_id=%s", tx.GroupID); err != nil {
+							fmt.Printf("Warning: failed to write internal tx group id: %v\n", err)
+						}
+					}
 					if tx.TxType != "" {
-						parts = append(parts, tx.TxType)
+						if _, err := fmt.Fprintf(w, " type=%s", tx.TxType); err != nil {
+							fmt.Printf("Warning: failed to write internal tx type: %v\n", err)
+						}
 					}
 					if tx.TxStatus != "" {
-						parts = append(parts, tx.TxStatus)
+						if _, err := fmt.Fprintf(w, " status=%s", tx.TxStatus); err != nil {
+							fmt.Printf("Warning: failed to write internal tx status: %v\n", err)
+						}
 					}
-					if len(parts) > 0 {
-						statuses = append(statuses, strings.Join(parts, " "))
-					}
-				}
-				if len(statuses) > 0 {
-					if _, err := fmt.Fprintf(w, "internal_transaction: %s\n", strings.Join(statuses, " , ")); err != nil {
-						fmt.Printf("Warning: failed to write internal tx status: %v\n", err)
+					if _, err := fmt.Fprintln(w); err != nil {
+						fmt.Printf("Warning: failed to write newline after internal transaction: %v\n", err)
 					}
 				}
 			}
 
 			if len(result.PaymentCore.ExternalTxns) > 0 {
-				var statuses []string
 				for _, tx := range result.PaymentCore.ExternalTxns {
-					var parts []string
+					if _, err := fmt.Fprintf(w, "external_transaction: ref_id=%s", tx.RefID); err != nil {
+						fmt.Printf("Warning: failed to write external tx ref id: %v\n", err)
+					}
+					if tx.GroupID != "" {
+						if _, err := fmt.Fprintf(w, " group_id=%s", tx.GroupID); err != nil {
+							fmt.Printf("Warning: failed to write external tx group id: %v\n", err)
+						}
+					}
 					if tx.TxType != "" {
-						parts = append(parts, tx.TxType)
+						if _, err := fmt.Fprintf(w, " type=%s", tx.TxType); err != nil {
+							fmt.Printf("Warning: failed to write external tx type: %v\n", err)
+						}
 					}
 					if tx.TxStatus != "" {
-						parts = append(parts, tx.TxStatus)
+						if _, err := fmt.Fprintf(w, " status=%s", tx.TxStatus); err != nil {
+							fmt.Printf("Warning: failed to write external tx status: %v\n", err)
+						}
 					}
-					if len(parts) > 0 {
-						statuses = append(statuses, strings.Join(parts, " "))
-					}
-				}
-				if len(statuses) > 0 {
-					if _, err := fmt.Fprintf(w, "external_transaction: %s\n", strings.Join(statuses, " , ")); err != nil {
-						fmt.Printf("Warning: failed to write external tx status: %v\n", err)
+					if _, err := fmt.Fprintln(w); err != nil {
+						fmt.Printf("Warning: failed to write newline after external transaction: %v\n", err)
 					}
 				}
 			}
@@ -240,14 +261,17 @@ func writeResult(w io.Writer, result TransactionResult, index int) {
 			}
 		}
 
-		if result.FastAdapter.Status != "" {
-			statusStr := result.FastAdapter.Status
-			if result.FastAdapter.StatusCode > 0 {
+		// Always show status field, even if empty
+		statusStr := result.FastAdapter.Status
+		if result.FastAdapter.StatusCode > 0 {
+			if statusStr != "" {
 				statusStr = fmt.Sprintf("%s (%d)", statusStr, result.FastAdapter.StatusCode)
+			} else {
+				statusStr = fmt.Sprintf("(%d)", result.FastAdapter.StatusCode)
 			}
-			if _, err := fmt.Fprintf(w, "transactions.status: %s\n", statusStr); err != nil {
-				fmt.Printf("Warning: failed to write fast adapter status: %v\n", err)
-			}
+		}
+		if _, err := fmt.Fprintf(w, "transactions.status: %s\n", statusStr); err != nil {
+			fmt.Printf("Warning: failed to write fast adapter status: %v\n", err)
 		}
 
 		if result.FastAdapter.CancelReasonCode != "" {
@@ -259,6 +283,12 @@ func writeResult(w io.Writer, result TransactionResult, index int) {
 		if result.FastAdapter.RejectReasonCode != "" {
 			if _, err := fmt.Fprintf(w, "reject_reason_code: %s\n", result.FastAdapter.RejectReasonCode); err != nil {
 				fmt.Printf("Warning: failed to write reject reason code: %v\n", err)
+			}
+		}
+
+		if result.FastAdapter.CreatedAt != "" {
+			if _, err := fmt.Fprintf(w, "created_at: %s\n", result.FastAdapter.CreatedAt); err != nil {
+				fmt.Printf("Warning: failed to write fast adapter created at: %v\n", err)
 			}
 		}
 	}
@@ -282,6 +312,12 @@ func writeResult(w io.Writer, result TransactionResult, index int) {
 			line := fmt.Sprintf("state=%s attempt=%d", result.RPPAdapter.Workflow.GetFormattedState(), result.RPPAdapter.Workflow.Attempt)
 			if _, err := fmt.Fprintf(w, "workflow_%s: %s run_id=%s\n", result.RPPAdapter.Workflow.WorkflowID, line, result.RPPAdapter.Workflow.RunID); err != nil {
 				fmt.Printf("Warning: failed to write rpp workflow: %v\n", err)
+			}
+		}
+
+		if result.RPPAdapter.Info != "" {
+			if _, err := fmt.Fprintf(w, "info: %s\n", result.RPPAdapter.Info); err != nil {
+				fmt.Printf("Warning: failed to write rpp info: %v\n", err)
 			}
 		}
 	}
@@ -340,6 +376,13 @@ func WriteEcoTransactionResult(w io.Writer, result TransactionResult, index int)
 	if result.PartnerpayEngine.Transfers.Status != "" {
 		if _, err := fmt.Fprintf(w, "charge.status: %s", result.PartnerpayEngine.Transfers.Status); err != nil {
 			fmt.Printf("Warning: failed to write charge status: %v\n", err)
+		}
+
+		// If there's a status reason, append it
+		if result.PartnerpayEngine.Transfers.StatusReason != "" {
+			if _, err := fmt.Fprintf(w, " %s", result.PartnerpayEngine.Transfers.StatusReason); err != nil {
+				fmt.Printf("Warning: failed to write status reason: %v\n", err)
+			}
 		}
 
 		// If there's an error message (status_reason), append it
