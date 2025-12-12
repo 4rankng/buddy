@@ -58,7 +58,7 @@ func (c *JiraClient) GetAssignedIssues(ctx context.Context, projectKey string, e
 	}
 
 	// Build request URL with correct endpoint
-	apiURL, err := url.Parse(c.config.Domain + "/rest/api/3/search")
+	apiURL, err := url.Parse(c.config.Domain + "/rest/api/3/search/jql")
 	if err != nil {
 		return nil, &JiraError{
 			StatusCode: 0,
@@ -387,8 +387,8 @@ type jiraIssueResponse struct {
 		Priority *struct {
 			Name string `json:"name"`
 		} `json:"priority"`
-		Created          string `json:"created"`
-		DueDate          string `json:"duedate"`
+		Created          string      `json:"created"`
+		DueDate          string      `json:"duedate"`
 		CustomField10060 interface{} `json:"customfield_10060"`
 		IssueType        struct {
 			Name string `json:"name"`
@@ -408,21 +408,21 @@ func (c *JiraClient) setAuthHeaders(req *http.Request) {
 		// This should never happen if config is validated during initialization
 		return
 	}
-	
+
 	// Create Basic Auth header
 	auth := base64.StdEncoding.EncodeToString(
 		[]byte(fmt.Sprintf("%s:%s", c.config.Auth.Username, c.config.Auth.APIKey)),
 	)
 	req.Header.Set("Authorization", fmt.Sprintf("Basic %s", auth))
-	
+
 	// Set standard headers
 	req.Header.Set("Accept", "application/json")
-	
+
 	// Only set Content-Type for requests with a body
 	if req.Method != "GET" && req.Method != "HEAD" {
 		req.Header.Set("Content-Type", "application/json")
 	}
-	
+
 	// Add user agent for better debugging
 	req.Header.Set("User-Agent", "buddy-jira-client/1.0")
 }
