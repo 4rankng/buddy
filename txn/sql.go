@@ -15,6 +15,7 @@ func GenerateSQLStatements(results []TransactionResult) SQLStatements {
 
 	for i := range results {
 		// identifySOPCase now takes a pointer and might trigger prompts
+		// It also stores the case in the TransactionResult to avoid re-identification
 		caseType := identifySOPCase(&results[i])
 		results[i].RPPInfo = string(caseType) // Store identified case for reference
 

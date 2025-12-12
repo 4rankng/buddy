@@ -85,21 +85,31 @@ func isRPPStuckCandidate(result TransactionResult) bool {
 // identifySOPCase determines which SOP case a transaction matches.
 // It accepts a pointer to TransactionResult to allow enrichment of data (prompts/lookups).
 func identifySOPCase(result *TransactionResult) SOPCase {
+	// Check if we've already identified the case
+	if result.SOPCase != SOPCaseNone {
+		return result.SOPCase
+	}
+
 	// 1. Check for distinct static cases
 	if matchSOPCasePcExternalPaymentFlow200_11(*result) {
-		return SOPCasePcExternalPaymentFlow200_11
+		result.SOPCase = SOPCasePcExternalPaymentFlow200_11
+		return result.SOPCase
 	}
 	if matchSOPCasePeTransferPayment210_0(*result) {
-		return SOPCasePeTransferPayment210_0
+		result.SOPCase = SOPCasePeTransferPayment210_0
+		return result.SOPCase
 	}
 	if matchSOPCaseRppCashoutReject101_19(*result) {
-		return SOPCaseRppCashoutReject101_19
+		result.SOPCase = SOPCaseRppCashoutReject101_19
+		return result.SOPCase
 	}
 	if matchSOPCaseRppQrPaymentReject210_0(*result) {
-		return SOPCaseRppQrPaymentReject210_0
+		result.SOPCase = SOPCaseRppQrPaymentReject210_0
+		return result.SOPCase
 	}
 	if MatchSOPCaseRppNoResponseResume(*result) {
-		return SOPCaseRppNoResponseResume
+		result.SOPCase = SOPCaseRppNoResponseResume
+		return result.SOPCase
 	}
 
 	// 2. Check for RPP Stuck Candidate (Ambiguous Case 2 vs Case 3)
@@ -112,7 +122,8 @@ func identifySOPCase(result *TransactionResult) SOPCase {
 			result.ReqBizMsgID, err = promptForInput(fmt.Sprintf("Enter req_biz_msg_id for %s", result.TransactionID))
 			if err != nil {
 				fmt.Printf("Skipping RPP check due to input error: %v\n", err)
-				return SOPCaseNone
+				result.SOPCase = SOPCaseNone
+				return result.SOPCase
 			}
 		}
 
@@ -143,15 +154,17 @@ func identifySOPCase(result *TransactionResult) SOPCase {
 		// If RPP workflow is in state 900 (Completed), we match Case 3.
 		// Otherwise (state 210, NOT_FOUND, ERROR, etc.), we match Case 2 to resume/retry.
 		if result.RPPStatus == "900" {
-			return SOPCasePcExternalPaymentFlow201_0RPP900
+			result.SOPCase = SOPCasePcExternalPaymentFlow201_0RPP900
 		} else {
 			// Even if NOT_FOUND or ERROR, we generally assume we need to retry/resume (Case 2)
 			// unless we want to abort. Standard SOP implies checking if it's NOT success, treat as stuck/retry.
-			return SOPCasePcExternalPaymentFlow201_0RPP210
+			result.SOPCase = SOPCasePcExternalPaymentFlow201_0RPP210
 		}
+		return result.SOPCase
 	}
 
-	return SOPCaseNone
+	result.SOPCase = SOPCaseNone
+	return result.SOPCase
 }
 
 // promptForInput reads a line from stdin

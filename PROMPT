@@ -1,0 +1,33 @@
+PROMPT// Write results to output file
+	if err := WriteBatchResults(results, outputPath); err != nil {
+		output.PrintError(fmt.Errorf("failed to write results to output file: %v", err))
+		return
+	}
+in the output file we should have case type for each transaction
+
+[Classification]
+pc_external_payment_flow_200_11
+
+for example
+### [4] transaction_id: 181b82e6951a4ca691ece34572986107
+[payment-engine]
+status: PROCESSING
+created_at: 2025-12-08T18:02:14.902479Z
+workflow_transfer_payment: state=stTransferProcessing(220) attempt=0 run_id=34ADA990-561A-49DB-AA72-E70C7680CF0D
+[payment-core]
+internal_transaction: AUTH SUCCESS
+external_transaction: TRANSFER PROCESSING
+payment_core_workflow_external_payment_flow: state=stProcessing(201) attempt=0 run_id=4aaf731cf33c4f73a85a383e06454798
+payment_core_workflow_internal_payment_flow: state=stPrepareUpdateAuth(900) attempt=0 run_id=65043f11fded4590baeebefe6874f3c6
+[Classification]
+pc_external_payment_flow_200_11
+
+
+also fix this
+
+"I see the issue. The problem is that when we write the results to the output file in WriteBatchResults, we haven't identified the SOP cases yet. The identification happens later in GenerateSQLStatements.
+
+Let me fix this by ensuring we identify the SOP cases before writing the results:// "
+
+GenerateSQLStatements.
+does not need to identify the SOP case again since we already did that before writing the output file. We can just use the stored SOPCase in TransactionResult.

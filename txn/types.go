@@ -39,6 +39,9 @@ type TransactionResult struct {
 	PartnerTxID string
 	RPPStatus   string
 	RPPInfo     string
+
+	// SOP Case identification
+	SOPCase SOPCase // Store the identified SOP case to avoid re-identification
 }
 
 // SOPCase represents the supported remediation cases from SOP.md
