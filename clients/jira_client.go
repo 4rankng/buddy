@@ -10,7 +10,6 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"strconv"
 	"strings"
 	"time"
 )
@@ -66,20 +65,29 @@ func (c *JiraClient) GetAssignedIssues(ctx context.Context, projectKey string, e
 		}
 	}
 
-	params := url.Values{}
-	params.Set("jql", jql)
-	params.Set("fields", "assignee,summary,issuetype,key,priority,status,created,duedate,customfield_10060")
-	params.Set("maxResults", strconv.Itoa(c.config.MaxItems))
-	apiURL.RawQuery = params.Encode()
+	requestPayload := map[string]interface{}{
+		"jql":        jql,
+		"fields":     []string{"assignee", "summary", "issuetype", "key", "priority", "status", "created", "duedate", "customfield_10060"},
+		"maxResults": c.config.MaxItems,
+	}
+
+	reqBody, err := json.Marshal(requestPayload)
+	if err != nil {
+		return nil, &JiraError{
+			StatusCode: 0,
+			Message:    fmt.Sprintf("failed to marshal search payload: %v", err),
+		}
+	}
 
 	// Create and execute request with context
-	req, err := http.NewRequestWithContext(ctx, "GET", apiURL.String(), nil)
+	req, err := http.NewRequestWithContext(ctx, "POST", apiURL.String(), bytes.NewReader(reqBody))
 	if err != nil {
 		return nil, &JiraError{
 			StatusCode: 0,
 			Message:    fmt.Sprintf("failed to create request: %v", err),
 		}
 	}
+	req.Header.Set("Content-Type", "application/json")
 
 	c.setAuthHeaders(req)
 
