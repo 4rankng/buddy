@@ -1,11 +1,10 @@
 package sgbuddy
 
 import (
-	"fmt"
 	"os"
 
 	"buddy/internal/app"
-	"buddy/sgtxn"
+	"buddy/txn"
 
 	"github.com/spf13/cobra"
 )
@@ -28,20 +27,15 @@ Each line in the file should contain a single transaction ID.`,
 			input := args[0]
 
 			// Check if input is a file or a single transaction ID
-			if sgtxn.IsFile(input) {
+			if txn.IsFilePath(input) {
 				// Process batch file
-				if err := sgtxn.ProcessSGBatchFile(input); err != nil {
-					fmt.Fprintf(os.Stderr, "Error processing batch file: %v\n", err)
-					os.Exit(1)
-				}
+				txn.ProcessBatchFile(input)
 			} else {
 				// Process single transaction
-				result := sgtxn.QuerySGTransaction(input)
+				txn.PrintTransactionStatus(input)
 
-				// Display the result in the required format
-				sgtxn.PrintSGTransactionStatus(*result, 1)
-
-				// Exit with error code if transaction not found
+				// Query again to check for errors
+				result := txn.QueryTransactionStatus(input)
 				if result.Error != "" {
 					os.Exit(1)
 				}

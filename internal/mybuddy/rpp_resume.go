@@ -164,8 +164,8 @@ func generateRppResumeSQLBatch(appCtx *app.Context, results []txn.TransactionRes
 	// Collect all run_ids
 	var runIDs []string
 	for _, result := range results {
-		if result.RPPWorkflow.RunID != "" {
-			runIDs = append(runIDs, result.RPPWorkflow.RunID)
+		if result.RPPAdapter.Workflow.RunID != "" {
+			runIDs = append(runIDs, result.RPPAdapter.Workflow.RunID)
 		}
 	}
 
