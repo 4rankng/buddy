@@ -1,8 +1,4 @@
-PROMPT// Write results to output file
-	if err := WriteBatchResults(results, outputPath); err != nil {
-		output.PrintError(fmt.Errorf("failed to write results to output file: %v", err))
-		return
-	}
+
 in the output file we should have case type for each transaction
 
 [Classification]
@@ -23,110 +19,464 @@ payment_core_workflow_internal_payment_flow: state=stPrepareUpdateAuth(900) atte
 pc_external_payment_flow_200_11
 
 
-also fix this
+why the fuck currently you still dont update the output format
 
-"I see the issue. The problem is that when we write the results to the output file in WriteBatchResults, we haven't identified the SOP cases yet. The identification happens later in GenerateSQLStatements.
+currently
+### [1] transaction_id: f94059163f5d4e099dc9bf626d020c4b
+[payment-engine]
+status: PROCESSING
+created_at: 2025-12-08T18:20:35.458845Z
+workflow_transfer_payment: state=stTransferProcessing(220) attempt=0 run_id=1cfeb149-6ca6-47ef-9ced-269500d360a2
+[payment-core]
+internal_transaction: AUTH SUCCESS
+external_transaction: TRANSFER PROCESSING
+payment_core_workflow_internal_payment_flow: state=stPrepareUpdateAuth(900) attempt=0 run_id=ad40cefc0e064e01930ab86279fadfe1
+payment_core_workflow_external_payment_flow: state=stSubmitted(200) attempt=11 run_id=be957150515d45c8b94f936f75e982f4
 
-Let me fix this by ensuring we identify the SOP cases before writing the results:// "
+### [2] transaction_id: 0eff0787b4744f13a492464a683b754b
+[payment-engine]
+status: PROCESSING
+created_at: 2025-12-08T18:24:07.642671Z
+workflow_transfer_payment: state=stTransferProcessing(220) attempt=0 run_id=783635c1-d1fc-4ea3-97d0-cbbd76b70572
+[payment-core]
+internal_transaction: AUTH SUCCESS
+external_transaction: TRANSFER PROCESSING
+payment_core_workflow_internal_payment_flow: state=stPrepareUpdateAuth(900) attempt=0 run_id=9b9676d6dbd1416bbc5cf6ae917e3a34
+payment_core_workflow_external_payment_flow: state=stSubmitted(200) attempt=11 run_id=c564a6899d234411b9fcea7748fab192
 
-GenerateSQLStatements.
-does not need to identify the SOP case again since we already did that before writing the output file. We can just use the stored SOPCase in TransactionResult.
 
-Implementation Plan: Refactor Transaction Processing for Better Separation of
- Concerns
+the fuck I want is
 
- Current Issues
+currently
+### [1] transaction_id: f94059163f5d4e099dc9bf626d020c4b
+[payment-engine]
+status: PROCESSING
+created_at: 2025-12-08T18:20:35.458845Z
+workflow_transfer_payment: state=stTransferProcessing(220) attempt=0 run_id=1cfeb149-6ca6-47ef-9ced-269500d360a2
+[payment-core]
+internal_transaction: AUTH SUCCESS
+external_transaction: TRANSFER PROCESSING
+payment_core_workflow_internal_payment_flow: state=stPrepareUpdateAuth(900) attempt=0 run_id=ad40cefc0e064e01930ab86279fadfe1
+payment_core_workflow_external_payment_flow: state=stSubmitted(200) attempt=11 run_id=be957150515d45c8b94f936f75e982f4
+[Classification]
+pc_external_payment_flow_200_11
 
- 1. Mixing responsibilities: GenerateSQLStatements() both identifies SOP cases AND
- generates SQL
- 2. Order dependency: Functions must be called in specific order for SOP cases to be
- identified
- 3. RPPInfo overwrite bug: Line 20 in sql.go overwrites RPP workflow information
+### [2] transaction_id: 0eff0787b4744f13a492464a683b754b
+[payment-engine]
+status: PROCESSING
+created_at: 2025-12-08T18:24:07.642671Z
+workflow_transfer_payment: state=stTransferProcessing(220) attempt=0 run_id=783635c1-d1fc-4ea3-97d0-cbbd76b70572
+[payment-core]
+internal_transaction: AUTH SUCCESS
+external_transaction: TRANSFER PROCESSING
+payment_core_workflow_internal_payment_flow: state=stPrepareUpdateAuth(900) attempt=0 run_id=9b9676d6dbd1416bbc5cf6ae917e3a34
+payment_core_workflow_external_payment_flow: state=stSubmitted(200) attempt=11 run_id=c564a6899d234411b9fcea7748fab192
+[Classification]
+pc_external_payment_flow_200_11
 
- Proposed Architecture
 
- Separate the workflow into distinct phases:
- 1. Query Phase: Fetch transaction data
- 2. Identification Phase: Identify SOP cases and store needed information
- 3. SQL Generation Phase: Generate SQL from pre-identified cases
- 4. Output Phase: Write results with classifications
 
- Solution
+we have fucking 35 txn matched case 
+QL matches: 35 total (pc_external_payment_flow_200_11: 33, pc_external_payment_flow_201_0_RPP_210: 2, pc_external_payment_flow_201_0_RPP_900: 0, pe_transfer_payment_210_0: 0, rpp_cashout_reject_101_19: 0, rpp_qr_payment_reject_210_0: 0, rpp_no_response_resume: 0)
 
- Step 1: Create a separate SOP case identification function
+### [1] transaction_id: f94059163f5d4e099dc9bf626d020c4b
+[payment-engine]
+status: PROCESSING
+created_at: 2025-12-08T18:20:35.458845Z
+workflow_transfer_payment: state=stTransferProcessing(220) attempt=0 run_id=1cfeb149-6ca6-47ef-9ced-269500d360a2
+[payment-core]
+internal_transaction: AUTH SUCCESS
+external_transaction: TRANSFER PROCESSING
+payment_core_workflow_internal_payment_flow: state=stPrepareUpdateAuth(900) attempt=0 run_id=ad40cefc0e064e01930ab86279fadfe1
+payment_core_workflow_external_payment_flow: state=stSubmitted(200) attempt=11 run_id=be957150515d45c8b94f936f75e982f4
 
- Create a new function IdentifySOPCases() that:
- - Takes a slice of TransactionResult
- - Identifies SOP cases for all transactions
- - Stores the case in result.SOPCase
- - Collects any additional info needed for SQL generation
- - Does NOT generate SQL
+### [2] transaction_id: 0eff0787b4744f13a492464a683b754b
+[payment-engine]
+status: PROCESSING
+created_at: 2025-12-08T18:24:07.642671Z
+workflow_transfer_payment: state=stTransferProcessing(220) attempt=0 run_id=783635c1-d1fc-4ea3-97d0-cbbd76b70572
+[payment-core]
+internal_transaction: AUTH SUCCESS
+external_transaction: TRANSFER PROCESSING
+payment_core_workflow_internal_payment_flow: state=stPrepareUpdateAuth(900) attempt=0 run_id=9b9676d6dbd1416bbc5cf6ae917e3a34
+payment_core_workflow_external_payment_flow: state=stSubmitted(200) attempt=11 run_id=c564a6899d234411b9fcea7748fab192
 
- Step 2: Refactor ProcessBatchFile and ProcessBatchFileWithFilter
+### [3] transaction_id: 6976bdcf89ee450a9483dbfa35d57d1d
+Status: NOT_FOUND
 
- File: /Users/dev/Documents/buddy/txn/batch.go
+### [4] transaction_id: 181b82e6951a4ca691ece34572986107
+[payment-engine]
+status: PROCESSING
+created_at: 2025-12-08T18:02:14.902479Z
+workflow_transfer_payment: state=stTransferProcessing(220) attempt=0 run_id=34ADA990-561A-49DB-AA72-E70C7680CF0D
+[payment-core]
+internal_transaction: AUTH SUCCESS
+external_transaction: TRANSFER PROCESSING
+payment_core_workflow_external_payment_flow: state=stProcessing(201) attempt=0 run_id=4aaf731cf33c4f73a85a383e06454798
+payment_core_workflow_internal_payment_flow: state=stPrepareUpdateAuth(900) attempt=0 run_id=65043f11fded4590baeebefe6874f3c6
 
- New workflow:
- 1. Query transactions (ProcessBatchTransactions)
- 2. NEW: Identify SOP cases (IdentifySOPCases)
- 3. Write results to output file (WriteBatchResults)
- 4. Generate SQL statements (GenerateSQLStatements)
- 5. Write SQL files (WriteSQLFiles)
+### [5] transaction_id: 14fd0a0dc99348ad8df12fde69fee58b
+[payment-engine]
+status: PROCESSING
+created_at: 2025-12-08T18:20:17.37339Z
+workflow_transfer_payment: state=stTransferProcessing(220) attempt=0 run_id=5bea597e-30c4-4c51-8615-97285ac721b2
+[payment-core]
+internal_transaction: AUTH SUCCESS
+external_transaction: TRANSFER PROCESSING
+payment_core_workflow_external_payment_flow: state=stSubmitted(200) attempt=11 run_id=47e2be5cd4a843aca6adfe95c78b71a1
+payment_core_workflow_internal_payment_flow: state=stPrepareUpdateAuth(900) attempt=0 run_id=dcd76214c9bf4dc980f5673343217d0b
 
- Step 3: Simplify GenerateSQLStatements
+### [6] transaction_id: b0b17f86bf7f4c489752466481b4632c
+[payment-engine]
+status: PROCESSING
+created_at: 2025-12-08T18:21:16.875956Z
+workflow_transfer_payment: state=stTransferProcessing(220) attempt=0 run_id=a6084a1f-d5de-4249-a3d5-c31d2f61a84c
+[payment-core]
+internal_transaction: AUTH SUCCESS
+external_transaction: TRANSFER PROCESSING
+payment_core_workflow_external_payment_flow: state=stSubmitted(200) attempt=11 run_id=185e7f8c21fe4027aa948f1dbbf6b0a4
+payment_core_workflow_internal_payment_flow: state=stPrepareUpdateAuth(900) attempt=0 run_id=21dff631bc854aeeacaa5b20fac19408
 
- File: /Users/dev/Documents/buddy/txn/sql.go
+### [7] transaction_id: cea66e78ee114074b9f688b651f0249e
+[payment-engine]
+status: PROCESSING
+created_at: 2025-12-09T17:52:20.494641Z
+workflow_transfer_payment: state=stTransferProcessing(220) attempt=0 run_id=FC7D5312-AE22-47BA-BC7C-55B4C33DE619
+[payment-core]
+internal_transaction: AUTH SUCCESS
+external_transaction: TRANSFER PROCESSING
+payment_core_workflow_external_payment_flow: state=stSubmitted(200) attempt=11 run_id=7527256c31e540a480088ab54084db51
+payment_core_workflow_internal_payment_flow: state=stPrepareUpdateAuth(900) attempt=0 run_id=c3de19188ae64ba3aa3601a051ff3ef5
 
- Changes:
- - Remove SOP case identification logic (lines 16-20)
- - Remove the RPPInfo overwrite bug (line 20)
- - Focus only on SQL generation from pre-identified cases
- - Use the already-stored result.SOPCase values
+### [8] transaction_id: ffa092b139b346acb06b28b557a8ef48
+[payment-engine]
+status: PROCESSING
+created_at: 2025-12-08T18:23:52.220877Z
+workflow_transfer_payment: state=stTransferProcessing(220) attempt=0 run_id=F1FA03DD-2F84-47CB-8CC6-552E43266E19
+[payment-core]
+internal_transaction: AUTH SUCCESS
+external_transaction: TRANSFER PROCESSING
+payment_core_workflow_internal_payment_flow: state=stPrepareUpdateAuth(900) attempt=0 run_id=5d09a1360712486db8a828d3f42d5a30
+payment_core_workflow_external_payment_flow: state=stSubmitted(200) attempt=11 run_id=f568457359ba4e0d99252def93739e6f
 
- Step 4: Fix RPPInfo overwrite
+### [9] transaction_id: 3e8ea5f274c64d2aa6ff83a5305880c3
+[payment-engine]
+status: PROCESSING
+created_at: 2025-12-09T17:50:54.797298Z
+workflow_transfer_payment: state=stTransferProcessing(220) attempt=0 run_id=efde6caf-a850-44ba-acb6-ddff0e5c5f52
+[payment-core]
+internal_transaction: AUTH SUCCESS
+external_transaction: TRANSFER PROCESSING
+payment_core_workflow_external_payment_flow: state=stSubmitted(200) attempt=11 run_id=0ce51156ec284a969892ef37577bcbb0
+payment_core_workflow_internal_payment_flow: state=stPrepareUpdateAuth(900) attempt=0 run_id=a7a99dfbab1b4621bab5751f38108e87
 
- Remove line 20 in sql.go to preserve the original RPP workflow information from
- query.go.
+### [10] transaction_id: 067fd41dc5b04b24a9243965a284d1cb
+[payment-engine]
+status: PROCESSING
+created_at: 2025-12-09T17:53:11.850923Z
+workflow_transfer_payment: state=stTransferProcessing(220) attempt=0 run_id=8578D893-343D-465D-B119-8FDD3DC2E580
+[payment-core]
+internal_transaction: AUTH SUCCESS
+external_transaction: TRANSFER PROCESSING
+payment_core_workflow_external_payment_flow: state=stSubmitted(200) attempt=11 run_id=584c3d3a188746298fa64f616908b24f
+payment_core_workflow_internal_payment_flow: state=stPrepareUpdateAuth(900) attempt=0 run_id=6a4117d7989a42178df9caa48e216daf
 
- Implementation Steps
+### [11] transaction_id: ca701c1a93894bc7875f02b0e0958f28
+[payment-engine]
+status: PROCESSING
+created_at: 2025-12-09T17:54:41.274411Z
+workflow_transfer_payment: state=stTransferProcessing(220) attempt=0 run_id=f28d74ea-cfe6-41df-9275-674bc12f1ed8
+[payment-core]
+internal_transaction: AUTH SUCCESS
+external_transaction: TRANSFER PROCESSING
+payment_core_workflow_internal_payment_flow: state=stPrepareUpdateAuth(900) attempt=0 run_id=2623a6bb3cf849f8afa665e12a19c769
+payment_core_workflow_external_payment_flow: state=stSubmitted(200) attempt=11 run_id=c30131d158e245969e93f776d253bf8e
 
- 1. Create IdentifySOPCases function in /Users/dev/Documents/buddy/txn/cases.go:
- // IdentifySOPCases identifies SOP cases for all transactions without generating SQL
- func IdentifySOPCases(results []TransactionResult) {
-     for i := range results {
-         if results[i].SOPCase == SOPCaseNone {
-             identifySOPCase(&results[i])
-         }
-     }
- }
- 2. Update ProcessBatchFile in /Users/dev/Documents/buddy/txn/batch.go:
-   - Add IdentifySOPCases(results) call after line 64
-   - Keep existing order (already correct)
- 3. Fix ProcessBatchFileWithFilter in /Users/dev/Documents/buddy/txn/batch.go:
-   - Add IdentifySOPCases(filteredResults) after line 112 (after filtering)
-   - Keep GenerateSQLStatements after WriteBatchResults
- 4. Simplify GenerateSQLStatements in /Users/dev/Documents/buddy/txn/sql.go:
-   - Remove lines 16-20 (the for loop with identifySOPCase)
-   - Remove line 20: results[i].RPPInfo = string(caseType)
-   - Start with line 22 (sqlTemplates loop) since cases are already identified
- 5. Run tests:
-   - make build
-   - make lint
-   - Test batch processing to verify classifications appear in output
+### [12] transaction_id: b087316ad30741a285b188bf6e886259
+[payment-engine]
+status: PROCESSING
+created_at: 2025-12-08T18:15:33.358003Z
+workflow_transfer_payment: state=stTransferProcessing(220) attempt=0 run_id=A1557F46-E4FF-456A-8958-945AB09EA615
+[payment-core]
+internal_transaction: AUTH SUCCESS
+external_transaction: TRANSFER PROCESSING
+payment_core_workflow_internal_payment_flow: state=stPrepareUpdateAuth(900) attempt=0 run_id=1422258a6e5c40e4b44524b59a771d49
+payment_core_workflow_external_payment_flow: state=stProcessing(201) attempt=0 run_id=a85e92f69e9b482dabadfd1ca9a896a3
 
- Files to Modify
+### [13] transaction_id: 66d1302edf3a4b68ae51ca95a38436ca
+[payment-engine]
+status: PROCESSING
+created_at: 2025-12-08T18:23:21.530986Z
+workflow_transfer_payment: state=stTransferProcessing(220) attempt=0 run_id=31c0b08f-a657-4905-8d73-db3145259167
+[payment-core]
+internal_transaction: AUTH SUCCESS
+external_transaction: TRANSFER PROCESSING
+payment_core_workflow_external_payment_flow: state=stSubmitted(200) attempt=11 run_id=05998dc1a6714a89ba74af986450d232
+payment_core_workflow_internal_payment_flow: state=stPrepareUpdateAuth(900) attempt=0 run_id=3e6db2a6f60a4fb587b7e3791b579bea
 
- 1. /Users/dev/Documents/buddy/txn/cases.go - Add IdentifySOPCases function
- 2. /Users/dev/Documents/buddy/txn/batch.go - Update both ProcessBatchFile and
- ProcessBatchFileWithFilter
- 3. /Users/dev/Documents/buddy/txn/sql.go - Remove case identification logic and
- RPPInfo overwrite
+### [14] transaction_id: bbb6f4ada76a41c1b4c72e4f0c304390
+[payment-engine]
+status: PROCESSING
+created_at: 2025-12-09T17:49:15.107305Z
+workflow_transfer_payment: state=stTransferProcessing(220) attempt=0 run_id=F5708D0C-46BF-473C-B6E6-B2EE3D2EECA5
+[payment-core]
+internal_transaction: AUTH SUCCESS
+external_transaction: TRANSFER PROCESSING
+payment_core_workflow_external_payment_flow: state=stSubmitted(200) attempt=11 run_id=ac0ddb3dff03478cbf6bb5da82f724ee
+payment_core_workflow_internal_payment_flow: state=stPrepareUpdateAuth(900) attempt=0 run_id=b02b66b71b064a23b231355d6b215d05
 
- Verification
+### [15] transaction_id: c46549fa29e94d8ead83e33d9ea563c9
+[payment-engine]
+status: PROCESSING
+created_at: 2025-12-09T17:49:14.247717Z
+workflow_transfer_payment: state=stTransferProcessing(220) attempt=0 run_id=69ebfd98-00f0-4537-accc-a5027ec8bff3
+[payment-core]
+internal_transaction: AUTH SUCCESS
+external_transaction: TRANSFER PROCESSING
+payment_core_workflow_external_payment_flow: state=stSubmitted(200) attempt=11 run_id=459a1fd06c564944b576af9ff167acf9
+payment_core_workflow_internal_payment_flow: state=stPrepareUpdateAuth(900) attempt=0 run_id=951d5912d45040d5af36a2d261847b13
 
- After implementation:
- - SOP cases are identified in a separate phase before output
- - GenerateSQLStatements focuses only on SQL generation
- - Output files include [Classification] section for each transaction
- - RPP workflow information is preserved (not overwritten)
- - Clear separation of concerns between phases
+### [16] transaction_id: b86e5a5cff3e45e69bd528218da2d6e3
+[payment-engine]
+status: PROCESSING
+created_at: 2025-12-09T17:54:08.037319Z
+workflow_transfer_payment: state=stTransferProcessing(220) attempt=0 run_id=b48197ec-e0a5-4991-b011-f7221ff9ca07
+[payment-core]
+internal_transaction: AUTH SUCCESS
+external_transaction: TRANSFER PROCESSING
+payment_core_workflow_external_payment_flow: state=stSubmitted(200) attempt=11 run_id=2bd373d0f566471d893b89129ce23bfc
+payment_core_workflow_internal_payment_flow: state=stPrepareUpdateAuth(900) attempt=0 run_id=56fb8ae730c646c89cc1093620d188d4
+
+### [17] transaction_id: 4907b8d22d04431f8110fcdd24bc2975
+[payment-engine]
+status: PROCESSING
+created_at: 2025-12-09T17:51:28.204709Z
+workflow_transfer_payment: state=stTransferProcessing(220) attempt=0 run_id=442ed635-454f-4ef0-a38b-84d6542c3ab6
+[payment-core]
+internal_transaction: AUTH SUCCESS
+external_transaction: TRANSFER PROCESSING
+payment_core_workflow_internal_payment_flow: state=stPrepareUpdateAuth(900) attempt=0 run_id=2a5edfe4518543f8a8ec3953f60f5755
+payment_core_workflow_external_payment_flow: state=stSubmitted(200) attempt=11 run_id=f5799d7a1dfa4a91b606f0f43bdadd47
+
+### [18] transaction_id: 8461d25bd92f4d18a73ac8b4ccbffe52
+[payment-engine]
+status: PROCESSING
+created_at: 2025-12-08T18:21:10.60381Z
+workflow_transfer_payment: state=stTransferProcessing(220) attempt=0 run_id=200b4721-e044-452a-a397-c2c40e0d668b
+[payment-core]
+internal_transaction: AUTH SUCCESS
+external_transaction: TRANSFER PROCESSING
+payment_core_workflow_external_payment_flow: state=stSubmitted(200) attempt=11 run_id=2e2f25ee10a544f0a8540d6356413b3f
+payment_core_workflow_internal_payment_flow: state=stPrepareUpdateAuth(900) attempt=0 run_id=7a4528be401a48699a50c865f97f330b
+
+### [19] transaction_id: 251b543737734c73828254b1978358ee
+[payment-engine]
+status: PROCESSING
+created_at: 2025-12-08T18:29:44.716763Z
+workflow_transfer_payment: state=stTransferProcessing(220) attempt=0 run_id=6E587191-1121-4B9C-A220-E6FB6A533F91
+[payment-core]
+internal_transaction: AUTH SUCCESS
+external_transaction: TRANSFER PROCESSING
+payment_core_workflow_external_payment_flow: state=stSubmitted(200) attempt=11 run_id=1b288b51fed04e109d2bc39be2e61e39
+payment_core_workflow_internal_payment_flow: state=stPrepareUpdateAuth(900) attempt=0 run_id=9a1604a6b91d470ebcdf8b962957b2d5
+
+### [20] transaction_id: 11b9721c0aee41b7b4c1e49b25a62dd5
+[payment-engine]
+status: FAILED
+created_at: 2025-12-03T09:51:36.498417Z
+workflow_transfer_payment: state=stFailureNotified(510) attempt=0 run_id=d4683016-050d-4907-b95c-b6686b76a0d0
+[payment-core]
+internal_transaction: AUTH SUCCESS
+external_transaction: TRANSFER FAILED
+payment_core_workflow_external_payment_flow: state=stFailed(500) attempt=0 run_id=45dbc4411308470e865f77c66cf3b075
+payment_core_workflow_internal_payment_flow: state=stPrepareUpdateAuth(900) attempt=0 run_id=90dff4e524c744bfbc4676d6e96824f1
+
+### [21] transaction_id: 5784a35aec934b88a8dfab0fc3fa319b
+[payment-engine]
+status: PROCESSING
+created_at: 2025-12-08T18:21:00.642856Z
+workflow_transfer_payment: state=stTransferProcessing(220) attempt=0 run_id=7c17a265-4fff-473b-bf3c-fbfb3c25f657
+[payment-core]
+internal_transaction: AUTH SUCCESS
+external_transaction: TRANSFER PROCESSING
+payment_core_workflow_internal_payment_flow: state=stPrepareUpdateAuth(900) attempt=0 run_id=2fc34e546b0f4a4e8529f836f02e7bf6
+payment_core_workflow_external_payment_flow: state=stSubmitted(200) attempt=11 run_id=90147603fa8e496ca3e36807779aa1e6
+
+### [22] transaction_id: 9a5a92d5673d411792b39e4729fbc5f8
+[payment-engine]
+status: PROCESSING
+created_at: 2025-12-09T17:49:17.462756Z
+workflow_transfer_payment: state=stTransferProcessing(220) attempt=0 run_id=7714FA1B-9AD4-465C-A544-80A7E75B2FF3
+[payment-core]
+internal_transaction: AUTH SUCCESS
+external_transaction: TRANSFER PROCESSING
+payment_core_workflow_external_payment_flow: state=stSubmitted(200) attempt=11 run_id=620a1894df4844d499e34f60e3e301a9
+payment_core_workflow_internal_payment_flow: state=stPrepareUpdateAuth(900) attempt=0 run_id=810aeb721865408bb2d36ae38db45cd3
+
+### [23] transaction_id: 7e18736c7af44fab8a9f9d37ea5b385b
+[payment-engine]
+status: PROCESSING
+created_at: 2025-12-08T18:32:44.372207Z
+workflow_transfer_payment: state=stTransferProcessing(220) attempt=0 run_id=A5E3E395-BB34-46C5-9E06-0B3317A3DA8E
+[payment-core]
+internal_transaction: AUTH SUCCESS
+external_transaction: TRANSFER PROCESSING
+payment_core_workflow_internal_payment_flow: state=stPrepareUpdateAuth(900) attempt=0 run_id=1a88e3e93d2546dd9e9712bc501d1635
+payment_core_workflow_external_payment_flow: state=stSubmitted(200) attempt=11 run_id=e5fea1f6447e46e8b8db99aea9d60636
+
+### [24] transaction_id: abdb39b3b6cb4656bd26c380de3190f3
+[payment-engine]
+status: PROCESSING
+created_at: 2025-12-08T18:26:11.928691Z
+workflow_transfer_payment: state=stTransferProcessing(220) attempt=0 run_id=44EB10EF-A3C9-4FA5-8BB3-6387BA904C9E
+[payment-core]
+internal_transaction: AUTH SUCCESS
+external_transaction: TRANSFER PROCESSING
+payment_core_workflow_external_payment_flow: state=stSubmitted(200) attempt=11 run_id=0df7883e7a624eb986836ae95840cf56
+payment_core_workflow_internal_payment_flow: state=stPrepareUpdateAuth(900) attempt=0 run_id=e7b58183ae8a4f228b3689822bc00d65
+[Classification]
+pc_external_payment_flow_200_11
+
+### [25] transaction_id: 9357ffc530844a1fbda740d349f09e24
+[payment-engine]
+status: PROCESSING
+created_at: 2025-12-08T18:20:11.948679Z
+workflow_transfer_payment: state=stTransferProcessing(220) attempt=0 run_id=1baae939-9821-40f8-9ea5-e3436c6d4aaa
+[payment-core]
+internal_transaction: AUTH SUCCESS
+external_transaction: TRANSFER PROCESSING
+payment_core_workflow_external_payment_flow: state=stSubmitted(200) attempt=11 run_id=997dfed8ee924fb59f5054981df19eb7
+payment_core_workflow_internal_payment_flow: state=stPrepareUpdateAuth(900) attempt=0 run_id=bc59c62bf6cf41ada503ca1fa4ffacbb
+
+### [26] transaction_id: 3e4d386f353d4f6ba215575e31f4735d
+[payment-engine]
+status: PROCESSING
+created_at: 2025-12-09T17:54:11.241252Z
+workflow_transfer_payment: state=stTransferProcessing(220) attempt=0 run_id=FD5EEDF9-E0AC-48D7-8DEF-D300451C1F5A
+[payment-core]
+internal_transaction: AUTH SUCCESS
+external_transaction: TRANSFER PROCESSING
+payment_core_workflow_external_payment_flow: state=stSubmitted(200) attempt=11 run_id=d99f34e48ff0455790e7589d40c226f1
+payment_core_workflow_internal_payment_flow: state=stPrepareUpdateAuth(900) attempt=0 run_id=dfe69280278c4eb18331314e6e2cf1ac
+
+### [27] transaction_id: 8a7e1ad26bf040528f7952db8ed08888
+[payment-engine]
+status: PROCESSING
+created_at: 2025-12-08T18:22:54.115833Z
+workflow_transfer_payment: state=stTransferProcessing(220) attempt=0 run_id=633c98a9-f71c-42ff-a860-0ddddea4de37
+[payment-core]
+internal_transaction: AUTH SUCCESS
+external_transaction: TRANSFER PROCESSING
+payment_core_workflow_internal_payment_flow: state=stPrepareUpdateAuth(900) attempt=0 run_id=8ef2fb54fe1a4a9b99e03ee699955846
+payment_core_workflow_external_payment_flow: state=stSubmitted(200) attempt=11 run_id=d8575afb58e440b38a0f88f8b462d632
+
+### [28] transaction_id: ee183ee101434f3a91956ac19bb84ea6
+[payment-engine]
+status: PROCESSING
+created_at: 2025-12-08T18:24:38.908572Z
+workflow_transfer_payment: state=stTransferProcessing(220) attempt=0 run_id=040518d8-392e-4a0a-9091-f4e0200ef4a0
+[payment-core]
+internal_transaction: AUTH SUCCESS
+external_transaction: TRANSFER PROCESSING
+payment_core_workflow_external_payment_flow: state=stSubmitted(200) attempt=11 run_id=3ff70b12f9a14870ba4c144ffb00bbfe
+payment_core_workflow_internal_payment_flow: state=stPrepareUpdateAuth(900) attempt=0 run_id=adb54d4dd7c544259c5c0f8e22efde25
+
+### [29] transaction_id: 1fbad0d77d7d4555b420e2df021de9a9
+[payment-engine]
+status: PROCESSING
+created_at: 2025-12-08T18:32:24.523498Z
+workflow_transfer_payment: state=stTransferProcessing(220) attempt=0 run_id=34225a66-72a4-4850-8bc2-2741edc0bf55
+[payment-core]
+internal_transaction: AUTH SUCCESS
+external_transaction: TRANSFER PROCESSING
+payment_core_workflow_internal_payment_flow: state=stPrepareUpdateAuth(900) attempt=0 run_id=3446ff2834bd499b9e0c6aa9de8cc4fc
+payment_core_workflow_external_payment_flow: state=stSubmitted(200) attempt=11 run_id=e566ece30040454e991a07ce89d4fe48
+
+### [30] transaction_id: 388688360022434cbcdafeacf7d1f160
+[payment-engine]
+status: PROCESSING
+created_at: 2025-12-09T17:49:22.758623Z
+workflow_transfer_payment: state=stTransferProcessing(220) attempt=0 run_id=c06244d8-7300-4e42-a178-1048271aacf4
+[payment-core]
+internal_transaction: AUTH SUCCESS
+external_transaction: TRANSFER PROCESSING
+payment_core_workflow_internal_payment_flow: state=stPrepareUpdateAuth(900) attempt=0 run_id=2cbda2830f5d41dd9383eac08cef528d
+payment_core_workflow_external_payment_flow: state=stSubmitted(200) attempt=11 run_id=c60d18087d6b4fa388d0d30b18589538
+
+### [31] transaction_id: e4bc0a9289ed4dfe8fbfb0f7b715d294
+[payment-engine]
+status: PROCESSING
+created_at: 2025-12-09T17:49:26.329287Z
+workflow_transfer_payment: state=stTransferProcessing(220) attempt=0 run_id=6F18B140-C71C-4189-8115-A85531AE6CA4
+[payment-core]
+internal_transaction: AUTH SUCCESS
+external_transaction: TRANSFER PROCESSING
+payment_core_workflow_external_payment_flow: state=stSubmitted(200) attempt=11 run_id=147b399f484847a99e19e06b86ea377e
+payment_core_workflow_internal_payment_flow: state=stPrepareUpdateAuth(900) attempt=0 run_id=6b47b788faf945a09236746ed0115979
+
+### [32] transaction_id: a9dbf3fb98b84b5b99f2a8958ae856d2
+[payment-engine]
+status: PROCESSING
+created_at: 2025-12-09T17:58:42.80502Z
+workflow_transfer_payment: state=stTransferProcessing(220) attempt=0 run_id=6AE07EB7-9057-4167-B56C-2FD8D9EA286F
+[payment-core]
+internal_transaction: AUTH SUCCESS
+external_transaction: TRANSFER PROCESSING
+payment_core_workflow_external_payment_flow: state=stSubmitted(200) attempt=11 run_id=7ebd416afc664aa0b82155798e08f328
+payment_core_workflow_internal_payment_flow: state=stPrepareUpdateAuth(900) attempt=0 run_id=a5eecb89b6434e8cb400c6283cce2a90
+
+### [33] transaction_id: 030dbd69d86641cb8a05a638babf1ee5
+[payment-engine]
+status: PROCESSING
+created_at: 2025-12-09T17:50:50.447783Z
+workflow_transfer_payment: state=stTransferProcessing(220) attempt=0 run_id=891222f7-23ad-4288-8eae-363f9ff803a0
+[payment-core]
+internal_transaction: AUTH SUCCESS
+external_transaction: TRANSFER PROCESSING
+payment_core_workflow_external_payment_flow: state=stSubmitted(200) attempt=11 run_id=3f4e5436773a4b8e8a76079472ce7e7e
+payment_core_workflow_internal_payment_flow: state=stPrepareUpdateAuth(900) attempt=0 run_id=c7b34dc9c99d440585ada1031a79718d
+
+### [34] transaction_id: 5dbdc25f90a64dcb909f35ed347b18f6
+[payment-engine]
+status: PROCESSING
+created_at: 2025-12-09T17:51:53.759863Z
+workflow_transfer_payment: state=stTransferProcessing(220) attempt=0 run_id=85B80B18-7799-422A-AF48-DADBFF72E8FB
+[payment-core]
+internal_transaction: AUTH SUCCESS
+external_transaction: TRANSFER PROCESSING
+payment_core_workflow_external_payment_flow: state=stSubmitted(200) attempt=11 run_id=544230b7f830458bbf7eb3178676b15c
+payment_core_workflow_internal_payment_flow: state=stPrepareUpdateAuth(900) attempt=0 run_id=5750291df5024e58ba1f04a372a66be5
+
+### [35] transaction_id: 35f63b00a91b4005b5d10c1707a8b6ed
+[payment-engine]
+status: PROCESSING
+created_at: 2025-12-09T17:49:03.411138Z
+workflow_transfer_payment: state=stTransferProcessing(220) attempt=0 run_id=DF746148-AAA8-4556-ADAF-BF3A8A25E355
+[payment-core]
+internal_transaction: AUTH SUCCESS
+external_transaction: TRANSFER PROCESSING
+payment_core_workflow_internal_payment_flow: state=stPrepareUpdateAuth(900) attempt=0 run_id=d5efcd63376842bdb9e4fbb3bae3e25b
+payment_core_workflow_external_payment_flow: state=stSubmitted(200) attempt=11 run_id=fc59a63a16ba482daf9bb46971d4d5dd
+
+### [36] transaction_id: 74c40a16cd5940b09f67de35e77c315e
+[payment-engine]
+status: PROCESSING
+created_at: 2025-12-09T17:56:20.783437Z
+workflow_transfer_payment: state=stTransferProcessing(220) attempt=0 run_id=679b1c81-a42a-4f12-b57a-eb99db2b3bfc
+[payment-core]
+internal_transaction: AUTH SUCCESS
+external_transaction: TRANSFER PROCESSING
+payment_core_workflow_internal_payment_flow: state=stPrepareUpdateAuth(900) attempt=0 run_id=5c062bc8adad4b93ae0480c2d5e1b1b0
+payment_core_workflow_external_payment_flow: state=stSubmitted(200) attempt=11 run_id=cf4dbfc81aa841f0aa452a0448364eae
+
+### [37] transaction_id: 9a88e81ea7034a64b29dee2f0238acaf
+[payment-engine]
+status: PROCESSING
+created_at: 2025-12-08T18:20:14.524056Z
+workflow_transfer_payment: state=stTransferProcessing(220) attempt=0 run_id=9a43f147-bfe7-42b3-962e-e3ff698dc8be
+[payment-core]
+internal_transaction: AUTH SUCCESS
+external_transaction: TRANSFER PROCESSING
+payment_core_workflow_internal_payment_flow: state=stPrepareUpdateAuth(900) attempt=0 run_id=66c0a9f2e0594e8192f3740b3d8785f8
+payment_core_workflow_external_payment_flow: state=stSubmitted(200) attempt=11 run_id=ed9591cb50cf4bb5a7319a429a35a56c
+
