@@ -63,19 +63,8 @@ func ProcessBatchFile(filePath string) {
 	// Process transactions in batch
 	results := ProcessBatchTransactions(transactionIDs)
 
-	// Identify SOP cases for all transactions
+	// Identify SOP cases for all transactions FIRST (before any output generation)
 	IdentifySOPCases(results)
-
-	// Generate output filename
-	outputPath := filePath + "-output.txt"
-
-	// Write results to output file (now with SOP cases identified)
-	if err := WriteBatchResults(results, outputPath); err != nil {
-		output.PrintError(fmt.Errorf("failed to write results to output file: %v", err))
-		return
-	}
-
-	fmt.Printf("Results written to %s\n", outputPath)
 
 	// Process all transactions using the unified handler system
 	// Generate SQL statements from pre-identified SOP cases
@@ -86,6 +75,17 @@ func ProcessBatchFile(filePath string) {
 		output.PrintError(fmt.Errorf("failed to write SQL files: %v", err))
 		return
 	}
+
+	// Generate output filename
+	outputPath := filePath + "-output.txt"
+
+	// Write results to output file AFTER SQL generation (now with SOP cases identified)
+	if err := WriteBatchResults(results, outputPath); err != nil {
+		output.PrintError(fmt.Errorf("failed to write results to output file: %v", err))
+		return
+	}
+
+	fmt.Printf("Results written to %s\n", outputPath)
 
 	// Print summary
 	calculateSummaryStats(results)
@@ -120,19 +120,8 @@ func ProcessBatchFileWithFilter(filePath string, filter func(TransactionResult) 
 
 	fmt.Printf("Found %d transactions matching the filter criteria\n", len(filteredResults))
 
-	// Identify SOP cases for filtered transactions
+	// Identify SOP cases for filtered transactions FIRST (before any output generation)
 	IdentifySOPCases(filteredResults)
-
-	// Generate output filename
-	outputPath := filePath + "-output.txt"
-
-	// Write results to output file (now with SOP cases identified)
-	if err := WriteBatchResults(filteredResults, outputPath); err != nil {
-		output.PrintError(fmt.Errorf("failed to write results to output file: %v", err))
-		return
-	}
-
-	fmt.Printf("Results written to %s\n", outputPath)
 
 	// Process filtered transactions using the unified handler system
 	// Generate SQL statements from pre-identified SOP cases
@@ -143,6 +132,17 @@ func ProcessBatchFileWithFilter(filePath string, filter func(TransactionResult) 
 		output.PrintError(fmt.Errorf("failed to write SQL files: %v", err))
 		return
 	}
+
+	// Generate output filename
+	outputPath := filePath + "-output.txt"
+
+	// Write results to output file AFTER SQL generation (now with SOP cases identified)
+	if err := WriteBatchResults(filteredResults, outputPath); err != nil {
+		output.PrintError(fmt.Errorf("failed to write results to output file: %v", err))
+		return
+	}
+
+	fmt.Printf("Results written to %s\n", outputPath)
 
 	// Print summary
 	calculateSummaryStats(filteredResults)

@@ -155,15 +155,24 @@ func writeResult(w io.Writer, result TransactionResult, index int) {
 		}
 	}
 
-	// Add classification section
-	if _, err := fmt.Fprintln(w, "[Classification]"); err != nil {
-		fmt.Printf("Warning: failed to write classification header: %v\n", err)
-	}
+	// Add classification section - always show it for valid transactions
+	// Only show for transactions that have actual data (not NOT_FOUND or error)
+	if result.Error == "" && result.TransferStatus != "NOT_FOUND" {
+		if _, err := fmt.Fprintln(w, "[Classification]"); err != nil {
+			fmt.Printf("Warning: failed to write classification header: %v\n", err)
+		}
 
-	// Use the already identified case type for this transaction
-	if result.SOPCase != SOPCaseNone {
-		if _, err := fmt.Fprintf(w, "%s\n", result.SOPCase); err != nil {
-			fmt.Printf("Warning: failed to write case type: %v\n", err)
+		// Use the already identified case type for this transaction
+		if result.SOPCase != SOPCaseNone {
+			if _, err := fmt.Fprintf(w, "%s\n", result.SOPCase); err != nil {
+				fmt.Printf("Warning: failed to write case type: %v\n", err)
+			}
+		} else {
+			// Debug: print that no case was identified
+			// This helps identify why some transactions don't show classifications
+			if _, err := fmt.Fprintf(w, "no_case_matched\n"); err != nil {
+				fmt.Printf("Warning: failed to write no case matched: %v\n", err)
+			}
 		}
 	}
 
