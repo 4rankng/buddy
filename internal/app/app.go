@@ -16,6 +16,7 @@ func NewContext(binaryName string) (*Context, error) {
 		env = "sg"
 	}
 
+	// Load environment-specific config file
 	if err := config.LoadConfig(env); err != nil {
 		return nil, fmt.Errorf("failed to load config: %w", err)
 	}

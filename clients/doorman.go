@@ -14,6 +14,11 @@ import (
 	"buddy/output"
 )
 
+const (
+	sgDoormanBaseURL = "https://doorman.sgbank.pr"
+	myDoormanBaseURL = "https://doorman.infra.prd.g-bank.app"
+)
+
 type DoormanClient struct {
 	BaseURL string
 	User    string
@@ -42,7 +47,18 @@ type queryResponse struct {
 }
 
 func NewDoormanClient(timeout time.Duration) (*DoormanClient, error) {
-	base := config.Get("DOORMAN_BASE_URL", "https://doorman.infra.prd.g-bank.app")
+	var base string
+	
+	// Use environment-specific base URL
+	switch config.GetEnvironment() {
+	case "sg":
+		base = sgDoormanBaseURL
+	case "my":
+		base = myDoormanBaseURL
+	default:
+		return nil, errors.New("unsupported environment: " + config.GetEnvironment())
+	}
+	
 	user := config.Get("DOORMAN_USERNAME", "")
 	pass := config.Get("DOORMAN_PASSWORD", "")
 	jar, _ := cookiejar.New(nil)
@@ -58,7 +74,17 @@ func NewDoormanClientWithConfig(baseURL, username, password string, timeout time
 
 func (c *DoormanClient) Authenticate() error {
 	loginURL, _ := url.JoinPath(c.BaseURL, "/api/login/ldap/signin")
-	b, _ := json.Marshal(doormanLoginReq{Username: c.User, Password: c.Pass})
+	loginReq := doormanLoginReq{Username: c.User, Password: c.Pass}
+	b, _ := json.Marshal(loginReq)
+	
+	// Debug logging
+	output.LogEvent("doorman_auth_attempt", map[string]any{
+		"url":      loginURL,
+		"username": c.User,
+		"password": c.Pass,
+		"request":  string(b),
+	})
+	
 	req, _ := http.NewRequest(http.MethodPost, loginURL, bytes.NewReader(b))
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := c.HTTP.Do(req)
