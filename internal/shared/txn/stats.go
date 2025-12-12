@@ -2,7 +2,6 @@ package txn
 
 import (
 	"fmt"
-	"strings"
 )
 
 // getAllSOPCases returns all defined SOP cases except SOPCaseNone
@@ -79,7 +78,10 @@ func calculateSummaryStats(results []TransactionResult) {
 	}
 
 	fmt.Printf("Summary: %d found, %d errors/not found\n", foundCount, errorCount)
-	fmt.Printf("SQL matches: %d total (%s)\n", totalMatchCount, strings.Join(caseDetails, ", "))
+	fmt.Printf("SQL matches: %d total\n", totalMatchCount)
+	for _, detail := range caseDetails {
+		fmt.Printf("  %s\n", detail)
+	}
 }
 
 // getCaseDisplayName returns a user-friendly display name for a SOP case
