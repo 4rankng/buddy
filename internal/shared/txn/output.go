@@ -211,18 +211,8 @@ func writeResult(w io.Writer, result TransactionResult, index int) {
 			}
 
 			for _, workflow := range result.PaymentCore.Workflow {
-				var workflowName string
-				switch workflow.WorkflowID {
-				case "internal_payment_flow":
-					workflowName = "workflow_internal_payment_flow"
-				case "external_payment_flow":
-					workflowName = "workflow_external_payment_flow"
-				default:
-					workflowName = workflow.WorkflowID
-				}
-
 				line := fmt.Sprintf("state=%s attempt=%d", FormatWorkflowState(workflow.WorkflowID, workflow.State), workflow.Attempt)
-				if _, err := fmt.Fprintf(w, "%s: %s run_id=%s\n", workflowName, line, workflow.RunID); err != nil {
+				if _, err := fmt.Fprintf(w, "%s: %s run_id=%s\n", workflow.WorkflowID, line, workflow.RunID); err != nil {
 					fmt.Printf("Warning: failed to write payment core workflow: %v\n", err)
 				}
 			}
