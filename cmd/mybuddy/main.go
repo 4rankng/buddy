@@ -4,9 +4,9 @@ import (
 	"log"
 	"os"
 
+	"buddy/internal/app"
 	"buddy/internal/cli"
 	"buddy/internal/mybuddy"
-	"buddy/internal/app"
 )
 
 func main() {

@@ -12,7 +12,7 @@ func LogEvent(event string, data map[string]any) {
 	if event == "doorman_auth_attempt" {
 		return
 	}
-	
+
 	logEntry := map[string]any{
 		"event": event,
 		"data":  data,

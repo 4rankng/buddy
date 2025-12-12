@@ -108,7 +108,6 @@ func (f *DoormanClientFactory) CreateClient(timeout time.Duration) (*DoormanClie
 	username := config.Get(f.strategy.GetUsernameKey(), "")
 	password := config.Get(f.strategy.GetPasswordKey(), "")
 
-
 	return NewDoormanClientWithConfig(baseURL, username, password, timeout)
 }
 
@@ -120,12 +119,12 @@ func (f *DoormanClientFactory) QueryDatabase(service, schema, query string) ([]m
 	}
 
 	cluster := f.strategy.GetDatabaseCluster(service)
-	
+
 	// Use Singapore-specific schema mapping if available
 	if sgStrategy, ok := f.strategy.(*SingaporeDoormanStrategy); ok {
 		schema = sgStrategy.GetSchema(service)
 	}
-	
+
 	return client.ExecuteQuery(cluster, cluster, schema, query)
 }
 
