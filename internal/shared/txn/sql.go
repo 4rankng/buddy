@@ -60,7 +60,9 @@ func GenerateSQLFromTicket(ticket DMLTicket) SQLStatements {
 
 // GetDMLTicketForRppResume returns a DML ticket for the RPP resume case only
 func GetDMLTicketForRppResume(result TransactionResult) *DMLTicket {
-	if MatchSOPCaseRppNoResponseResume(result) == SOPCaseNone {
+	sopRepo := NewSOPRepository()
+	sopRepo.IdentifySOPCase(&result, "my") // Default to MY for backward compatibility
+	if result.CaseType != SOPCaseRppNoResponseResume {
 		return nil
 	}
 

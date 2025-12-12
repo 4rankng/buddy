@@ -74,7 +74,7 @@ func ProcessBatchFileWithEnv(filePath string, env string) {
 	results := ProcessBatchTransactionsWithEnv(transactionIDs, env)
 
 	// Identify SOP cases for all transactions FIRST (before any output generation)
-	IdentifySOPCases(results)
+	IdentifySOPCasesWithEnv(results, env)
 
 	// Process all transactions using the unified handler system
 	// Generate SQL statements from pre-identified SOP cases
@@ -103,6 +103,11 @@ func ProcessBatchFileWithEnv(filePath string, env string) {
 
 // ProcessBatchFileWithFilter processes a file containing transaction IDs with a filter function
 func ProcessBatchFileWithFilter(filePath string, filter func(TransactionResult) bool) {
+	ProcessBatchFileWithFilterAndEnv(filePath, filter, "my")
+}
+
+// ProcessBatchFileWithFilterAndEnv processes a file containing transaction IDs with a filter function and environment
+func ProcessBatchFileWithFilterAndEnv(filePath string, filter func(TransactionResult) bool, env string) {
 	// Read transaction IDs from file
 	transactionIDs, err := ReadTransactionIDsFromFile(filePath)
 	if err != nil {
@@ -113,7 +118,7 @@ func ProcessBatchFileWithFilter(filePath string, filter func(TransactionResult) 
 	fmt.Printf("Processing %d transaction IDs from %s\n", len(transactionIDs), filePath)
 
 	// Process transactions in batch
-	results := ProcessBatchTransactions(transactionIDs)
+	results := ProcessBatchTransactionsWithEnv(transactionIDs, env)
 
 	// Filter results based on the provided filter function
 	filteredResults := make([]TransactionResult, 0)
@@ -131,7 +136,7 @@ func ProcessBatchFileWithFilter(filePath string, filter func(TransactionResult) 
 	fmt.Printf("Found %d transactions matching the filter criteria\n", len(filteredResults))
 
 	// Identify SOP cases for filtered transactions FIRST (before any output generation)
-	IdentifySOPCases(filteredResults)
+	IdentifySOPCasesWithEnv(filteredResults, env)
 
 	// Process filtered transactions using the unified handler system
 	// Generate SQL statements from pre-identified SOP cases

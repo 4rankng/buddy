@@ -54,7 +54,9 @@ func calculateSummaryStats(results []TransactionResult) {
 			// Check classification
 			caseType := result.CaseType
 			if caseType == SOPCaseNone {
-				caseType = identifySOPCase(result)
+				sopRepo := NewSOPRepository()
+				sopRepo.IdentifySOPCase(result, "my") // Default to MY for backward compatibility
+				caseType = result.CaseType
 			}
 			if caseType != SOPCaseNone {
 				caseCounts[caseType]++
