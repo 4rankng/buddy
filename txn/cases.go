@@ -167,6 +167,15 @@ func identifySOPCase(result *TransactionResult) SOPCase {
 	return result.SOPCase
 }
 
+// IdentifySOPCases identifies SOP cases for all transactions without generating SQL
+func IdentifySOPCases(results []TransactionResult) {
+	for i := range results {
+		if results[i].SOPCase == SOPCaseNone {
+			identifySOPCase(&results[i])
+		}
+	}
+}
+
 // promptForInput reads a line from stdin
 func promptForInput(prompt string) (string, error) {
 	reader := bufio.NewReader(os.Stdin)

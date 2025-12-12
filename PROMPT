@@ -31,3 +31,102 @@ Let me fix this by ensuring we identify the SOP cases before writing the results
 
 GenerateSQLStatements.
 does not need to identify the SOP case again since we already did that before writing the output file. We can just use the stored SOPCase in TransactionResult.
+
+Implementation Plan: Refactor Transaction Processing for Better Separation of
+ Concerns
+
+ Current Issues
+
+ 1. Mixing responsibilities: GenerateSQLStatements() both identifies SOP cases AND
+ generates SQL
+ 2. Order dependency: Functions must be called in specific order for SOP cases to be
+ identified
+ 3. RPPInfo overwrite bug: Line 20 in sql.go overwrites RPP workflow information
+
+ Proposed Architecture
+
+ Separate the workflow into distinct phases:
+ 1. Query Phase: Fetch transaction data
+ 2. Identification Phase: Identify SOP cases and store needed information
+ 3. SQL Generation Phase: Generate SQL from pre-identified cases
+ 4. Output Phase: Write results with classifications
+
+ Solution
+
+ Step 1: Create a separate SOP case identification function
+
+ Create a new function IdentifySOPCases() that:
+ - Takes a slice of TransactionResult
+ - Identifies SOP cases for all transactions
+ - Stores the case in result.SOPCase
+ - Collects any additional info needed for SQL generation
+ - Does NOT generate SQL
+
+ Step 2: Refactor ProcessBatchFile and ProcessBatchFileWithFilter
+
+ File: /Users/dev/Documents/buddy/txn/batch.go
+
+ New workflow:
+ 1. Query transactions (ProcessBatchTransactions)
+ 2. NEW: Identify SOP cases (IdentifySOPCases)
+ 3. Write results to output file (WriteBatchResults)
+ 4. Generate SQL statements (GenerateSQLStatements)
+ 5. Write SQL files (WriteSQLFiles)
+
+ Step 3: Simplify GenerateSQLStatements
+
+ File: /Users/dev/Documents/buddy/txn/sql.go
+
+ Changes:
+ - Remove SOP case identification logic (lines 16-20)
+ - Remove the RPPInfo overwrite bug (line 20)
+ - Focus only on SQL generation from pre-identified cases
+ - Use the already-stored result.SOPCase values
+
+ Step 4: Fix RPPInfo overwrite
+
+ Remove line 20 in sql.go to preserve the original RPP workflow information from
+ query.go.
+
+ Implementation Steps
+
+ 1. Create IdentifySOPCases function in /Users/dev/Documents/buddy/txn/cases.go:
+ // IdentifySOPCases identifies SOP cases for all transactions without generating SQL
+ func IdentifySOPCases(results []TransactionResult) {
+     for i := range results {
+         if results[i].SOPCase == SOPCaseNone {
+             identifySOPCase(&results[i])
+         }
+     }
+ }
+ 2. Update ProcessBatchFile in /Users/dev/Documents/buddy/txn/batch.go:
+   - Add IdentifySOPCases(results) call after line 64
+   - Keep existing order (already correct)
+ 3. Fix ProcessBatchFileWithFilter in /Users/dev/Documents/buddy/txn/batch.go:
+   - Add IdentifySOPCases(filteredResults) after line 112 (after filtering)
+   - Keep GenerateSQLStatements after WriteBatchResults
+ 4. Simplify GenerateSQLStatements in /Users/dev/Documents/buddy/txn/sql.go:
+   - Remove lines 16-20 (the for loop with identifySOPCase)
+   - Remove line 20: results[i].RPPInfo = string(caseType)
+   - Start with line 22 (sqlTemplates loop) since cases are already identified
+ 5. Run tests:
+   - make build
+   - make lint
+   - Test batch processing to verify classifications appear in output
+
+ Files to Modify
+
+ 1. /Users/dev/Documents/buddy/txn/cases.go - Add IdentifySOPCases function
+ 2. /Users/dev/Documents/buddy/txn/batch.go - Update both ProcessBatchFile and
+ ProcessBatchFileWithFilter
+ 3. /Users/dev/Documents/buddy/txn/sql.go - Remove case identification logic and
+ RPPInfo overwrite
+
+ Verification
+
+ After implementation:
+ - SOP cases are identified in a separate phase before output
+ - GenerateSQLStatements focuses only on SQL generation
+ - Output files include [Classification] section for each transaction
+ - RPP workflow information is preserved (not overwritten)
+ - Clear separation of concerns between phases
