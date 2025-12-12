@@ -159,9 +159,9 @@ var WorkflowStateMaps = map[string]map[int]string{
 	"internal_payment_flow": {
 		100: "stPending",
 		101: "stStreamPersisted",
-		900: "stPrepareUpdateAuth",
-		901: "stPrepareSuccessPublish",
-		902: "stSuccess",
+		900: "stSuccess",
+		901: "stPrepareUpdateAuth",
+		902: "stPrepareSuccessPublish",
 		500: "stFailed",
 		501: "stPrepareFailurePublish",
 	},

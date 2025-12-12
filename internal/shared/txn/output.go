@@ -190,7 +190,7 @@ func writeResult(w io.Writer, result TransactionResult, index int) {
 
 		for _, workflow := range result.PaymentCore.Workflow {
 			line := fmt.Sprintf("state=%s attempt=%d", FormatWorkflowState(workflow.WorkflowID, workflow.State), workflow.Attempt)
-			if _, err := fmt.Fprintf(w, "payment_core_workflow_%s: %s run_id=%s\n", workflow.WorkflowID, line, workflow.RunID); err != nil {
+			if _, err := fmt.Fprintf(w, "%s: %s run_id=%s\n", workflow.WorkflowID, line, workflow.RunID); err != nil {
 				fmt.Printf("Warning: failed to write payment core workflow: %v\n", err)
 			}
 		}
