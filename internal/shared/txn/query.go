@@ -19,14 +19,8 @@ func QueryTransactionStatus(transactionID string) *TransactionResult {
 
 // QueryTransactionStatusWithEnv returns structured data about a transaction with specified environment
 func QueryTransactionStatusWithEnv(transactionID string, env string) *TransactionResult {
-	// Get singleton doorman client
-	client, err := clients.GetDoormanClient(env)
-	if err != nil {
-		return &TransactionResult{
-			TransactionID: transactionID,
-			Error:         fmt.Sprintf("failed to get doorman client: %v", err),
-		}
-	}
+	// Use the initialized doorman client
+	client := clients.Doorman
 
 	// Check if input is an RPP E2E ID
 	if RppE2EIDPattern.MatchString(transactionID) {
@@ -40,6 +34,7 @@ func QueryTransactionStatusWithEnv(transactionID string, env string) *Transactio
 		return &TransactionResult{
 			TransactionID: transactionID,
 			Error:         fmt.Sprintf("failed to query payment engine: %v", err),
+			CaseType:      SOPCaseNone,
 		}
 	}
 
@@ -52,7 +47,8 @@ func QueryTransactionStatusWithEnv(transactionID string, env string) *Transactio
 					Status:        NotFoundStatus,
 				},
 			},
-			Error: "No transaction found with the given ID",
+			Error:    "No transaction found with the given ID",
+			CaseType: SOPCaseNone,
 		}
 	}
 
@@ -61,6 +57,7 @@ func QueryTransactionStatusWithEnv(transactionID string, env string) *Transactio
 
 	result := &TransactionResult{
 		TransactionID: transactionID,
+		CaseType:      SOPCaseNone,
 	}
 
 	// Check status
@@ -69,6 +66,7 @@ func QueryTransactionStatusWithEnv(transactionID string, env string) *Transactio
 		return &TransactionResult{
 			TransactionID: transactionID,
 			Error:         "could not determine transaction status",
+			CaseType:      SOPCaseNone,
 		}
 	}
 	result.PaymentEngine.Transfers.Status = status
@@ -276,6 +274,7 @@ func queryRPPE2EID(client clients.DoormanInterface, e2eID string) *TransactionRe
 		return &TransactionResult{
 			TransactionID: e2eID,
 			Error:         fmt.Sprintf("failed to query RPP adapter credit_transfer table: %v", err),
+			CaseType:      SOPCaseNone,
 		}
 	}
 	if len(rppResults) == 0 {
@@ -283,6 +282,7 @@ func queryRPPE2EID(client clients.DoormanInterface, e2eID string) *TransactionRe
 			TransactionID: e2eID,
 			RPPAdapter:    RPPAdapterInfo{Status: NotFoundStatus},
 			Error:         "No transaction found with the given E2E ID",
+			CaseType:      SOPCaseNone,
 		}
 	}
 
@@ -292,6 +292,7 @@ func queryRPPE2EID(client clients.DoormanInterface, e2eID string) *TransactionRe
 		return &TransactionResult{
 			TransactionID: e2eID,
 			Error:         "could not extract partner_tx_id from RPP adapter",
+			CaseType:      SOPCaseNone,
 		}
 	}
 
@@ -310,6 +311,7 @@ func queryRPPE2EID(client clients.DoormanInterface, e2eID string) *TransactionRe
 		return &TransactionResult{
 			TransactionID: e2eID,
 			Error:         fmt.Sprintf("failed to query workflow_execution table: %v", err),
+			CaseType:      SOPCaseNone,
 		}
 	}
 	if len(workflows) == 0 {
@@ -324,6 +326,7 @@ func queryRPPE2EID(client clients.DoormanInterface, e2eID string) *TransactionRe
 					RunID: partnerTxID,
 				},
 			},
+			CaseType: SOPCaseNone,
 		}
 
 		// Set RPP info for display
@@ -340,6 +343,7 @@ func queryRPPE2EID(client clients.DoormanInterface, e2eID string) *TransactionRe
 			PartnerTxID: partnerTxID,
 			Status:      creditTransferStatus, // Set credit_transfer status
 		},
+		CaseType: SOPCaseNone,
 	}
 
 	// Set RPP workflow info
@@ -374,73 +378,51 @@ func queryRPPE2EID(client clients.DoormanInterface, e2eID string) *TransactionRe
 	return result
 }
 
-// QueryPartnerpayEngineTransaction queries the partnerpay-engine database for a transaction by run_id
-func QueryPartnerpayEngineTransaction(runID string) *TransactionResult {
-	return QueryPartnerpayEngineTransactionWithEnv(runID, "my")
-}
-
-// QueryPartnerpayEngineTransactionWithEnv queries the partnerpay-engine database for a transaction by run_id with specified environment
-func QueryPartnerpayEngineTransactionWithEnv(runID string, env string) *TransactionResult {
-	// Get singleton doorman client
-	client, err := clients.GetDoormanClient(env)
-	if err != nil {
-		return &TransactionResult{
-			TransactionID: runID,
-			Error:         fmt.Sprintf("failed to get doorman client: %v", err),
-		}
-	}
+// QueryPartnerpayEngine queries the partnerpay-engine database for a transaction by run_id
+func QueryPartnerpayEngine(runID string) (PartnerpayEngineInfo, error) {
+	// Use the initialized doorman client
+	client := clients.Doorman
 
 	// Query the charge table with specific fields
 	chargeQuery := fmt.Sprintf("SELECT status, status_reason, status_reason_description, transaction_id FROM charge WHERE transaction_id='%s'", runID)
 	charges, err := client.QueryPartnerpayEngine(chargeQuery)
 	if err != nil {
-		return &TransactionResult{
-			TransactionID: runID,
-			Error:         fmt.Sprintf("failed to query charge table: %v", err),
-		}
+		return PartnerpayEngineInfo{}, fmt.Errorf("failed to query charge table: %v", err)
 	}
 
 	if len(charges) == 0 {
-		return &TransactionResult{
-			TransactionID: runID,
-			PartnerpayEngine: PartnerpayEngineInfo{
-				Transfers: PPEChargeInfo{
-					TransactionID: runID,
-					Status:        NotFoundStatus,
-				},
+		return PartnerpayEngineInfo{
+			Transfers: PPEChargeInfo{
+				TransactionID: runID,
+				Status:        NotFoundStatus,
 			},
-			Error: "No transaction found with the given run_id",
-		}
+		}, nil
 	}
 
 	// Get charge information
 	charge := charges[0]
-	result := &TransactionResult{
-		TransactionID: runID,
-	}
+	result := PartnerpayEngineInfo{}
 
 	// Extract transaction_id if available
 	if transactionID, ok := charge["transaction_id"].(string); ok && transactionID != "" {
-		result.TransactionID = transactionID
-		result.PartnerpayEngine.Transfers.TransactionID = transactionID
+		result.Transfers.TransactionID = transactionID
 	} else {
-		result.PartnerpayEngine.Transfers.TransactionID = runID
+		result.Transfers.TransactionID = runID
 	}
 
 	// Extract status
 	if status, ok := charge["status"].(string); ok {
-		result.PartnerpayEngine.Transfers.Status = status
+		result.Transfers.Status = status
 	}
 
 	// Extract status_reason
 	if statusReason, ok := charge["status_reason"].(string); ok {
-		result.PartnerpayEngine.Transfers.StatusReason = statusReason
-		result.Error = statusReason
+		result.Transfers.StatusReason = statusReason
 	}
 
 	// Extract status_reason_description
 	if statusReasonDesc, ok := charge["status_reason_description"].(string); ok {
-		result.PartnerpayEngine.Transfers.StatusReasonDescription = statusReasonDesc
+		result.Transfers.StatusReasonDescription = statusReasonDesc
 	}
 
 	// Query workflow_execution table for workflow_charge information
@@ -448,10 +430,10 @@ func QueryPartnerpayEngineTransactionWithEnv(runID string, env string) *Transact
 	workflows, err := client.QueryPartnerpayEngine(workflowQuery)
 	if err != nil {
 		// Don't fail the whole operation if workflow query fails
-		if result.PartnerpayEngine.Transfers.StatusReasonDescription == "" {
-			result.PartnerpayEngine.Transfers.StatusReasonDescription = fmt.Sprintf("Failed to query workflow: %v", err)
+		if result.Transfers.StatusReasonDescription == "" {
+			result.Transfers.StatusReasonDescription = fmt.Sprintf("Failed to query workflow: %v", err)
 		}
-		return result
+		return result, nil
 	}
 
 	if len(workflows) > 0 {
@@ -460,14 +442,14 @@ func QueryPartnerpayEngineTransactionWithEnv(runID string, env string) *Transact
 
 		// Set PartnerpayEngineWorkflow info
 		if workflowID, workflowIDOk := workflow["workflow_id"]; workflowIDOk {
-			result.PartnerpayEngine.Workflow.WorkflowID = fmt.Sprintf("%v", workflowID)
+			result.Workflow.WorkflowID = fmt.Sprintf("%v", workflowID)
 		}
-		result.PartnerpayEngine.Workflow.RunID = runID
+		result.Workflow.RunID = runID
 
 		// Extract attempt if available
 		if attemptVal, attemptOk := workflow["attempt"]; attemptOk {
 			if attemptFloat, ok := attemptVal.(float64); ok {
-				result.PartnerpayEngine.Workflow.Attempt = int(attemptFloat)
+				result.Workflow.Attempt = int(attemptFloat)
 			}
 		}
 
@@ -475,14 +457,14 @@ func QueryPartnerpayEngineTransactionWithEnv(runID string, env string) *Transact
 		if state, stateOk := workflow["state"]; stateOk {
 			if stateInt, ok := state.(float64); ok {
 				stateNum := int(stateInt)
-				result.PartnerpayEngine.Workflow.State = fmt.Sprintf("%d", stateNum)
+				result.Workflow.State = fmt.Sprintf("%d", stateNum)
 			} else {
-				result.PartnerpayEngine.Workflow.State = fmt.Sprintf("%v", state)
+				result.Workflow.State = fmt.Sprintf("%v", state)
 			}
 		}
 	}
 
-	return result
+	return result, nil
 }
 
 // queryFastAdapter retrieves fast adapter information using external_id
@@ -549,7 +531,7 @@ func queryFastAdapter(client clients.DoormanInterface, externalID, createdAt str
 
 		// Get status name and format as "name(number)"
 		statusName := getFastAdapterStatusName(statusNum)
-		info.Status = fmt.Sprintf("%s(%d)", statusName, statusNum)
+		info.Status = statusName
 
 		// If StatusCode is not set, use the numeric status
 		if info.StatusCode == 0 {

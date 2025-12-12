@@ -1,6 +1,7 @@
 package mybuddy
 
 import (
+	"fmt"
 	"os"
 
 	"buddy/internal/app"
@@ -30,8 +31,12 @@ Example:
 
 func processEcoTransaction(appCtx *app.Context, runID string) {
 	// Query the partnerpay-engine database
-	result := txn.QueryPartnerpayEngineTransaction(runID)
+	info, err := txn.QueryPartnerpayEngine(runID)
+	if err != nil {
+		fmt.Printf("%sError querying partnerpay-engine: %v\n", appCtx.GetPrefix(), err)
+		return
+	}
 
 	// Display the result in the required format
-	txn.WriteEcoTransactionResult(os.Stdout, *result, 1)
+	txn.WriteEcoTransactionInfo(os.Stdout, info, runID, 1)
 }

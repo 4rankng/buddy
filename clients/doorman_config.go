@@ -118,11 +118,12 @@ var configs = map[string]DoormanConfig{
 
 var Doorman DoormanInterface
 
-// GetDoormanClient returns singleton DoormanClient instance
-func GetDoormanClient(env string) (DoormanInterface, error) {
+// NewDoormanClient initializes the global Doorman client with the specified environment
+func NewDoormanClient(env string) error {
 	if Doorman != nil {
-		return Doorman, nil
+		return nil // Already initialized
 	}
+
 	cfg, exists := configs[env]
 	if !exists {
 		cfg = configs["my"] // Default to Malaysia
@@ -135,6 +136,15 @@ func GetDoormanClient(env string) (DoormanInterface, error) {
 		},
 	}
 
+	return nil
+}
+
+// GetDoormanClient returns the initialized DoormanClient instance
+// Deprecated: Use clients.Doorman directly after initialization
+func GetDoormanClient(env string) (DoormanInterface, error) {
+	if Doorman == nil {
+		return nil, errors.New("doorman client not initialized. Call NewDoormanClient first")
+	}
 	return Doorman, nil
 }
 

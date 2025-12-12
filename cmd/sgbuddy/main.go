@@ -4,6 +4,7 @@ import (
 	"log"
 	"os"
 
+	"buddy/clients"
 	"buddy/internal/app"
 	"buddy/internal/cli"
 	"buddy/internal/sgbuddy"
@@ -14,6 +15,11 @@ func main() {
 	appCtx, err := app.NewContext("sgbuddy")
 	if err != nil {
 		log.Fatalf("Failed to create app context: %v", err)
+	}
+
+	// Initialize Doorman client
+	if err := clients.NewDoormanClient(appCtx.Environment); err != nil {
+		log.Fatalf("Failed to initialize Doorman client: %v", err)
 	}
 
 	// 1. Get the base command

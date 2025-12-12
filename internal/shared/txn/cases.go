@@ -193,11 +193,7 @@ func checkRPPAdapterStatusByReqBizMsgID(reqBizMsgID string) (string, string, int
 
 // checkRPPAdapterStatusByReqBizMsgIDWithEnv performs the nested query to find run_id/partner_tx_id via req_biz_msg_id with environment
 func checkRPPAdapterStatusByReqBizMsgIDWithEnv(reqBizMsgID string, env string) (string, string, int) {
-	client, err := clients.GetDoormanClient(env)
-	if err != nil {
-		fmt.Printf("Error getting doorman client: %v\n", err)
-		return "ERROR", "", 0
-	}
+	client := clients.Doorman
 
 	// Nested query logic as requested
 	query := fmt.Sprintf("SELECT run_id, attempt, state FROM workflow_execution WHERE run_id = (SELECT partner_tx_id FROM credit_transfer WHERE req_biz_msg_id = '%s')", reqBizMsgID)
@@ -244,11 +240,7 @@ func checkRPPAdapterStatus(partnerTxID string) (string, string) {
 func checkRPPAdapterStatusWithEnv(partnerTxID string, env string) (string, string) {
 	fmt.Printf("Checking RPP Adapter for partner_tx_id: %s...\n", partnerTxID)
 
-	client, err := clients.GetDoormanClient(env)
-	if err != nil {
-		fmt.Printf("Error getting doorman client: %v\n", err)
-		return "ERROR", ""
-	}
+	client := clients.Doorman
 
 	// Query the workflow_execution table in the RPP Adapter database
 	query := fmt.Sprintf("SELECT state, run_id, workflow_id, attempt FROM workflow_execution WHERE run_id = '%s'", partnerTxID)

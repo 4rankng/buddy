@@ -406,20 +406,25 @@ func writeResult(w io.Writer, result TransactionResult, index int) {
 
 // WriteEcoTransactionResult writes a partnerpay-engine transaction result in the required format
 func WriteEcoTransactionResult(w io.Writer, result TransactionResult, index int) {
+	WriteEcoTransactionInfo(w, result.PartnerpayEngine, result.TransactionID, index)
+}
+
+// WriteEcoTransactionInfo writes a partnerpay-engine transaction info in the required format
+func WriteEcoTransactionInfo(w io.Writer, info PartnerpayEngineInfo, transactionID string, index int) {
 	if index <= 0 {
 		index = 1
 	}
 
 	// Check if this is a NOT_FOUND error
-	if result.PartnerpayEngine.Transfers.Status == NotFoundStatus {
-		if _, err := fmt.Fprintf(w, "### [%d] transaction_id: %s\nError: %s\n\n", index, result.TransactionID, result.Error); err != nil {
+	if info.Transfers.Status == NotFoundStatus {
+		if _, err := fmt.Fprintf(w, "### [%d] transaction_id: %s\nError: transaction not found\n\n", index, transactionID); err != nil {
 			fmt.Printf("Warning: failed to write error result: %v\n", err)
 		}
 		return
 	}
 
 	// Write the transaction ID header
-	if _, err := fmt.Fprintf(w, "### [%d] transaction_id: %s\n", index, result.TransactionID); err != nil {
+	if _, err := fmt.Fprintf(w, "### [%d] transaction_id: %s\n", index, transactionID); err != nil {
 		fmt.Printf("Warning: failed to write transaction ID: %v\n", err)
 	}
 
@@ -429,28 +434,21 @@ func WriteEcoTransactionResult(w io.Writer, result TransactionResult, index int)
 	}
 
 	// Write the charge status
-	if result.PartnerpayEngine.Transfers.Status != "" {
-		if _, err := fmt.Fprintf(w, "charge.status: %s", result.PartnerpayEngine.Transfers.Status); err != nil {
+	if info.Transfers.Status != "" {
+		if _, err := fmt.Fprintf(w, "charge.status: %s", info.Transfers.Status); err != nil {
 			fmt.Printf("Warning: failed to write charge status: %v\n", err)
 		}
 
 		// If there's a status reason, append it
-		if result.PartnerpayEngine.Transfers.StatusReason != "" {
-			if _, err := fmt.Fprintf(w, " %s", result.PartnerpayEngine.Transfers.StatusReason); err != nil {
+		if info.Transfers.StatusReason != "" {
+			if _, err := fmt.Fprintf(w, " %s", info.Transfers.StatusReason); err != nil {
 				fmt.Printf("Warning: failed to write status reason: %v\n", err)
 			}
 		}
 
-		// If there's an error message (status_reason), append it
-		if result.Error != "" {
-			if _, err := fmt.Fprintf(w, " %s", result.Error); err != nil {
-				fmt.Printf("Warning: failed to write error message: %v\n", err)
-			}
-		}
-
 		// If there's a status reason description, append it
-		if result.PartnerpayEngine.Transfers.StatusReasonDescription != "" {
-			if _, err := fmt.Fprintf(w, " %s", result.PartnerpayEngine.Transfers.StatusReasonDescription); err != nil {
+		if info.Transfers.StatusReasonDescription != "" {
+			if _, err := fmt.Fprintf(w, " %s", info.Transfers.StatusReasonDescription); err != nil {
 				fmt.Printf("Warning: failed to write status reason description: %v\n", err)
 			}
 		}
@@ -461,11 +459,11 @@ func WriteEcoTransactionResult(w io.Writer, result TransactionResult, index int)
 	}
 
 	// Write the workflow_charge information if available
-	if result.PartnerpayEngine.Workflow.RunID != "" {
+	if info.Workflow.RunID != "" {
 		line := fmt.Sprintf("workflow_charge: %s Attempt=%d run_id=%s",
-			result.PartnerpayEngine.Workflow.GetFormattedState(),
-			result.PartnerpayEngine.Workflow.Attempt,
-			result.PartnerpayEngine.Workflow.RunID)
+			info.Workflow.GetFormattedState(),
+			info.Workflow.Attempt,
+			info.Workflow.RunID)
 
 		if _, err := fmt.Fprintf(w, "%s\n", line); err != nil {
 			fmt.Printf("Warning: failed to write workflow_charge: %v\n", err)
