@@ -12,6 +12,7 @@ func getAllSOPCases() []SOPCase {
 		SOPCasePcExternalPaymentFlow201_0RPP210,
 		SOPCasePcExternalPaymentFlow201_0RPP900,
 		SOPCasePeTransferPayment210_0,
+		SOPCasePe2200FastCashinFailed,
 		SOPCaseRppCashoutReject101_19,
 		SOPCaseRppQrPaymentReject210_0,
 		SOPCaseRppNoResponseResume,

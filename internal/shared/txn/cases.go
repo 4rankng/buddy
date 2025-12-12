@@ -20,49 +20,76 @@ func findPaymentCoreWorkflow(workflows []WorkflowInfo, workflowType string) *Wor
 }
 
 // matchSOPCasePcExternalPaymentFlow200_11 checks if a transaction matches Case 1 criteria
-func matchSOPCasePcExternalPaymentFlow200_11(result TransactionResult) bool {
+func matchSOPCasePcExternalPaymentFlow200_11(result TransactionResult) SOPCase {
 	externalWorkflow := findPaymentCoreWorkflow(result.PaymentCore.Workflow, "external_payment_flow")
 	if externalWorkflow == nil {
-		return false
+		return SOPCaseNone
 	}
 
-	return externalWorkflow.RunID != "" &&
+	if externalWorkflow.RunID != "" &&
 		externalWorkflow.State == "200" &&
-		externalWorkflow.Attempt == 11
+		externalWorkflow.Attempt == 11 {
+		return SOPCasePcExternalPaymentFlow200_11
+	}
+	return SOPCaseNone
 }
 
 // matchSOPCasePeTransferPayment210_0 checks if a transaction matches Case 4 criteria
-func matchSOPCasePeTransferPayment210_0(result TransactionResult) bool {
-	return result.PaymentEngine.Workflow.RunID != "" &&
+func matchSOPCasePeTransferPayment210_0(result TransactionResult) SOPCase {
+	if result.PaymentEngine.Workflow.RunID != "" &&
 		result.PaymentEngine.Workflow.State == "210" &&
-		result.PaymentEngine.Workflow.Attempt == 0
+		result.PaymentEngine.Workflow.Attempt == 0 {
+		return SOPCasePeTransferPayment210_0
+	}
+	return SOPCaseNone
+}
+
+// matchSOPCasePe2200FastCashinFailed checks if a transaction matches the fast cash-in failure criteria
+func matchSOPCasePe2200FastCashinFailed(result TransactionResult) SOPCase {
+	if result.PaymentEngine.Workflow.RunID != "" &&
+		result.PaymentEngine.Workflow.WorkflowID == "workflow_transfer_collection" &&
+		result.PaymentEngine.Workflow.State == "220" &&
+		result.PaymentEngine.Workflow.Attempt == 0 &&
+		result.FastAdapter.Status == "FAILED" {
+		return SOPCasePe2200FastCashinFailed
+	}
+	return SOPCaseNone
 }
 
 // matchSOPCaseRppCashoutReject101_19 checks if a transaction matches Case 5 criteria
-func matchSOPCaseRppCashoutReject101_19(result TransactionResult) bool {
+func matchSOPCaseRppCashoutReject101_19(result TransactionResult) SOPCase {
 	// Check if RPP workflow matches criteria
-	return result.RPPAdapter.Workflow.RunID != "" &&
+	if result.RPPAdapter.Workflow.RunID != "" &&
 		result.RPPAdapter.Workflow.State == "101" &&
 		result.RPPAdapter.Workflow.Attempt == 19 &&
-		result.RPPAdapter.Workflow.WorkflowID == "wf_ct_cashout"
+		result.RPPAdapter.Workflow.WorkflowID == "wf_ct_cashout" {
+		return SOPCaseRppCashoutReject101_19
+	}
+	return SOPCaseNone
 }
 
 // matchSOPCaseRppQrPaymentReject210_0 checks if a transaction matches the new QR payment reject criteria
-func matchSOPCaseRppQrPaymentReject210_0(result TransactionResult) bool {
+func matchSOPCaseRppQrPaymentReject210_0(result TransactionResult) SOPCase {
 	// Check if RPP workflow matches criteria for QR payment reject
-	return result.RPPAdapter.Workflow.RunID != "" &&
+	if result.RPPAdapter.Workflow.RunID != "" &&
 		result.RPPAdapter.Workflow.State == "210" &&
 		result.RPPAdapter.Workflow.Attempt == 0 &&
-		result.RPPAdapter.Workflow.WorkflowID == "wf_ct_qr_payment"
+		result.RPPAdapter.Workflow.WorkflowID == "wf_ct_qr_payment" {
+		return SOPCaseRppQrPaymentReject210_0
+	}
+	return SOPCaseNone
 }
 
 // MatchSOPCaseRppNoResponseResume checks if a transaction matches the RPP no response resume criteria
-func MatchSOPCaseRppNoResponseResume(result TransactionResult) bool {
+func MatchSOPCaseRppNoResponseResume(result TransactionResult) SOPCase {
 	// Check if RPP workflow matches criteria for resume (timeout scenario)
-	return result.RPPAdapter.Workflow.RunID != "" &&
+	if result.RPPAdapter.Workflow.RunID != "" &&
 		result.RPPAdapter.Workflow.State == "210" &&
 		result.RPPAdapter.Workflow.Attempt == 0 &&
-		(result.RPPAdapter.Workflow.WorkflowID == "wf_ct_cashout" || result.RPPAdapter.Workflow.WorkflowID == "wf_ct_qr_payment")
+		(result.RPPAdapter.Workflow.WorkflowID == "wf_ct_cashout" || result.RPPAdapter.Workflow.WorkflowID == "wf_ct_qr_payment") {
+		return SOPCaseRppNoResponseResume
+	}
+	return SOPCaseNone
 }
 
 // isRPPStuckCandidate checks if the transaction matches the ambiguous state for RPP cases
@@ -81,6 +108,16 @@ func isRPPStuckCandidate(result TransactionResult) bool {
 		result.PaymentEngine.Workflow.Attempt == 0
 }
 
+// sopCaseMatchers is a slice of all matching functions in order of priority
+var sopCaseMatchers = []func(TransactionResult) SOPCase{
+	matchSOPCasePcExternalPaymentFlow200_11,
+	matchSOPCasePeTransferPayment210_0,
+	matchSOPCasePe2200FastCashinFailed,
+	matchSOPCaseRppCashoutReject101_19,
+	matchSOPCaseRppQrPaymentReject210_0,
+	MatchSOPCaseRppNoResponseResume,
+}
+
 // identifySOPCase determines which SOP case a transaction matches.
 // It accepts a pointer to TransactionResult to allow enrichment of data (prompts/lookups).
 func identifySOPCase(result *TransactionResult) SOPCase {
@@ -89,26 +126,12 @@ func identifySOPCase(result *TransactionResult) SOPCase {
 		return result.CaseType
 	}
 
-	// 1. Check for distinct static cases
-	if matchSOPCasePcExternalPaymentFlow200_11(*result) {
-		result.CaseType = SOPCasePcExternalPaymentFlow200_11
-		return result.CaseType
-	}
-	if matchSOPCasePeTransferPayment210_0(*result) {
-		result.CaseType = SOPCasePeTransferPayment210_0
-		return result.CaseType
-	}
-	if matchSOPCaseRppCashoutReject101_19(*result) {
-		result.CaseType = SOPCaseRppCashoutReject101_19
-		return result.CaseType
-	}
-	if matchSOPCaseRppQrPaymentReject210_0(*result) {
-		result.CaseType = SOPCaseRppQrPaymentReject210_0
-		return result.CaseType
-	}
-	if MatchSOPCaseRppNoResponseResume(*result) {
-		result.CaseType = SOPCaseRppNoResponseResume
-		return result.CaseType
+	// 1. Check for distinct static cases using the matcher slice
+	for _, matcher := range sopCaseMatchers {
+		if caseType := matcher(*result); caseType != SOPCaseNone {
+			result.CaseType = caseType
+			return result.CaseType
+		}
 	}
 
 	// 2. Check for RPP Stuck Candidate (Ambiguous Case 2 vs Case 3)

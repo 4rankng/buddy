@@ -30,6 +30,9 @@ func getCaseTypeFromTicket(ticket DMLTicket) SOPCase {
 	if strings.Contains(ticket.DeployTemplate, "workflow_transfer_payment") {
 		return SOPCasePeTransferPayment210_0
 	}
+	if strings.Contains(ticket.DeployTemplate, "pe_220_0_fast_cashin_failed") {
+		return SOPCasePe2200FastCashinFailed
+	}
 	if strings.Contains(ticket.DeployTemplate, "state = 311") {
 		return SOPCaseRppCashoutReject101_19
 	}

@@ -60,7 +60,7 @@ func processSingleE2E(appCtx *app.Context, e2eID string) {
 	txn.WriteResult(os.Stdout, *result, 1)
 
 	// Check if it matches the resume criteria
-	if !txn.MatchSOPCaseRppNoResponseResume(*result) {
+	if txn.MatchSOPCaseRppNoResponseResume(*result) == txn.SOPCaseNone {
 		fmt.Printf("%sThis E2E ID does not match the resume criteria (state=210, attempt=0, workflow_id in ('wf_ct_cashout', 'wf_ct_qr_payment'))\n", appCtx.GetPrefix())
 		return
 	}
@@ -86,7 +86,7 @@ func processBatchFile(appCtx *app.Context, filePath string) {
 	for _, id := range transactionIDs {
 		result := queryRPPAdapterForE2E(id)
 		allResults = append(allResults, *result)
-		if result.Error == "" && txn.MatchSOPCaseRppNoResponseResume(*result) {
+		if result.Error == "" && txn.MatchSOPCaseRppNoResponseResume(*result) != txn.SOPCaseNone {
 			matchingResults = append(matchingResults, *result)
 		}
 	}
