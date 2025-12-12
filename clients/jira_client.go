@@ -372,7 +372,7 @@ type jiraIssueResponse struct {
 		} `json:"priority"`
 		Created          string `json:"created"`
 		DueDate          string `json:"duedate"`
-		CustomField10060 string `json:"customfield_10060"`
+		CustomField10060 interface{} `json:"customfield_10060"`
 		IssueType        struct {
 			Name string `json:"name"`
 		} `json:"issuetype"`
@@ -428,9 +428,11 @@ func (c *JiraClient) convertIssueResponse(issue *jiraIssueResponse) (*JiraTicket
 		if dueDate := c.parseTime(issue.Fields.DueDate); !dueDate.IsZero() {
 			ticket.DueAt = &dueDate
 		}
-	} else if issue.Fields.CustomField10060 != "" {
-		if dueDate := c.parseTime(issue.Fields.CustomField10060); !dueDate.IsZero() {
-			ticket.DueAt = &dueDate
+	} else if issue.Fields.CustomField10060 != nil {
+		if customFieldStr, ok := issue.Fields.CustomField10060.(string); ok && customFieldStr != "" {
+			if dueDate := c.parseTime(customFieldStr); !dueDate.IsZero() {
+				ticket.DueAt = &dueDate
+			}
 		}
 	}
 
