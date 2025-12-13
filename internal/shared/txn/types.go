@@ -379,4 +379,3 @@ func getFastAdapterStatusName(statusCode int) string {
 		return "UNKNOWN"
 	}
 }
-
