@@ -9,5 +9,6 @@ func GetCommands(appCtx *app.Context) []*cobra.Command {
 	return []*cobra.Command{
 		NewTxnCmd(appCtx),
 		NewJiraCmd(appCtx),
+		NewEcoTxnCmd(appCtx),
 	}
 }
