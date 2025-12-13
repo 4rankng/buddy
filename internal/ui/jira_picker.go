@@ -82,13 +82,6 @@ func RunJiraPicker(issues []JiraIssue, cfg JiraPickerConfig) error {
 					fmt.Printf("Error opening browser: %v\n", err)
 				}
 			}
-		case "Show URL/Key":
-			fmt.Printf("\nKey: %s\n", issue.Key)
-			if baseURL != "" {
-				fmt.Printf("URL: %s/%s\n", baseURL, issue.Key)
-			}
-			fmt.Print("\nPress Enter to continue...")
-			_, _ = fmt.Scanln()
 		case "Quit":
 			return nil
 		}
@@ -144,10 +137,14 @@ func selectTicket(issues []JiraIssue, cfg JiraPickerConfig) (*JiraIssue, error) 
 func printDetails(issue JiraIssue, cfg JiraPickerConfig, baseURL string) {
 	fmt.Printf("\n[issue]\n")
 
-	// Print key with hyperlink if enabled
-	if baseURL != "" && shouldEnableHyperlinks(cfg.HyperlinksMode) {
+	// Print key with URL, using hyperlinks if enabled and supported
+	if baseURL != "" {
 		ticketURL := baseURL + "/" + issue.Key
-		fmt.Printf("key: %s\n", CreateHyperlink(ticketURL, issue.Key))
+		if shouldEnableHyperlinks(cfg.HyperlinksMode) {
+			fmt.Printf("key: %s\n", CreateHyperlink(ticketURL, issue.Key))
+		} else {
+			fmt.Printf("key: %s (%s)\n", issue.Key, ticketURL)
+		}
 	} else {
 		fmt.Printf("key: %s\n", issue.Key)
 	}
@@ -215,7 +212,6 @@ func shouldEnableHyperlinks(mode HyperlinksMode) bool {
 // selectAction shows the action selection prompt
 func selectAction(hasBrowser bool) (string, error) {
 	actions := []string{
-		"Show URL/Key",
 		"Back to list",
 		"Quit",
 	}
