@@ -72,7 +72,7 @@ func RunJiraPicker(issues []JiraIssue, cfg JiraPickerConfig) error {
 		printDetails(*issue, cfg, baseURL)
 
 		// Show action menu
-		action, err := selectAction(baseURL == "" /* hasBrowser */, cfg.ShowAttachments && len(issue.Attachments) > 0 /* hasAttachments */)
+		action, attachmentIndex, err := selectAction(baseURL == "" /* hasBrowser */, cfg.ShowAttachments && len(issue.Attachments) > 0 /* hasAttachments */, issue.Attachments)
 		if err != nil {
 			if err == promptui.ErrEOF || err == promptui.ErrInterrupt {
 				return nil // Normal exit
@@ -98,6 +98,17 @@ func RunJiraPicker(issues []JiraIssue, cfg JiraPickerConfig) error {
 
 				fmt.Printf("Downloading %s...\n", attachment.Filename)
 				err = cfg.JiraClient.DownloadAttachment(context.Background(), *attachment, ".")
+				if err != nil {
+					fmt.Printf("Error downloading attachment: %v\n", err)
+				} else {
+					fmt.Printf("Successfully downloaded to current directory\n")
+				}
+			}
+		case "download_by_number":
+			if cfg.JiraClient != nil && attachmentIndex >= 0 && attachmentIndex < len(issue.Attachments) {
+				attachment := issue.Attachments[attachmentIndex]
+				fmt.Printf("Downloading %s...\n", attachment.Filename)
+				err = cfg.JiraClient.DownloadAttachment(context.Background(), attachment, ".")
 				if err != nil {
 					fmt.Printf("Error downloading attachment: %v\n", err)
 				} else {
@@ -189,13 +200,14 @@ func printDetails(issue JiraIssue, cfg JiraPickerConfig, baseURL string) {
 
 	if cfg.ShowAttachments && len(issue.Attachments) > 0 {
 		fmt.Printf("attachments:\n")
-		for _, att := range issue.Attachments {
+		for i, att := range issue.Attachments {
 			if shouldEnableHyperlinks(cfg.HyperlinksMode) {
-				fmt.Printf("  - %s\n", CreateHyperlink(att.URL, att.Filename))
+				fmt.Printf("  [%d] %s\n", i+1, CreateHyperlink(att.URL, att.Filename))
 			} else {
-				fmt.Printf("  - %s (%s)\n", att.Filename, att.URL)
+				fmt.Printf("  [%d] %s (%s)\n", i+1, att.Filename, att.URL)
 			}
 		}
+		fmt.Printf("\nTip: Enter attachment number to download\n")
 	}
 
 	// Print description
@@ -238,8 +250,8 @@ func shouldEnableHyperlinks(mode HyperlinksMode) bool {
 	}
 }
 
-// selectAction shows the action selection prompt
-func selectAction(hasBrowser bool, hasAttachments bool) (string, error) {
+// selectAction shows the action selection prompt with support for attachment number input
+func selectAction(hasBrowser bool, hasAttachments bool, attachments []Attachment) (string, int, error) {
 	actions := []string{
 		"Back to list",
 		"Quit",
@@ -250,7 +262,7 @@ func selectAction(hasBrowser bool, hasAttachments bool) (string, error) {
 	}
 
 	if hasAttachments {
-		actions = append([]string{"Download attachment"}, actions...)
+		actions = append([]string{"Download attachment", "Enter attachment number"}, actions...)
 	}
 
 	prompt := promptui.Select{
@@ -266,7 +278,42 @@ func selectAction(hasBrowser bool, hasAttachments bool) (string, error) {
 	}
 
 	_, action, err := prompt.Run()
-	return action, err
+	if err != nil {
+		return "", 0, err
+	}
+
+	// If "Enter attachment number" is selected, prompt for the number
+	if action == "Enter attachment number" && len(attachments) > 0 {
+		validate := func(input string) error {
+			num := 0
+			_, err := fmt.Sscanf(input, "%d", &num)
+			if err != nil {
+				return fmt.Errorf("please enter a valid number")
+			}
+			if num < 1 || num > len(attachments) {
+				return fmt.Errorf("please enter a number between 1 and %d", len(attachments))
+			}
+			return nil
+		}
+
+		promptNum := promptui.Prompt{
+			Label:    "Enter attachment number",
+			Validate: validate,
+		}
+
+		result, err := promptNum.Run()
+		if err != nil {
+			return "", 0, err
+		}
+
+		var attachmentNum int
+		_, err = fmt.Sscanf(result, "%d", &attachmentNum)
+		if err == nil {
+			return "download_by_number", attachmentNum - 1, nil // Convert to 0-based index
+		}
+	}
+
+	return action, 0, nil
 }
 
 // min returns the minimum of two integers
