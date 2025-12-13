@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"fmt"
 	"os"
 	"strconv"
 	"strings"
@@ -78,4 +79,14 @@ func WordWrap(text string, width int) []string {
 	}
 
 	return lines
+}
+
+// FormatLink wraps text with OSC-8 hyperlink if enabled, otherwise returns text
+func FormatLink(text, url string, enabled bool) string {
+	if !enabled {
+		return fmt.Sprintf("%s (%s)", text, url)
+	}
+
+	// ANSI hyperlink escape sequence: \x1b]8;;URL\x1b\URL Text\x1b]8;;\x1b\
+	return fmt.Sprintf("\x1b]8;;%s\x1b\\%s\x1b]8;;\x1b\\", url, text)
 }

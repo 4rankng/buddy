@@ -6,6 +6,7 @@ import (
 
 	"buddy/clients"
 	"buddy/internal/app"
+	"buddy/internal/ui"
 
 	"github.com/spf13/cobra"
 )
@@ -57,48 +58,45 @@ Only tickets with status NOT IN (COMPLETED, CLOSED) will be shown.`,
 				os.Exit(1)
 			}
 
-			// Display results
-			printJiraIssues(issues, jiraConfig.Project)
+			// Map clients.JiraTicket to ui.JiraIssue
+			uiIssues := make([]ui.JiraIssue, len(issues))
+			for i, issue := range issues {
+				uiIssues[i] = ui.JiraIssue{
+					Key:         issue.Key,
+					Summary:     issue.Summary,
+					Status:      issue.Status,
+					Priority:    issue.Priority,
+					Assignee:    issue.Assignee,
+					IssueType:   issue.IssueType,
+					CreatedAt:   issue.CreatedAt,
+					DueAt:       issue.DueAt,
+					Description: issue.Description,
+					Attachments: len(issue.Attachments),
+				}
+			}
+
+			// Build BaseBrowseURL from JIRA_BASE_URL or jiraConfig.Domain
+			baseURL := os.Getenv("JIRA_BASE_URL")
+			if baseURL == "" && jiraConfig.Domain != "" {
+				baseURL = jiraConfig.Domain
+			}
+
+			// Create picker config with mybuddy settings
+			config := ui.JiraPickerConfig{
+				ProjectKey:        jiraConfig.Project,
+				BaseBrowseURL:     baseURL + "/browse",
+				ShowAttachments:   true, // mybuddy shows attachments
+				MaxDescriptionLen: 100,  // Default for mybuddy
+				HyperlinksMode:    ui.HyperlinksAuto,
+			}
+
+			// Run picker
+			if err := ui.RunJiraPicker(uiIssues, config); err != nil {
+				fmt.Printf("Picker error: %v\n", err)
+				os.Exit(1)
+			}
 		},
 	}
 
 	return cmd
-}
-
-func printJiraIssues(issues []clients.JiraTicket, project string) {
-	fmt.Printf("[jira]\n")
-	fmt.Printf("project: %s\n", project)
-	fmt.Printf("total: %d\n\n", len(issues))
-
-	if len(issues) == 0 {
-		fmt.Printf("No issues found.\n")
-		return
-	}
-
-	for i, issue := range issues {
-		fmt.Printf("[issue %d]\n", i+1)
-		fmt.Printf("key: %s\n", issue.Key)
-		fmt.Printf("summary: %s\n", issue.Summary)
-		fmt.Printf("status: %s\n", issue.Status)
-		if issue.Priority != "" {
-			fmt.Printf("priority: %s\n", issue.Priority)
-		}
-		if issue.Assignee != "" {
-			fmt.Printf("assignee: %s\n", issue.Assignee)
-		}
-		if !issue.CreatedAt.IsZero() {
-			fmt.Printf("created: %s\n", issue.CreatedAt.Format("2006-01-02"))
-		}
-		if issue.DueAt != nil && !issue.DueAt.IsZero() {
-			fmt.Printf("due: %s\n", issue.DueAt.Format("2006-01-02"))
-		}
-		fmt.Printf("type: %s\n", issue.IssueType)
-
-		// Show attachment count if any
-		if len(issue.Attachments) > 0 {
-			fmt.Printf("attachments: %d\n", len(issue.Attachments))
-		}
-
-		fmt.Println()
-	}
 }

@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "Bash(wc:*)",
-      "Bash(go fmt:*)"
+      "Bash(go fmt:*)",
+      "Bash(go get:*)"
     ],
     "deny": [
       "Bash(go build:*)"
