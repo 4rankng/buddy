@@ -195,7 +195,39 @@ func (f *fastAdapterAdapter) QueryByInstructionID(instructionID, createdAt strin
 		} else if fnum, ok := statusVal.(float64); ok {
 			statusNum = int(fnum)
 		}
-		info.Status = getFastAdapterStatusName(statusNum)
+
+		// Look up status name from FastAdapterStateMaps
+		if stateMap, exists := FastAdapterStateMaps[info.Type]; exists {
+			if statusName, found := stateMap[statusNum]; found {
+				info.Status = statusName
+			} else {
+				info.Status = "UNKNOWN"
+			}
+		} else {
+			// Fallback for unknown adapter types
+			switch statusNum {
+			case 0:
+				info.Status = "INITIATED"
+			case 1:
+				info.Status = "PENDING"
+			case 2:
+				info.Status = "PROCESSING"
+			case 3:
+				info.Status = "SUCCESS"
+			case 4:
+				info.Status = "FAILED"
+			case 5:
+				info.Status = "CANCELLED"
+			case 6:
+				info.Status = "REJECTED"
+			case 7:
+				info.Status = "TIMEOUT"
+			case 8:
+				info.Status = "ERROR"
+			default:
+				info.Status = "UNKNOWN"
+			}
+		}
 		info.StatusCode = statusNum
 	}
 	return info, nil

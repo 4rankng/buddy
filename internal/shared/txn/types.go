@@ -352,30 +352,3 @@ type DMLTicket struct {
 type TemplateConfig struct {
 	Parameters []string // List of parameter types: ["run_ids"], ["run_ids", "workflow_ids"]
 }
-
-// getFastAdapterStatusName maps fast adapter status codes to human-readable names
-func getFastAdapterStatusName(statusCode int) string {
-	// Default mapping for backward compatibility when adapter type is unknown
-	switch statusCode {
-	case 0:
-		return "INITIATED"
-	case 1:
-		return "PENDING"
-	case 2:
-		return "PROCESSING"
-	case 3:
-		return "SUCCESS"
-	case 4:
-		return "FAILED"
-	case 5:
-		return "CANCELLED"
-	case 6:
-		return "REJECTED"
-	case 7:
-		return "TIMEOUT"
-	case 8:
-		return "ERROR"
-	default:
-		return "UNKNOWN"
-	}
-}
