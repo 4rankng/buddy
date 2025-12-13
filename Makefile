@@ -1,5 +1,7 @@
 .PHONY: build build-my build-sg deploy lint deps help
 
+BIN_DIR := $(HOME)/bin
+
 # Default target - builds both applications
 build: build-my build-sg
 
@@ -32,24 +34,14 @@ build-sg:
 	@echo "sgbuddy built successfully"
 
 # Deploy binaries to user's bin directory
-deploy:
+deploy: build
 	@echo "Building and deploying binaries..."
 	@$(MAKE) build
-	@BIN_DIR=$${HOME}/.local/bin; \
-	if [ ! -d "$$BIN_DIR" ]; then \
-		echo "Creating bin directory $$BIN_DIR..."; \
-		mkdir -p "$$BIN_DIR"; \
-	fi; \
-	echo "Installing binaries to $$BIN_DIR..."; \
-	cp bin/mybuddy "$$BIN_DIR/" && \
-	cp bin/sgbuddy "$$BIN_DIR/" && \
-	chmod +x "$$BIN_DIR/mybuddy" "$$BIN_DIR/sgbuddy" && \
-	echo "Deployment complete!" && \
-	echo "" && \
-	echo "Add $$BIN_DIR to your PATH if not already added:" && \
-	echo "  export PATH=\"$$\{PATH}:$$\{HOME}/.local/bin\"" && \
-	echo "" && \
-	echo "You can now use 'mybuddy' and 'sgbuddy' commands from anywhere."
+	@echo "Deployed to $(BIN_DIR)"
+	@mkdir -p "$(BIN_DIR)"
+	@mv -f bin/mybuddy "$(BIN_DIR)/mybuddy"
+	@mv -f bin/sgbuddy "$(BIN_DIR)/sgbuddy"		
+	@echo "You can now use 'mybuddy' and 'sgbuddy' commands from anywhere."
 
 # Run linters
 lint:
