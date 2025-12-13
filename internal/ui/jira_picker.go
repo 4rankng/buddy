@@ -96,6 +96,11 @@ func RunJiraPicker(issues []JiraIssue, cfg JiraPickerConfig) error {
 					continue
 				}
 
+				// If attachment is nil, user selected "Back to ticket details..."
+				if attachment == nil {
+					continue
+				}
+
 				fmt.Printf("Downloading %s...\n", attachment.Filename)
 				err = cfg.JiraClient.DownloadAttachment(context.Background(), *attachment, ".")
 				if err != nil {
@@ -290,15 +295,16 @@ func selectAttachmentToShow(attachments []Attachment) (*Attachment, error) {
 	}
 
 	// Multiple attachments: let user choose
-	items := make([]string, len(attachments))
+	items := make([]string, len(attachments)+1)
+	items[0] = "Back to ticket details..."
 	for i, att := range attachments {
-		items[i] = att.Filename
+		items[i+1] = att.Filename
 	}
 
 	prompt := promptui.Select{
 		Label: "Select attachment to download",
 		Items: items,
-		Size:  min(12, len(attachments)),
+		Size:  min(13, len(items)), // 13 to accommodate the back option
 		Templates: &promptui.SelectTemplates{
 			Label:    "{{ . }}?",
 			Active:   `{{ "✔" | cyan }} {{ . | cyan }}`,
@@ -312,5 +318,10 @@ func selectAttachmentToShow(attachments []Attachment) (*Attachment, error) {
 		return nil, err
 	}
 
-	return &attachments[index], nil
+	// If "Back to ticket details..." is selected (index 0), return nil
+	if index == 0 {
+		return nil, nil
+	}
+
+	return &attachments[index-1], nil // Adjust index for back option
 }
