@@ -1,4 +1,4 @@
-.PHONY: build build-my build-sg lint deps help
+.PHONY: build build-my build-sg deploy lint deps help
 
 # Default target - builds both applications
 build: build-my build-sg
@@ -31,6 +31,26 @@ build-sg:
 		-o bin/sgbuddy ./cmd/sgbuddy || exit 1
 	@echo "sgbuddy built successfully"
 
+# Deploy binaries to user's bin directory
+deploy:
+	@echo "Building and deploying binaries..."
+	@$(MAKE) build
+	@BIN_DIR=$${HOME}/.local/bin; \
+	if [ ! -d "$$BIN_DIR" ]; then \
+		echo "Creating bin directory $$BIN_DIR..."; \
+		mkdir -p "$$BIN_DIR"; \
+	fi; \
+	echo "Installing binaries to $$BIN_DIR..."; \
+	cp bin/mybuddy "$$BIN_DIR/" && \
+	cp bin/sgbuddy "$$BIN_DIR/" && \
+	chmod +x "$$BIN_DIR/mybuddy" "$$BIN_DIR/sgbuddy" && \
+	echo "Deployment complete!" && \
+	echo "" && \
+	echo "Add $$BIN_DIR to your PATH if not already added:" && \
+	echo "  export PATH=\"$$\{PATH}:$$\{HOME}/.local/bin\"" && \
+	echo "" && \
+	echo "You can now use 'mybuddy' and 'sgbuddy' commands from anywhere."
+
 # Run linters
 lint:
 	@echo "Running linters..."
@@ -61,6 +81,7 @@ help:
 	@echo "  build      - Build both binaries with their respective environments"
 	@echo "  build-my   - Build mybuddy with Malaysia environment (.env.my)"
 	@echo "  build-sg   - Build sgbuddy with Singapore environment (.env.sg)"
+	@echo "  deploy     - Build and install binaries to ~/.local/bin for system-wide use"
 	@echo "  lint       - Run Go linters (gofmt, go vet, golangci-lint)"
 	@echo "  deps       - Download and tidy dependencies"
 	@echo "  help       - Show this help message"
