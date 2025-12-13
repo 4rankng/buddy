@@ -37,4 +37,3 @@ func getStringValue(row map[string]interface{}, key string) string {
 	}
 	return ""
 }
-

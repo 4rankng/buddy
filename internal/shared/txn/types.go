@@ -380,15 +380,3 @@ func getFastAdapterStatusName(statusCode int) string {
 	}
 }
 
-// GetFastAdapterStatusName maps fast adapter status codes to human-readable names based on adapter type
-func GetFastAdapterStatusName(adapterType string, statusCode int) string {
-	// Get the appropriate state map for the adapter type
-	if stateMap, exists := FastAdapterStateMaps[adapterType]; exists {
-		if stateName, exists := stateMap[statusCode]; exists {
-			return stateName
-		}
-	}
-	
-	// Fallback to generic mapping if adapter type or status code not found
-	return getFastAdapterStatusName(statusCode)
-}
