@@ -1,10 +1,8 @@
 package config
 
 import (
-	"bufio"
+	"buddy/internal/compiletime"
 	"fmt"
-	"os"
-	"strings"
 )
 
 type Config struct {
@@ -13,14 +11,13 @@ type Config struct {
 
 var globalConfig *Config
 
-func LoadConfig(env string) error {
-	filename := ".env." + env
-
-	if err := loadEnvFile(filename); err != nil {
-		return fmt.Errorf("failed to load env file %s: %w", filename, err)
+func LoadConfig() error {
+	// Validate that all required constants were set at build time
+	if err := compiletime.ValidateConstants(); err != nil {
+		return fmt.Errorf("build-time validation failed: %w", err)
 	}
 
-	globalConfig = &Config{Environment: env}
+	globalConfig = &Config{Environment: compiletime.BuildEnvironment}
 	return nil
 }
 
@@ -31,45 +28,29 @@ func GetEnvironment() string {
 	return "unknown"
 }
 
-func loadEnvFile(filename string) error {
-	file, err := os.Open(filename)
-	if err != nil {
-		return err
-	}
-	defer func() {
-		if err := file.Close(); err != nil {
-			fmt.Printf("Warning: failed to close env file %s: %v\n", filename, err)
-		}
-	}()
-
-	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if line == "" || strings.HasPrefix(line, "#") {
-			continue
-		}
-
-		parts := strings.SplitN(line, "=", 2)
-		if len(parts) == 2 {
-			key := strings.TrimSpace(parts[0])
-			value := strings.TrimSpace(parts[1])
-
-			// Remove surrounding quotes if present
-			if strings.HasPrefix(value, `"`) && strings.HasSuffix(value, `"`) {
-				value = strings.Trim(value, `"`)
-			}
-
-			if err := os.Setenv(key, value); err != nil {
-				fmt.Printf("Warning: failed to set env variable %s: %v\n", key, err)
-			}
-		}
-	}
-	return nil
-}
-
 func Get(key, defaultValue string) string {
-	if value := os.Getenv(key); value != "" {
-		return value
+	// Return compile-time constants instead of os.Getenv
+	switch key {
+	case "JIRA_DOMAIN":
+		if compiletime.JiraDomain != "" {
+			return compiletime.JiraDomain
+		}
+	case "JIRA_USERNAME":
+		if compiletime.JiraUsername != "" {
+			return compiletime.JiraUsername
+		}
+	case "JIRA_API_KEY":
+		if compiletime.JiraApiKey != "" {
+			return compiletime.JiraApiKey
+		}
+	case "DOORMAN_USERNAME":
+		if compiletime.DoormanUsername != "" {
+			return compiletime.DoormanUsername
+		}
+	case "DOORMAN_PASSWORD":
+		if compiletime.DoormanPassword != "" {
+			return compiletime.DoormanPassword
+		}
 	}
 	return defaultValue
 }

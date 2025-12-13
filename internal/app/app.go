@@ -11,15 +11,13 @@ type Context struct {
 }
 
 func NewContext(binaryName string) (*Context, error) {
-	env := "my" // default
-	if binaryName == "sgbuddy" {
-		env = "sg"
-	}
-
-	// Load environment-specific config file
-	if err := config.LoadConfig(env); err != nil {
+	// Load config which will set the environment from build-time constants
+	if err := config.LoadConfig(); err != nil {
 		return nil, fmt.Errorf("failed to load config: %w", err)
 	}
+
+	// Environment is now determined at build time
+	env := config.GetEnvironment()
 
 	return &Context{
 		Environment: env,
