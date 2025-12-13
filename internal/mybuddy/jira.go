@@ -86,7 +86,7 @@ Only tickets with status NOT IN (COMPLETED, CLOSED) will be shown.`,
 				ProjectKey:        jiraConfig.Project,
 				BaseBrowseURL:     baseURL + "/browse",
 				ShowAttachments:   true, // mybuddy shows attachments
-				MaxDescriptionLen: 100,  // Default for mybuddy
+				MaxDescriptionLen: 0,    // No limit - show full description
 				HyperlinksMode:    ui.HyperlinksAuto,
 			}
 
