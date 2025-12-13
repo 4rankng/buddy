@@ -63,7 +63,7 @@ func RunJiraPicker(issues []JiraIssue, cfg JiraPickerConfig) error {
 		// Show ticket selection
 		issue, err := selectTicket(issues, cfg)
 		if err != nil {
-			if err == promptui.ErrEOF || err == promptui.ErrInterrupt {
+			if err == promptui.ErrEOF || err == promptui.ErrInterrupt || err.Error() == "quit" {
 				return nil // Normal exit
 			}
 			return err
@@ -131,19 +131,20 @@ func normalizeURL(url string) string {
 // selectTicket shows the ticket selection prompt
 func selectTicket(issues []JiraIssue, cfg JiraPickerConfig) (*JiraIssue, error) {
 	// Prepare search items
-	items := make([]string, len(issues))
+	items := make([]string, len(issues)+1)
+	items[0] = "Quit"
 	for i, issue := range issues {
 		summary := issue.Summary
 		if len(summary) > 80 {
 			summary = summary[:77] + "..."
 		}
-		items[i] = fmt.Sprintf("[%d] %s - %s (%s)", i+1, issue.Key, summary, issue.Status)
+		items[i+1] = fmt.Sprintf("[%d] %s - %s (%s)", i+1, issue.Key, summary, issue.Status)
 	}
 
 	prompt := promptui.Select{
 		Label:             "Select a JIRA ticket",
 		Items:             items,
-		Size:              min(12, len(issues)),
+		Size:              min(13, len(items)), // 13 to accommodate Quit option
 		StartInSearchMode: true,
 		Templates: &promptui.SelectTemplates{
 			Label:    "{{ . }}?",
@@ -158,7 +159,12 @@ func selectTicket(issues []JiraIssue, cfg JiraPickerConfig) (*JiraIssue, error) 
 		return nil, err
 	}
 
-	return &issues[index], nil
+	// If "Quit" is selected (index 0), return special error to indicate quit
+	if index == 0 {
+		return nil, fmt.Errorf("quit")
+	}
+
+	return &issues[index-1], nil // Adjust index for Quit option
 }
 
 // printDetails displays ticket details
@@ -249,7 +255,6 @@ func shouldEnableHyperlinks(mode HyperlinksMode) bool {
 func selectAction(hasBrowser bool, hasAttachments bool) (string, error) {
 	actions := []string{
 		"Back...",
-		"Quit",
 	}
 
 	if hasBrowser {
