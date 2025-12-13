@@ -6,9 +6,13 @@ import (
 	"strings"
 	"time"
 
+	"buddy/clients"
 	"github.com/manifoldco/promptui"
 	"github.com/pkg/browser"
 )
+
+// Attachment represents a JIRA attachment for UI display
+type Attachment = clients.Attachment
 
 // JiraIssue represents a JIRA ticket for UI display
 type JiraIssue struct {
@@ -21,7 +25,7 @@ type JiraIssue struct {
 	CreatedAt   time.Time
 	DueAt       *time.Time
 	Description string
-	Attachments int
+	Attachments []Attachment
 }
 
 // HyperlinksMode controls hyperlink behavior
@@ -165,8 +169,15 @@ func printDetails(issue JiraIssue, cfg JiraPickerConfig, baseURL string) {
 	}
 	fmt.Printf("type: %s\n", issue.IssueType)
 
-	if cfg.ShowAttachments && issue.Attachments > 0 {
-		fmt.Printf("attachments: %d\n", issue.Attachments)
+	if cfg.ShowAttachments && len(issue.Attachments) > 0 {
+		fmt.Printf("attachments:\n")
+		for _, att := range issue.Attachments {
+			if shouldEnableHyperlinks(cfg.HyperlinksMode) {
+				fmt.Printf("  - %s\n", CreateHyperlink(att.URL, att.Filename))
+			} else {
+				fmt.Printf("  - %s (%s)\n", att.Filename, att.URL)
+			}
+		}
 	}
 
 	// Print description

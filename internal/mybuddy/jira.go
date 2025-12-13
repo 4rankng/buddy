@@ -71,7 +71,7 @@ Only tickets with status NOT IN (COMPLETED, CLOSED) will be shown.`,
 					CreatedAt:   issue.CreatedAt,
 					DueAt:       issue.DueAt,
 					Description: issue.Description,
-					Attachments: len(issue.Attachments),
+					Attachments: issue.Attachments,
 				}
 			}
 
