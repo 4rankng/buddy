@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"strings"
@@ -44,6 +45,7 @@ type JiraPickerConfig struct {
 	ShowAttachments   bool
 	MaxDescriptionLen int // 0 = no limit
 	HyperlinksMode    HyperlinksMode
+	JiraClient        clients.JiraInterface // Client for downloading attachments
 }
 
 // RunJiraPicker runs an interactive JIRA ticket picker
@@ -70,7 +72,7 @@ func RunJiraPicker(issues []JiraIssue, cfg JiraPickerConfig) error {
 		printDetails(*issue, cfg, baseURL)
 
 		// Show action menu
-		action, err := selectAction(baseURL == "" /* hasBrowser */)
+		action, err := selectAction(baseURL == "" /* hasBrowser */, cfg.ShowAttachments && len(issue.Attachments) > 0 /* hasAttachments */)
 		if err != nil {
 			if err == promptui.ErrEOF || err == promptui.ErrInterrupt {
 				return nil // Normal exit
@@ -84,6 +86,22 @@ func RunJiraPicker(issues []JiraIssue, cfg JiraPickerConfig) error {
 				ticketURL := baseURL + "/" + issue.Key
 				if err := browser.OpenURL(ticketURL); err != nil {
 					fmt.Printf("Error opening browser: %v\n", err)
+				}
+			}
+		case "Download attachment":
+			if cfg.JiraClient != nil && cfg.ShowAttachments && len(issue.Attachments) > 0 {
+				attachment, err := selectAttachmentToShow(issue.Attachments)
+				if err != nil {
+					fmt.Printf("Error selecting attachment: %v\n", err)
+					continue
+				}
+
+				fmt.Printf("Downloading %s...\n", attachment.Filename)
+				err = cfg.JiraClient.DownloadAttachment(context.Background(), *attachment, ".")
+				if err != nil {
+					fmt.Printf("Error downloading attachment: %v\n", err)
+				} else {
+					fmt.Printf("Successfully downloaded to current directory\n")
 				}
 			}
 		case "Quit":
@@ -221,7 +239,7 @@ func shouldEnableHyperlinks(mode HyperlinksMode) bool {
 }
 
 // selectAction shows the action selection prompt
-func selectAction(hasBrowser bool) (string, error) {
+func selectAction(hasBrowser bool, hasAttachments bool) (string, error) {
 	actions := []string{
 		"Back to list",
 		"Quit",
@@ -229,6 +247,10 @@ func selectAction(hasBrowser bool) (string, error) {
 
 	if hasBrowser {
 		actions = append([]string{"Open in browser"}, actions...)
+	}
+
+	if hasAttachments {
+		actions = append([]string{"Download attachment"}, actions...)
 	}
 
 	prompt := promptui.Select{
@@ -253,4 +275,41 @@ func min(a, b int) int {
 		return a
 	}
 	return b
+}
+
+// selectAttachmentToShow prompts user to select an attachment from the list
+func selectAttachmentToShow(attachments []Attachment) (*Attachment, error) {
+	if len(attachments) == 0 {
+		return nil, fmt.Errorf("no attachments available")
+	}
+
+	// If there's only one attachment, return it
+	if len(attachments) == 1 {
+		return &attachments[0], nil
+	}
+
+	// Multiple attachments: let user choose
+	items := make([]string, len(attachments))
+	for i, att := range attachments {
+		items[i] = att.Filename
+	}
+
+	prompt := promptui.Select{
+		Label: "Select attachment to download",
+		Items: items,
+		Size:  min(12, len(attachments)),
+		Templates: &promptui.SelectTemplates{
+			Label:    "{{ . }}?",
+			Active:   `{{ "✔" | cyan }} {{ . | cyan }}`,
+			Inactive: `  {{ . }}`,
+			Selected: `{{ "✔" | green }} {{ . | green }}`,
+		},
+	}
+
+	index, _, err := prompt.Run()
+	if err != nil {
+		return nil, err
+	}
+
+	return &attachments[index], nil
 }

@@ -14,6 +14,7 @@ type JiraInterface interface {
 
 	// Attachment operations
 	GetAttachmentContent(ctx context.Context, attachmentURL string) ([]byte, error)
+	DownloadAttachment(ctx context.Context, attachment Attachment, savePath string) error
 	ParseCSVAttachment(content string) ([]CSVRow, error)
 
 	// Ticket lifecycle operations

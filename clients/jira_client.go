@@ -10,6 +10,8 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 )
@@ -217,6 +219,45 @@ func (c *JiraClient) GetAttachmentContent(ctx context.Context, attachmentURL str
 	}
 
 	return content, nil
+}
+
+// DownloadAttachment downloads an attachment and saves it to the specified path
+func (c *JiraClient) DownloadAttachment(ctx context.Context, attachment Attachment, savePath string) error {
+	// Get attachment content
+	content, err := c.GetAttachmentContent(ctx, attachment.URL)
+	if err != nil {
+		return fmt.Errorf("failed to download attachment: %w", err)
+	}
+
+	// Handle file naming if savePath is a directory
+	if strings.HasSuffix(savePath, "/") || savePath == "." || savePath == "" {
+		filename := attachment.Filename
+		fullPath := filepath.Join(savePath, filename)
+
+		// If file already exists, add suffix
+		if _, err := os.Stat(fullPath); err == nil {
+			ext := filepath.Ext(filename)
+			base := strings.TrimSuffix(filename, ext)
+			i := 1
+			for {
+				newFilename := fmt.Sprintf("%s_%d%s", base, i, ext)
+				newPath := filepath.Join(savePath, newFilename)
+				if _, err := os.Stat(newPath); os.IsNotExist(err) {
+					fullPath = newPath
+					break
+				}
+				i++
+			}
+		}
+		savePath = fullPath
+	}
+
+	// Write file
+	if err := os.WriteFile(savePath, content, 0644); err != nil {
+		return fmt.Errorf("failed to save attachment: %w", err)
+	}
+
+	return nil
 }
 
 // ParseCSVAttachment parses CSV content from JIRA attachments

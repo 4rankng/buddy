@@ -88,6 +88,7 @@ Only tickets with status NOT IN (COMPLETED, CLOSED) will be shown.`,
 				ShowAttachments:   false, // sgbuddy doesn't show attachments
 				MaxDescriptionLen: 0,     // No limit - show full description
 				HyperlinksMode:    ui.HyperlinksAuto,
+				JiraClient:        clients.Jira,
 			}
 
 			// Run picker
