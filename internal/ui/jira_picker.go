@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"buddy/clients"
+
 	"github.com/manifoldco/promptui"
 	"github.com/pkg/browser"
 )
@@ -247,7 +248,7 @@ func shouldEnableHyperlinks(mode HyperlinksMode) bool {
 // selectAction shows the action selection prompt
 func selectAction(hasBrowser bool, hasAttachments bool) (string, error) {
 	actions := []string{
-		"Back to list",
+		"Back...",
 		"Quit",
 	}
 
@@ -296,7 +297,7 @@ func selectAttachmentToShow(attachments []Attachment) (*Attachment, error) {
 
 	// Multiple attachments: let user choose
 	items := make([]string, len(attachments)+1)
-	items[0] = "Back to ticket details..."
+	items[0] = "Back..."
 	for i, att := range attachments {
 		items[i+1] = att.Filename
 	}
