@@ -274,44 +274,46 @@ var WorkflowStateMaps = map[string]map[int]string{
 	},
 }
 
-// GetWorkflowStateName returns the human-readable state name for a given workflow type and state number
-func GetWorkflowStateName(workflowType string, state int) string {
-	// Determine which map to use based on workflow type
-	var mapKey string
-	switch workflowType {
-	case "workflow_transfer_payment":
-		mapKey = "workflow_transfer_payment"
-	case "internal_payment_flow":
-		mapKey = "internal_payment_flow"
-	case "external_payment_flow":
-		mapKey = "external_payment_flow"
-	case "wf_ct_cashout":
-		mapKey = "wf_ct_cashout"
-	case "workflow_wf_ct_cashin", "wf_ct_cashin":
-		mapKey = "wf_ct_cashin"
-	case "workflow_charge":
-		mapKey = "workflow_charge"
-	case "workflow_transfer_collection":
-		mapKey = "workflow_transfer_collection"
-	default:
-		mapKey = "workflow_transfer_payment"
-	}
-
-	// Get the appropriate state map
-	if stateMap, exists := WorkflowStateMaps[mapKey]; exists {
-		if stateName, exists := stateMap[state]; exists {
-			return stateName
-		}
-	}
-
-	// Fallback: return state as string if not found in map
-	return fmt.Sprintf("stUnknown_%d", state)
+// FastAdapterStateMaps contains state mappings for fast adapter types
+var FastAdapterStateMaps = map[string]map[int]string{
+	"cashout": {
+		1: "StPending",
+		2: "StErraneous",
+		3: "StAccepted",
+		4: "StRejected",
+	},
+	"cashin": {
+		1:  "StAuthed",
+		2:  "StAuthUnknown",
+		3:  "StConfirmUnknown",
+		4:  "StCancelUnknown",
+		5:  "StErraneous",
+		6:  "StConfirmed",
+		7:  "StCanceled",
+		8:  "StCanceledManual",
+		9:  "StRejected",
+		11: "StReversed",
+		12: "StReversedUnknown",
+		13: "StReversedManual",
+		15: "StCancelAcknowledged",
+		17: "StAuthedNoStatus",
+		18: "StRejectedNoStatus",
+	},
 }
 
 // FormatWorkflowState formats a workflow state for display as "stateName(stateNumber)"
 func FormatWorkflowState(workflowType string, stateStr string) string {
 	if stateNum, err := strconv.Atoi(stateStr); err == nil {
-		stateName := GetWorkflowStateName(workflowType, stateNum)
+		var stateName string
+		if stateMap, exists := WorkflowStateMaps[workflowType]; exists {
+			if name, exists := stateMap[stateNum]; exists {
+				stateName = name
+			} else {
+				stateName = fmt.Sprintf("stUnknown_%d", stateNum)
+			}
+		} else {
+			stateName = fmt.Sprintf("stUnknown_%d", stateNum)
+		}
 		return fmt.Sprintf("%s(%d)", stateName, stateNum)
 	}
 	// Return as-is if it's not a number
@@ -349,4 +351,44 @@ type DMLTicket struct {
 // TemplateConfig defines the parameters required for a SQL template
 type TemplateConfig struct {
 	Parameters []string // List of parameter types: ["run_ids"], ["run_ids", "workflow_ids"]
+}
+
+// getFastAdapterStatusName maps fast adapter status codes to human-readable names
+func getFastAdapterStatusName(statusCode int) string {
+	// Default mapping for backward compatibility when adapter type is unknown
+	switch statusCode {
+	case 0:
+		return "INITIATED"
+	case 1:
+		return "PENDING"
+	case 2:
+		return "PROCESSING"
+	case 3:
+		return "SUCCESS"
+	case 4:
+		return "FAILED"
+	case 5:
+		return "CANCELLED"
+	case 6:
+		return "REJECTED"
+	case 7:
+		return "TIMEOUT"
+	case 8:
+		return "ERROR"
+	default:
+		return "UNKNOWN"
+	}
+}
+
+// GetFastAdapterStatusName maps fast adapter status codes to human-readable names based on adapter type
+func GetFastAdapterStatusName(adapterType string, statusCode int) string {
+	// Get the appropriate state map for the adapter type
+	if stateMap, exists := FastAdapterStateMaps[adapterType]; exists {
+		if stateName, exists := stateMap[statusCode]; exists {
+			return stateName
+		}
+	}
+	
+	// Fallback to generic mapping if adapter type or status code not found
+	return getFastAdapterStatusName(statusCode)
 }

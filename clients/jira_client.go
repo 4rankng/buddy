@@ -67,7 +67,7 @@ func (c *JiraClient) GetAssignedIssues(ctx context.Context, projectKey string, e
 
 	requestPayload := map[string]interface{}{
 		"jql":        jql,
-		"fields":     []string{"assignee", "summary", "issuetype", "key", "priority", "status", "created", "duedate", "customfield_10060"},
+		"fields":     []string{"assignee", "summary", "issuetype", "key", "priority", "status", "created", "duedate", "customfield_10060", "description"},
 		"maxResults": c.config.MaxItems,
 	}
 

@@ -38,29 +38,3 @@ func getStringValue(row map[string]interface{}, key string) string {
 	return ""
 }
 
-// getFastAdapterStatusName maps fast adapter status codes to human-readable names
-func getFastAdapterStatusName(statusCode int) string {
-	// Fast adapter status mapping based on common patterns
-	switch statusCode {
-	case 0:
-		return "INITIATED"
-	case 1:
-		return "PENDING"
-	case 2:
-		return "PROCESSING"
-	case 3:
-		return "SUCCESS"
-	case 4:
-		return "FAILED"
-	case 5:
-		return "CANCELLED"
-	case 6:
-		return "REJECTED"
-	case 7:
-		return "TIMEOUT"
-	case 8:
-		return "ERROR"
-	default:
-		return "UNKNOWN"
-	}
-}

@@ -1,6 +1,7 @@
 package txn
 
 import (
+	"fmt"
 	"testing"
 )
 
@@ -155,9 +156,18 @@ func TestWorkflowTransferCollectionStates(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			result := GetWorkflowStateName("workflow_transfer_collection", tc.state)
+			var result string
+			if stateMap, exists := WorkflowStateMaps["workflow_transfer_collection"]; exists {
+				if stateName, exists := stateMap[tc.state]; exists {
+					result = stateName
+				} else {
+					result = fmt.Sprintf("stUnknown_%d", tc.state)
+				}
+			} else {
+				result = fmt.Sprintf("stUnknown_%d", tc.state)
+			}
 			if result != tc.expected {
-				t.Errorf("GetWorkflowStateName(workflow_transfer_collection, %d) = %v; expected %v", tc.state, result, tc.expected)
+				t.Errorf("WorkflowStateMaps[\"workflow_transfer_collection\"][%d] = %v; expected %v", tc.state, result, tc.expected)
 			}
 		})
 	}
