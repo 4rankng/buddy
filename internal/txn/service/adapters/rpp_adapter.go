@@ -65,6 +65,7 @@ func (r *RPPAdapter) QueryByE2EID(e2eID string) (*domain.TransactionResult, erro
 	if !r.IsRppE2EID(e2eID) {
 		return &domain.TransactionResult{
 			TransactionID: e2eID,
+			CaseType:      domain.CaseNone,
 			RPPAdapter: domain.RPPAdapterInfo{
 				EndToEndID: e2eID,
 				Status:     domain.NotFoundStatus,
@@ -79,6 +80,7 @@ func (r *RPPAdapter) QueryByE2EID(e2eID string) (*domain.TransactionResult, erro
 	if err != nil || len(rppResults) == 0 {
 		return &domain.TransactionResult{
 			TransactionID: e2eID,
+			CaseType:      domain.CaseNone,
 			RPPAdapter: domain.RPPAdapterInfo{
 				EndToEndID: e2eID,
 				Status:     domain.NotFoundStatus,
@@ -97,6 +99,7 @@ func (r *RPPAdapter) QueryByE2EID(e2eID string) (*domain.TransactionResult, erro
 	// Initialize result
 	result := &domain.TransactionResult{
 		TransactionID: e2eID,
+		CaseType:      domain.CaseNone,
 		RPPAdapter: domain.RPPAdapterInfo{
 			ReqBizMsgID: reqBizMsgID,
 			PartnerTxID: partnerTxID,

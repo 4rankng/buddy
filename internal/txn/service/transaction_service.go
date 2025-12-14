@@ -95,13 +95,13 @@ func (s *TransactionQueryService) QueryTransactionWithEnv(transactionID string, 
 	}
 
 	// Check if it's an RPP E2E ID and handle separately (Malaysia only)
-	if env == "my" && s.adapters.RPPAdapter != nil {
-		if rppAdapter, ok := s.adapters.RPPAdapter.(*svcAdapters.RPPAdapter); ok {
-			if rppAdapter.IsRppE2EID(transactionID) {
-				if rppResult, err := s.adapters.RPPAdapter.QueryByE2EID(transactionID); err == nil && rppResult != nil {
-					return rppResult
-				}
+	if env == "my" && s.adapters.RPPAdapter != nil && domain.IsRppE2EID(transactionID) {
+		if rppResult, err := s.adapters.RPPAdapter.QueryByE2EID(transactionID); err == nil && rppResult != nil {
+			if rppResult.CaseType == "" {
+				rppResult.CaseType = domain.CaseNone
 			}
+			s.sopRepo.IdentifyCase(rppResult, env)
+			return rppResult
 		}
 	}
 
