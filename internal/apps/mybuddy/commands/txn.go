@@ -124,7 +124,7 @@ func processSingleTransaction(appCtx *common.Context, transactionID string) {
 	printSQLToConsole(appCtx, statements)
 }
 
-func printSQLToConsole(appCtx *common.Context, statements adapters.SQLStatements) {
+func printSQLToConsole(appCtx *common.Context, statements domain.SQLStatements) {
 	hasOutput := false
 
 	if len(statements.PCDeployStatements) > 0 {

@@ -4,22 +4,12 @@ import (
 	"buddy/internal/txn/domain"
 )
 
-// SQLStatements contains the deploy and rollback SQL statements separated by database
-type SQLStatements struct {
-	PCDeployStatements    []string
-	PCRollbackStatements  []string
-	PEDeployStatements    []string
-	PERollbackStatements  []string
-	RPPDeployStatements   []string
-	RPPRollbackStatements []string
-}
-
 // GenerateSQLStatements generates SQL statements for all supported cases using templates.
-func GenerateSQLStatements(results []domain.TransactionResult) SQLStatements {
-	statements := SQLStatements{}
+func GenerateSQLStatements(results []domain.TransactionResult) domain.SQLStatements {
+	statements := domain.SQLStatements{}
 
-	// Use map[domain.Case]DMLTicket for automatic consolidation
-	caseTickets := make(map[domain.Case]DMLTicket)
+	// Use map[domain.Case]domain.DMLTicket for automatic consolidation
+	caseTickets := make(map[domain.Case]domain.DMLTicket)
 
 	for i := range results {
 		// SOP cases should already be identified by Identifydomain.Cases
@@ -28,21 +18,14 @@ func GenerateSQLStatements(results []domain.TransactionResult) SQLStatements {
 		// Get the template function for this case
 		if templateFunc, exists := sqlTemplates[caseType]; exists {
 			newTicket := templateFunc(results[i])
-			if newTicket != nil && len(newTicket.RunIDs) > 0 {
+			if newTicket != nil {
 				if existingTicket, exists := caseTickets[caseType]; exists {
-					// Merge IDs into existing ticket
-					existingTicket.RunIDs = append(existingTicket.RunIDs, newTicket.RunIDs...)
-					if len(newTicket.ReqBizMsgIDs) > 0 {
-						existingTicket.ReqBizMsgIDs = append(existingTicket.ReqBizMsgIDs, newTicket.ReqBizMsgIDs...)
-					}
-					if len(newTicket.PartnerTxIDs) > 0 {
-						existingTicket.PartnerTxIDs = append(existingTicket.PartnerTxIDs, newTicket.PartnerTxIDs...)
-					}
-					existingTicket.TransactionCount++
+					// Merge parameters into existing ticket
+					existingTicket.DeployParams = mergeParams(existingTicket.DeployParams, newTicket.DeployParams)
+					existingTicket.RollbackParams = mergeParams(existingTicket.RollbackParams, newTicket.RollbackParams)
 					caseTickets[caseType] = existingTicket
 				} else {
-					// Create new ticket with counter
-					newTicket.TransactionCount = 1
+					// Create new ticket
 					caseTickets[caseType] = *newTicket
 				}
 			}
@@ -51,36 +34,32 @@ func GenerateSQLStatements(results []domain.TransactionResult) SQLStatements {
 
 	// Process each consolidated ticket
 	for _, ticket := range caseTickets {
-		if len(ticket.RunIDs) > 0 {
-			generatedSQL, err := generateSQLFromTicket(ticket)
-			if err != nil {
-				// For now, log the error and continue
-				// In a production environment, you might want to handle this differently
-				continue
-			}
-			appendStatements(&statements, generatedSQL)
+		generatedSQL, err := generateSQLFromTicket(ticket)
+		if err != nil {
+			// For now, log the error and continue
+			// In a production environment, you might want to handle this differently
+			continue
 		}
+		appendStatements(&statements, generatedSQL)
 	}
 
 	return statements
 }
 
 // GenerateSQLFromTicket generates SQL statements from a DML ticket (exposed version)
-func GenerateSQLFromTicket(ticket DMLTicket) (SQLStatements, error) {
+func GenerateSQLFromTicket(ticket domain.DMLTicket) (domain.SQLStatements, error) {
 	return generateSQLFromTicket(ticket)
 }
 
 // GetDMLTicketForRppResume returns a DML ticket for the RPP resume case only
-func GetDMLTicketForRppResume(result domain.TransactionResult) *DMLTicket {
+func GetDMLTicketForRppResume(result domain.TransactionResult) *domain.DMLTicket {
 	sopRepo := SOPRepo
 	sopRepo.IdentifyCase(&result, "my") // Default to MY for backward compatibility
 	if result.CaseType != domain.CaseRppNoResponseResume {
 		return nil
 	}
 
-	return &DMLTicket{
-		RunIDs:      []string{result.RPPAdapter.Workflow.RunID},
-		WorkflowIDs: []string{"'wf_ct_cashout'", "'wf_ct_qr_payment'"},
+	return &domain.DMLTicket{
 		DeployTemplate: `-- rpp_no_response_resume_acsp
 -- RPP did not respond in time, but status at Paynet is ACSP (Accepted Settlement in Process) or ACTC (Accepted Technical Validation)
 UPDATE workflow_execution
@@ -97,10 +76,56 @@ SET state = 210,
     ` + "`data`" + ` = JSON_SET(` + "`data`" + `, '$.State', 210)
 WHERE run_id IN (%s)
 AND workflow_id IN (%s);`,
-		TargetDB:      "RPP",
-		TargetState:   210,
-		TargetAttempt: 0,
-		CaseType:      domain.CaseRppNoResponseResume,
+		TargetDB: "RPP",
+		DeployParams: []domain.ParamInfo{
+			{Name: "run_ids", Value: []string{result.RPPAdapter.Workflow.RunID}, Type: "string_array"},
+			{Name: "workflow_ids", Value: []string{"'wf_ct_cashout'", "'wf_ct_qr_payment'"}, Type: "string_array"},
+		},
+		RollbackParams: []domain.ParamInfo{
+			{Name: "run_ids", Value: []string{result.RPPAdapter.Workflow.RunID}, Type: "string_array"},
+			{Name: "workflow_ids", Value: []string{"'wf_ct_cashout'", "'wf_ct_qr_payment'"}, Type: "string_array"},
+		},
+		CaseType: domain.CaseRppNoResponseResume,
 	}
 
+}
+
+// mergeParams merges parameter arrays, concatenating string_array values
+func mergeParams(existing, new []domain.ParamInfo) []domain.ParamInfo {
+	paramMap := make(map[string]domain.ParamInfo)
+
+	// Add existing parameters
+	for _, param := range existing {
+		paramMap[param.Name] = param
+	}
+
+	// Merge new parameters
+	for _, newParam := range new {
+		if existingParam, exists := paramMap[newParam.Name]; exists {
+			// For string_array types, concatenate the values
+			if newParam.Type == "string_array" && existingParam.Type == "string_array" {
+				if existingVals, ok := existingParam.Value.([]string); ok {
+					if newVals, ok := newParam.Value.([]string); ok {
+						mergedVals := append(existingVals, newVals...)
+						paramMap[newParam.Name] = domain.ParamInfo{
+							Name:  newParam.Name,
+							Value: mergedVals,
+							Type:  newParam.Type,
+						}
+					}
+				}
+			}
+		} else {
+			// Add new parameter
+			paramMap[newParam.Name] = newParam
+		}
+	}
+
+	// Convert back to slice
+	result := make([]domain.ParamInfo, 0, len(paramMap))
+	for _, param := range paramMap {
+		result = append(result, param)
+	}
+
+	return result
 }

@@ -2,54 +2,14 @@ package adapters
 
 import "buddy/internal/txn/domain"
 
-// DMLTicket represents a SQL generation request with templates
-type DMLTicket struct {
-	RunIDs           []string    // run_ids to update
-	ReqBizMsgIDs     []string    // optional req_biz_msg_ids for RPP cases
-	PartnerTxIDs     []string    // optional partner_tx_ids for RPP cases
-	DeployTemplate   string      // SQL template for deploy
-	RollbackTemplate string      // SQL template for rollback
-	TargetDB         string      // "PC", "PE", or "RPP"
-	WorkflowID       string      // optional workflow_id filter
-	TargetState      int         // target state to check in WHERE clause
-	TargetAttempt    int         // target attempt to check in WHERE clause
-	StateField       string      // field name for state in WHERE clause (usually "state")
-	WorkflowIDs      []string    // multiple workflow_ids for IN clause
-	CaseType         domain.Case // SOP case type for this ticket
-	PrevTransID      string      // original prev_trans_id for rollback
-
-	// Consolidation metadata
-	TransactionCount int // Number of transactions consolidated
-}
-
-// TemplateConfig defines the parameters required for a SQL template
-type TemplateConfig struct {
-	Parameters []string // List of parameter types: ["run_ids"], ["run_ids", "workflow_ids"]
-}
-
-// templateConfigs maps SOP cases to their template parameter configurations
-var templateConfigs = map[domain.Case]TemplateConfig{
-	domain.CasePcExternalPaymentFlow200_11:      {Parameters: []string{"run_ids"}},
-	domain.CasePcExternalPaymentFlow201_0RPP210: {Parameters: []string{"run_ids"}},
-	domain.CasePcExternalPaymentFlow201_0RPP900: {Parameters: []string{"run_ids"}},
-	domain.CasePeTransferPayment210_0:           {Parameters: []string{"run_ids"}},
-	domain.CasePeStuck230RepublishPC:            {Parameters: []string{"run_ids"}},
-	domain.CasePe2200FastCashinFailed:           {Parameters: []string{"run_ids"}},
-	domain.CaseThoughtMachineFalseNegative:      {Parameters: []string{"run_ids", "prev_trans_id"}},
-	domain.CaseRppCashoutReject101_19:           {Parameters: []string{"run_ids"}},
-	domain.CaseRppQrPaymentReject210_0:          {Parameters: []string{"run_ids"}},
-	domain.CaseRppNoResponseResume:              {Parameters: []string{"run_ids", "workflow_ids"}},
-}
-
 // sqlTemplates maps SOP cases to their DML tickets
-var sqlTemplates = map[domain.Case]func(domain.TransactionResult) *DMLTicket{
+var sqlTemplates = map[domain.Case]func(domain.TransactionResult) *domain.DMLTicket{
 	// ========================================
 	// Payment Core (PC) Templates
 	// ========================================
-	domain.CasePcExternalPaymentFlow200_11: func(result domain.TransactionResult) *DMLTicket {
+	domain.CasePcExternalPaymentFlow200_11: func(result domain.TransactionResult) *domain.DMLTicket {
 		if runID := getPcExtPayment200_11RunID(result); runID != "" {
-			return &DMLTicket{
-				RunIDs: []string{runID},
+			return &domain.DMLTicket{
 				DeployTemplate: `-- pc_external_payment_flow_200_11
 UPDATE workflow_execution
 SET state = 202,
@@ -71,11 +31,14 @@ SET state = 200,
     attempt = 11,
     ` + "`data`" + ` = JSON_SET(` + "`data`" + `, '$.State', 200)
 WHERE run_id IN (%s);`,
-				TargetDB:      "PC",
-				WorkflowID:    "pc_external_payment_flow",
-				TargetState:   200,
-				TargetAttempt: 11,
-				CaseType:      domain.CasePcExternalPaymentFlow200_11,
+				TargetDB: "PC",
+				DeployParams: []domain.ParamInfo{
+					{Name: "run_ids", Value: []string{runID}, Type: "string_array"},
+				},
+				RollbackParams: []domain.ParamInfo{
+					{Name: "run_ids", Value: []string{runID}, Type: "string_array"},
+				},
+				CaseType: domain.CasePcExternalPaymentFlow200_11,
 			}
 		}
 		return nil
@@ -84,9 +47,8 @@ WHERE run_id IN (%s);`,
 	// ========================================
 	// Payment Engine (PE) Templates
 	// ========================================
-	domain.CasePeTransferPayment210_0: func(result domain.TransactionResult) *DMLTicket {
-		return &DMLTicket{
-			RunIDs: []string{result.PaymentEngine.Workflow.RunID},
+	domain.CasePeTransferPayment210_0: func(result domain.TransactionResult) *domain.DMLTicket {
+		return &domain.DMLTicket{
 			DeployTemplate: `-- Reject PE stuck 210. Reject transactions since it hasn't reached Paynet yet
 UPDATE workflow_execution
 SET state = 221,
@@ -110,17 +72,19 @@ SET state = 210,
       '$.State', 210)
 WHERE run_id IN (%s)
 AND workflow_id = 'workflow_transfer_payment';`,
-			TargetDB:      "PE",
-			WorkflowID:    "workflow_transfer_payment",
-			TargetState:   210,
-			TargetAttempt: 0,
-			CaseType:      domain.CasePeTransferPayment210_0,
+			TargetDB: "PE",
+			DeployParams: []domain.ParamInfo{
+				{Name: "run_ids", Value: []string{result.PaymentEngine.Workflow.RunID}, Type: "string_array"},
+			},
+			RollbackParams: []domain.ParamInfo{
+				{Name: "run_ids", Value: []string{result.PaymentEngine.Workflow.RunID}, Type: "string_array"},
+			},
+			CaseType: domain.CasePeTransferPayment210_0,
 		}
 	},
-	domain.CasePe2200FastCashinFailed: func(result domain.TransactionResult) *DMLTicket {
+	domain.CasePe2200FastCashinFailed: func(result domain.TransactionResult) *domain.DMLTicket {
 		if runID := result.PaymentEngine.Workflow.RunID; runID != "" {
-			return &DMLTicket{
-				RunIDs: []string{runID},
+			return &domain.DMLTicket{
 				DeployTemplate: `-- pe_220_0_fast_cashin_failed
 UPDATE workflow_execution
 SET attempt = 1,
@@ -143,19 +107,21 @@ SET attempt = 0,
       '$.StreamMessage', JSON_OBJECT())
 WHERE run_id IN (%s)
 AND workflow_id = 'workflow_transfer_collection';`,
-				TargetDB:      "PE",
-				WorkflowID:    "workflow_transfer_collection",
-				TargetState:   220,
-				TargetAttempt: 0,
-				CaseType:      domain.CasePe2200FastCashinFailed,
+				TargetDB: "PE",
+				DeployParams: []domain.ParamInfo{
+					{Name: "run_ids", Value: []string{runID}, Type: "string_array"},
+				},
+				RollbackParams: []domain.ParamInfo{
+					{Name: "run_ids", Value: []string{runID}, Type: "string_array"},
+				},
+				CaseType: domain.CasePe2200FastCashinFailed,
 			}
 		}
 		return nil
 	},
-	domain.CasePeStuck230RepublishPC: func(result domain.TransactionResult) *DMLTicket {
+	domain.CasePeStuck230RepublishPC: func(result domain.TransactionResult) *domain.DMLTicket {
 		if runIDs := getInternalPaymentFlowRunIDs(result); len(runIDs) > 0 {
-			return &DMLTicket{
-				RunIDs: runIDs,
+			return &domain.DMLTicket{
 				DeployTemplate: `-- pe_stuck_230_republish_pc
 UPDATE workflow_execution
 SET state = 902,
@@ -171,18 +137,21 @@ SET state = 900,
 WHERE run_id IN (%s)
 AND workflow_id = 'internal_payment_flow'
 AND state = 902;`,
-				TargetDB:    "PC",
-				WorkflowID:  "internal_payment_flow",
-				TargetState: 900,
-				CaseType:    domain.CasePeStuck230RepublishPC,
+				TargetDB: "PC",
+				DeployParams: []domain.ParamInfo{
+					{Name: "run_ids", Value: runIDs, Type: "string_array"},
+				},
+				RollbackParams: []domain.ParamInfo{
+					{Name: "run_ids", Value: runIDs, Type: "string_array"},
+				},
+				CaseType: domain.CasePeStuck230RepublishPC,
 			}
 		}
 		return nil
 	},
-	domain.CaseThoughtMachineFalseNegative: func(result domain.TransactionResult) *DMLTicket {
+	domain.CaseThoughtMachineFalseNegative: func(result domain.TransactionResult) *domain.DMLTicket {
 		if runID := result.PaymentEngine.Workflow.RunID; runID != "" {
-			return &DMLTicket{
-				RunIDs: []string{runID},
+			return &domain.DMLTicket{
 				DeployTemplate: `-- thought_machine_false_negative
 UPDATE workflow_execution
 SET state = 230,
@@ -198,11 +167,15 @@ SET
 	 ` + "`data`" + ` = JSON_SET(` + "`data`" + `, '$.State', 701)
 WHERE run_id IN (%s)
 AND state = 230;`,
-				TargetDB:    "PE",
-				WorkflowID:  "workflow_transfer_payment",
-				TargetState: 701,
-				CaseType:    domain.CaseThoughtMachineFalseNegative,
-				PrevTransID: result.PaymentEngine.Workflow.PrevTransID,
+				TargetDB: "PE",
+				DeployParams: []domain.ParamInfo{
+					{Name: "run_ids", Value: []string{runID}, Type: "string_array"},
+				},
+				RollbackParams: []domain.ParamInfo{
+					{Name: "prev_trans_id", Value: result.PaymentEngine.Workflow.PrevTransID, Type: "string"},
+					{Name: "run_ids", Value: []string{runID}, Type: "string_array"},
+				},
+				CaseType: domain.CaseThoughtMachineFalseNegative,
 			}
 		}
 		return nil
@@ -211,9 +184,8 @@ AND state = 230;`,
 	// ========================================
 	// RPP (Real-time Payment Processing) Templates
 	// ========================================
-	domain.CasePcExternalPaymentFlow201_0RPP210: func(result domain.TransactionResult) *DMLTicket {
-		return &DMLTicket{
-			RunIDs: []string{result.RPPAdapter.Workflow.RunID},
+	domain.CasePcExternalPaymentFlow201_0RPP210: func(result domain.TransactionResult) *domain.DMLTicket {
+		return &domain.DMLTicket{
 			DeployTemplate: `-- RPP 210, PE 220, PC 201. No response from RPP. Move to 222 to resume. ACSP
 UPDATE workflow_execution
 SET state = 222,
@@ -226,16 +198,19 @@ SET state = 201,
     attempt = 0,
     ` + "`data`" + ` = JSON_SET(` + "`data`" + `, '$.State', 201)
 WHERE run_id IN (%s);`,
-			TargetDB:      "RPP",
-			TargetState:   210,
-			TargetAttempt: 0,
-			CaseType:      domain.CasePcExternalPaymentFlow201_0RPP210,
+			TargetDB: "RPP",
+			DeployParams: []domain.ParamInfo{
+				{Name: "run_ids", Value: []string{result.RPPAdapter.Workflow.RunID}, Type: "string_array"},
+			},
+			RollbackParams: []domain.ParamInfo{
+				{Name: "run_ids", Value: []string{result.RPPAdapter.Workflow.RunID}, Type: "string_array"},
+			},
+			CaseType: domain.CasePcExternalPaymentFlow201_0RPP210,
 		}
 	},
 
-	domain.CasePcExternalPaymentFlow201_0RPP900: func(result domain.TransactionResult) *DMLTicket {
-		return &DMLTicket{
-			RunIDs: []string{result.RPPAdapter.Workflow.RunID},
+	domain.CasePcExternalPaymentFlow201_0RPP900: func(result domain.TransactionResult) *domain.DMLTicket {
+		return &domain.DMLTicket{
 			DeployTemplate: `-- RPP 900, PE 220, PC 201. Republish from RPP to resume. ACSP
 UPDATE workflow_execution
 SET state = 301,
@@ -248,16 +223,19 @@ SET state = 900,
     attempt = 0,
     ` + "`data`" + ` = JSON_SET(` + "`data`" + `, '$.State', 900)
 WHERE run_id IN (%s);`,
-			TargetDB:      "RPP",
-			TargetState:   900,
-			TargetAttempt: 0,
-			CaseType:      domain.CasePcExternalPaymentFlow201_0RPP900,
+			TargetDB: "RPP",
+			DeployParams: []domain.ParamInfo{
+				{Name: "run_ids", Value: []string{result.RPPAdapter.Workflow.RunID}, Type: "string_array"},
+			},
+			RollbackParams: []domain.ParamInfo{
+				{Name: "run_ids", Value: []string{result.RPPAdapter.Workflow.RunID}, Type: "string_array"},
+			},
+			CaseType: domain.CasePcExternalPaymentFlow201_0RPP900,
 		}
 	},
 
-	domain.CaseRppCashoutReject101_19: func(result domain.TransactionResult) *DMLTicket {
-		return &DMLTicket{
-			RunIDs: []string{result.RPPAdapter.Workflow.RunID},
+	domain.CaseRppCashoutReject101_19: func(result domain.TransactionResult) *domain.DMLTicket {
+		return &domain.DMLTicket{
 			DeployTemplate: `-- rpp_cashout_reject_101_19, manual reject
 UPDATE workflow_execution
 SET state = 221,
@@ -273,17 +251,19 @@ SET state = 101,
     data = JSON_SET(data, '$.State', 101)
 WHERE run_id IN (%s)
 AND workflow_id = 'wf_ct_cashout';`,
-			TargetDB:      "RPP",
-			WorkflowID:    "'wf_ct_cashout'",
-			TargetState:   101,
-			TargetAttempt: 19,
-			CaseType:      domain.CaseRppCashoutReject101_19,
+			TargetDB: "RPP",
+			DeployParams: []domain.ParamInfo{
+				{Name: "run_ids", Value: []string{result.RPPAdapter.Workflow.RunID}, Type: "string_array"},
+			},
+			RollbackParams: []domain.ParamInfo{
+				{Name: "run_ids", Value: []string{result.RPPAdapter.Workflow.RunID}, Type: "string_array"},
+			},
+			CaseType: domain.CaseRppCashoutReject101_19,
 		}
 	},
 
-	domain.CaseRppQrPaymentReject210_0: func(result domain.TransactionResult) *DMLTicket {
-		return &DMLTicket{
-			RunIDs: []string{result.RPPAdapter.Workflow.RunID},
+	domain.CaseRppQrPaymentReject210_0: func(result domain.TransactionResult) *domain.DMLTicket {
+		return &domain.DMLTicket{
 			DeployTemplate: `-- rpp_qr_payment_reject_210_0, manual reject
 UPDATE workflow_execution
 SET state = 221,
@@ -299,18 +279,19 @@ SET state = 210,
     data = JSON_SET(data, '$.State', 210)
 WHERE run_id IN (%s)
 AND workflow_id = 'wf_ct_qr_payment';`,
-			TargetDB:      "RPP",
-			WorkflowID:    "'wf_ct_qr_payment'",
-			TargetState:   210,
-			TargetAttempt: 0,
-			CaseType:      domain.CaseRppQrPaymentReject210_0,
+			TargetDB: "RPP",
+			DeployParams: []domain.ParamInfo{
+				{Name: "run_ids", Value: []string{result.RPPAdapter.Workflow.RunID}, Type: "string_array"},
+			},
+			RollbackParams: []domain.ParamInfo{
+				{Name: "run_ids", Value: []string{result.RPPAdapter.Workflow.RunID}, Type: "string_array"},
+			},
+			CaseType: domain.CaseRppQrPaymentReject210_0,
 		}
 	},
 
-	domain.CaseRppNoResponseResume: func(result domain.TransactionResult) *DMLTicket {
-		return &DMLTicket{
-			RunIDs:      []string{result.RPPAdapter.Workflow.RunID},
-			WorkflowIDs: []string{"'wf_ct_cashout'", "'wf_ct_qr_payment'"},
+	domain.CaseRppNoResponseResume: func(result domain.TransactionResult) *domain.DMLTicket {
+		return &domain.DMLTicket{
 			DeployTemplate: `-- rpp_no_response_resume_acsp
 -- RPP did not respond in time, but status at Paynet is ACSP (Accepted Settlement in Process) or ACTC (Accepted Technical Validation)
 UPDATE workflow_execution
@@ -327,10 +308,16 @@ SET state = 210,
     ` + "`data`" + ` = JSON_SET(` + "`data`" + `, '$.State', 210)
 WHERE run_id IN (%s)
 AND workflow_id IN (%s);`,
-			TargetDB:      "RPP",
-			TargetState:   210,
-			TargetAttempt: 0,
-			CaseType:      domain.CaseRppNoResponseResume,
+			TargetDB: "RPP",
+			DeployParams: []domain.ParamInfo{
+				{Name: "run_ids", Value: []string{result.RPPAdapter.Workflow.RunID}, Type: "string_array"},
+				{Name: "workflow_ids", Value: []string{"'wf_ct_cashout'", "'wf_ct_qr_payment'"}, Type: "string_array"},
+			},
+			RollbackParams: []domain.ParamInfo{
+				{Name: "run_ids", Value: []string{result.RPPAdapter.Workflow.RunID}, Type: "string_array"},
+				{Name: "workflow_ids", Value: []string{"'wf_ct_cashout'", "'wf_ct_qr_payment'"}, Type: "string_array"},
+			},
+			CaseType: domain.CaseRppNoResponseResume,
 		}
 	},
 }

@@ -349,25 +349,22 @@ type SQLStatements struct {
 	RPPRollbackStatements []string
 }
 
+// ParamInfo represents a parameter with its value and type for SQL generation
+type ParamInfo struct {
+	Name  string      // Parameter name (e.g., "run_ids", "prev_trans_id")
+	Value interface{} // Parameter value (use interface{} for type flexibility)
+	Type  string      // Parameter type: "string", "string_array", "int", "int_array"
+}
+
 // DMLTicket represents a SQL generation request with templates
 type DMLTicket struct {
-	RunIDs           []string // run_ids to update
-	ReqBizMsgIDs     []string // optional req_biz_msg_ids for RPP cases
-	PartnerTxIDs     []string // optional partner_tx_ids for RPP cases
-	DeployTemplate   string   // SQL template for deploy
-	RollbackTemplate string   // SQL template for rollback
-	TargetDB         string   // "PC", "PE", or "RPP"
-	WorkflowID       string   // optional workflow_id filter
-	TargetState      int      // target state to check in WHERE clause
-	TargetAttempt    int      // target attempt to check in WHERE clause
-	StateField       string   // field name for state in WHERE clause (usually "state")
-	WorkflowIDs      []string // multiple workflow_ids for IN clause
+	DeployTemplate   string      // SQL template with %s placeholders
+	RollbackTemplate string      // SQL template with %s placeholders
+	TargetDB         string      // "PC", "PE", or "RPP"
+	DeployParams     []ParamInfo // Ordered parameters for deploy template
+	RollbackParams   []ParamInfo // Ordered parameters for rollback template
+	CaseType         Case        // SOP case type for this ticket
 
 	// Consolidation metadata
 	TransactionCount int // Number of transactions consolidated
-}
-
-// TemplateConfig defines the parameters required for a SQL template
-type TemplateConfig struct {
-	Parameters []string // List of parameter types: ["run_ids"], ["run_ids", "workflow_ids"]
 }

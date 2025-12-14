@@ -6,35 +6,8 @@ import (
 	"strings"
 )
 
-// SQLFuncBuilder generates SQL statements from a DML ticket
-type SQLFuncBuilder func(ticket DMLTicket) (deploySQL string, rollbackSQL string, err error)
-
-// SQLBuilderConfig maps case types to their SQL builders
-var sqlBuilderConfigs = map[domain.Case]SQLFuncBuilder{
-	domain.CasePcExternalPaymentFlow200_11:      buildRunIDsOnlySQL,
-	domain.CasePcExternalPaymentFlow201_0RPP210: buildRunIDsOnlySQL,
-	domain.CasePcExternalPaymentFlow201_0RPP900: buildRunIDsOnlySQL,
-	domain.CasePeTransferPayment210_0:           buildRunIDsOnlySQL,
-	domain.CasePeStuck230RepublishPC:            buildRunIDsOnlySQL,
-	domain.CasePe2200FastCashinFailed:           buildRunIDsOnlySQL,
-	domain.CaseRppCashoutReject101_19:           buildRunIDsOnlySQL,
-	domain.CaseRppQrPaymentReject210_0:          buildRunIDsOnlySQL,
-	domain.CaseRppNoResponseResume:              buildRunIDsWithWorkflowIDsSQL,
-	domain.CaseThoughtMachineFalseNegative:      buildRunIDsOnlyWithPrevTransIDSQL,
-}
-
-// contains checks if a slice contains a specific string
-func contains(slice []string, item string) bool {
-	for _, s := range slice {
-		if s == item {
-			return true
-		}
-	}
-	return false
-}
-
 // appendStatements is a helper to merge results into main struct
-func appendStatements(main *SQLStatements, new SQLStatements) {
+func appendStatements(main *domain.SQLStatements, new domain.SQLStatements) {
 	main.PCDeployStatements = append(main.PCDeployStatements, new.PCDeployStatements...)
 	main.PCRollbackStatements = append(main.PCRollbackStatements, new.PCRollbackStatements...)
 	main.PEDeployStatements = append(main.PEDeployStatements, new.PEDeployStatements...)
@@ -64,99 +37,76 @@ func getInternalPaymentFlowRunIDs(result domain.TransactionResult) []string {
 	return runIDs
 }
 
-// SQL Builder Functions
-
-// buildRunIDsOnlySQL handles templates with only run_ids parameter (batch)
-func buildRunIDsOnlySQL(ticket DMLTicket) (deploySQL, rollbackSQL string, err error) {
-	// Validate input
-	if len(ticket.RunIDs) == 0 {
-		return "", "", fmt.Errorf("ticket contains no run IDs")
-	}
-
-	// Format IDs for SQL
-	inClause := formatIDsForSQL(ticket.RunIDs)
-
-	// Generate SQL using templates
-	deploySQL = fmt.Sprintf(ticket.DeployTemplate, inClause)
-	rollbackSQL = fmt.Sprintf(ticket.RollbackTemplate, inClause)
-
-	return deploySQL, rollbackSQL, nil
-}
-
-// buildRunIDsWithWorkflowIDSQL handles templates with run_ids and single workflow_id (batch)
-func buildRunIDsWithWorkflowIDSQL(ticket DMLTicket) (deploySQL, rollbackSQL string, err error) {
-	// Validate input
-	if len(ticket.RunIDs) == 0 {
-		return "", "", fmt.Errorf("ticket contains no run IDs")
-	}
-	if ticket.WorkflowID == "" {
-		return "", "", fmt.Errorf("workflow ID required for case type %s", ticket.CaseType)
-	}
-
-	// Format IDs for SQL
-	inClause := formatIDsForSQL(ticket.RunIDs)
-
-	// Generate SQL using templates
-	deploySQL = fmt.Sprintf(ticket.DeployTemplate, inClause, ticket.WorkflowID)
-	rollbackSQL = fmt.Sprintf(ticket.RollbackTemplate, inClause, ticket.WorkflowID)
-
-	return deploySQL, rollbackSQL, nil
-}
-
-// buildRunIDsWithWorkflowIDsSQL handles templates with run_ids and multiple workflow_ids (batch)
-func buildRunIDsWithWorkflowIDsSQL(ticket DMLTicket) (deploySQL, rollbackSQL string, err error) {
-	// Validate input
-	if len(ticket.RunIDs) == 0 {
-		return "", "", fmt.Errorf("ticket contains no run IDs")
-	}
-	if len(ticket.WorkflowIDs) == 0 {
-		return "", "", fmt.Errorf("workflow IDs required for case type %s", ticket.CaseType)
-	}
-
-	// Format IDs for SQL
-	runIDsClause := formatIDsForSQL(ticket.RunIDs)
-	workflowIDsClause := strings.Join(ticket.WorkflowIDs, ", ")
-
-	// Generate SQL using templates
-	deploySQL = fmt.Sprintf(ticket.DeployTemplate, runIDsClause, workflowIDsClause)
-	rollbackSQL = fmt.Sprintf(ticket.RollbackTemplate, runIDsClause, workflowIDsClause)
-
-	return deploySQL, rollbackSQL, nil
-}
-
-// buildRunIDsOnlyWithPrevTransIDSQL handles templates with run_ids and prev_trans_id (individual)
-func buildRunIDsOnlyWithPrevTransIDSQL(ticket DMLTicket) (deploySQL, rollbackSQL string, err error) {
-	// Validate input
-	if len(ticket.RunIDs) == 0 {
-		return "", "", fmt.Errorf("ticket contains no run IDs")
-	}
-
-	// For prev_trans_id cases, we need to generate SQL for each run ID individually
-	// We'll handle this in the generateSQLFromTicket function
-	// This function will be called for each individual run ID
-	if len(ticket.RunIDs) != 1 {
-		return "", "", fmt.Errorf("prev_trans_id cases require individual run ID processing")
-	}
-
-	// Format the single run ID
-	quotedID := fmt.Sprintf("'%s'", ticket.RunIDs[0])
-
-	// Generate SQL using templates
-	deploySQL = fmt.Sprintf(ticket.DeployTemplate, quotedID)
-	rollbackSQL = fmt.Sprintf(ticket.RollbackTemplate, ticket.PrevTransID, quotedID)
-
-	return deploySQL, rollbackSQL, nil
-}
-
 // Helper Functions for SQL Generation
 
-// formatIDsForSQL converts a slice of IDs to a comma-separated, quoted string
-func formatIDsForSQL(ids []string) string {
-	quotedIDs := make([]string, len(ids))
-	for i, id := range ids {
-		quotedIDs[i] = fmt.Sprintf("'%s'", id)
+// formatParameter formats a parameter value based on its type for SQL usage
+func formatParameter(info domain.ParamInfo) string {
+	switch info.Type {
+	case "string":
+		return fmt.Sprintf("'%v'", info.Value)
+	case "string_array":
+		if arr, ok := info.Value.([]string); ok {
+			quoted := make([]string, len(arr))
+			for i, v := range arr {
+				quoted[i] = fmt.Sprintf("'%s'", v)
+			}
+			return strings.Join(quoted, ", ")
+		}
+		// Fallback for unexpected types
+		return fmt.Sprintf("'%v'", info.Value)
+	case "int":
+		return fmt.Sprintf("%v", info.Value)
+	case "int_array":
+		if arr, ok := info.Value.([]int); ok {
+			strArr := make([]string, len(arr))
+			for i, v := range arr {
+				strArr[i] = fmt.Sprintf("%d", v)
+			}
+			return strings.Join(strArr, ", ")
+		}
+		// Fallback for unexpected types
+		return fmt.Sprintf("%v", info.Value)
+	default:
+		// Default to string formatting for unknown types
+		return fmt.Sprintf("'%v'", info.Value)
 	}
-	return strings.Join(quotedIDs, ", ")
+}
+
+// buildSQLFromTemplate builds SQL from a template and parameters using positional substitution
+func buildSQLFromTemplate(template string, params []domain.ParamInfo) (string, error) {
+	// Format all parameters
+	formattedParams := make([]interface{}, len(params))
+	for i, param := range params {
+		formattedParams[i] = formatParameter(param)
+	}
+
+	// Substitute parameters in template
+	sql := fmt.Sprintf(template, formattedParams...)
+	return sql, nil
+}
+
+// getParamValue finds and returns the value of a parameter by name
+func getParamValue(params []domain.ParamInfo, name string) interface{} {
+	for _, param := range params {
+		if param.Name == name {
+			return param.Value
+		}
+	}
+	return nil
+}
+
+// updateParamValue creates a new parameter slice with updated value for the given parameter name
+func updateParamValue(params []domain.ParamInfo, name string, newValue interface{}) []domain.ParamInfo {
+	newParams := make([]domain.ParamInfo, len(params))
+	copy(newParams, params)
+
+	for i, param := range newParams {
+		if param.Name == name {
+			newParams[i].Value = newValue
+			break
+		}
+	}
+	return newParams
 }
 
 // validateSQL checks if the generated SQL matches expected template structure
@@ -174,80 +124,76 @@ func validateSQL(sql, template string) error {
 
 // checkIndividualStatementNeeded determines if a case requires individual statements
 func checkIndividualStatementNeeded(caseType domain.Case) bool {
-	config, exists := templateConfigs[caseType]
-	if !exists {
-		return false
-	}
-	return contains(config.Parameters, "prev_trans_id")
+	// Only the thought machine false negative case needs individual statements due to prev_trans_id
+	return caseType == domain.CaseThoughtMachineFalseNegative
 }
 
-// generateSQLFromTicket generates SQL statements from a DML ticket using configuration-driven approach
-func generateSQLFromTicket(ticket DMLTicket) (SQLStatements, error) {
+// generateSQLFromTicket generates SQL statements from a DML ticket using the universal builder
+func generateSQLFromTicket(ticket domain.DMLTicket) (domain.SQLStatements, error) {
 	// Validate input
-	if len(ticket.RunIDs) == 0 {
-		return SQLStatements{}, fmt.Errorf("ticket contains no run IDs")
+	if len(ticket.DeployParams) == 0 && len(ticket.RollbackParams) == 0 {
+		return domain.SQLStatements{}, fmt.Errorf("ticket contains no parameters")
 	}
 
 	// Validate target DB
 	if ticket.TargetDB != "PC" && ticket.TargetDB != "PE" && ticket.TargetDB != "RPP" {
-		return SQLStatements{}, fmt.Errorf("unknown target database: %s", ticket.TargetDB)
+		return domain.SQLStatements{}, fmt.Errorf("unknown target database: %s", ticket.TargetDB)
 	}
 
-	statements := SQLStatements{}
+	statements := domain.SQLStatements{}
 
 	// Check if we need individual statements (for prev_trans_id cases)
 	if checkIndividualStatementNeeded(ticket.CaseType) {
 		// Generate individual statements for each run ID
-		for _, runID := range ticket.RunIDs {
-			// Create a single-run ticket for individual processing
-			singleTicket := ticket
-			singleTicket.RunIDs = []string{runID}
+		runIDsParam := getParamValue(ticket.DeployParams, "run_ids")
+		if runIDsArray, ok := runIDsParam.([]string); ok {
+			for _, runID := range runIDsArray {
+				// Create a single-run ticket for individual processing
+				singleTicket := ticket
+				singleTicket.DeployParams = updateParamValue(ticket.DeployParams, "run_ids", []string{runID})
+				singleTicket.RollbackParams = updateParamValue(ticket.RollbackParams, "run_ids", []string{runID})
 
-			// Get the SQL builder for this case type
-			builder, exists := sqlBuilderConfigs[ticket.CaseType]
-			if !exists {
-				// Default to simple run_ids only builder
-				builder = buildRunIDsOnlySQL
-			}
+				// Generate SQL using universal builder
+				deploySQL, err := buildSQLFromTemplate(singleTicket.DeployTemplate, singleTicket.DeployParams)
+				if err != nil {
+					return domain.SQLStatements{}, fmt.Errorf("failed to generate deploy SQL for case %s, run ID %s: %w", ticket.CaseType, runID, err)
+				}
 
-			// Generate SQL using the builder
-			deploySQL, rollbackSQL, err := builder(singleTicket)
-			if err != nil {
-				return SQLStatements{}, fmt.Errorf("failed to generate SQL for case %s, run ID %s: %w", ticket.CaseType, runID, err)
-			}
+				rollbackSQL, err := buildSQLFromTemplate(singleTicket.RollbackTemplate, singleTicket.RollbackParams)
+				if err != nil {
+					return domain.SQLStatements{}, fmt.Errorf("failed to generate rollback SQL for case %s, run ID %s: %w", ticket.CaseType, runID, err)
+				}
 
-			// Validate generated SQL
-			if err := validateSQL(deploySQL, ticket.DeployTemplate); err != nil {
-				return SQLStatements{}, fmt.Errorf("deploy SQL validation failed: %w", err)
-			}
-			if err := validateSQL(rollbackSQL, ticket.RollbackTemplate); err != nil {
-				return SQLStatements{}, fmt.Errorf("rollback SQL validation failed: %w", err)
-			}
+				// Validate generated SQL
+				if err := validateSQL(deploySQL, ticket.DeployTemplate); err != nil {
+					return domain.SQLStatements{}, fmt.Errorf("deploy SQL validation failed: %w", err)
+				}
+				if err := validateSQL(rollbackSQL, ticket.RollbackTemplate); err != nil {
+					return domain.SQLStatements{}, fmt.Errorf("rollback SQL validation failed: %w", err)
+				}
 
-			// Add to appropriate statement list based on target DB
-			addStatementToDatabase(&statements, ticket.TargetDB, deploySQL, rollbackSQL)
+				// Add to appropriate statement list based on target DB
+				addStatementToDatabase(&statements, ticket.TargetDB, deploySQL, rollbackSQL)
+			}
 		}
 	} else {
-		// Generate batch statement for all run IDs
-		// Get the SQL builder for this case type
-		builder, exists := sqlBuilderConfigs[ticket.CaseType]
-		if !exists {
-			// Default to simple run_ids only builder
-			builder = buildRunIDsOnlySQL
+		// Generate batch statement for all parameters
+		deploySQL, err := buildSQLFromTemplate(ticket.DeployTemplate, ticket.DeployParams)
+		if err != nil {
+			return domain.SQLStatements{}, fmt.Errorf("failed to generate deploy SQL for case %s: %w", ticket.CaseType, err)
 		}
 
-		// Generate SQL using the builder
-		deploySQL, rollbackSQL, err := builder(ticket)
+		rollbackSQL, err := buildSQLFromTemplate(ticket.RollbackTemplate, ticket.RollbackParams)
 		if err != nil {
-			return SQLStatements{}, fmt.Errorf("failed to generate SQL for case %s: %w", ticket.CaseType, err)
+			return domain.SQLStatements{}, fmt.Errorf("failed to generate rollback SQL for case %s: %w", ticket.CaseType, err)
 		}
 
 		// Validate generated SQL
 		if err := validateSQL(deploySQL, ticket.DeployTemplate); err != nil {
-			return SQLStatements{}, fmt.Errorf("deploy SQL validation failed: %w", err)
+			return domain.SQLStatements{}, fmt.Errorf("deploy SQL validation failed: %w", err)
 		}
 		if err := validateSQL(rollbackSQL, ticket.RollbackTemplate); err != nil {
-			return SQLStatements{}, fmt.Errorf("rollback SQL validation failed: %w", err)
+			return domain.SQLStatements{}, fmt.Errorf("rollback SQL validation failed: %w", err)
 		}
 
 		// Add to appropriate statement list based on target DB
@@ -258,7 +204,7 @@ func generateSQLFromTicket(ticket DMLTicket) (SQLStatements, error) {
 }
 
 // addStatementToDatabase adds SQL statements to the appropriate database section
-func addStatementToDatabase(statements *SQLStatements, targetDB string, deploySQL, rollbackSQL string) {
+func addStatementToDatabase(statements *domain.SQLStatements, targetDB string, deploySQL, rollbackSQL string) {
 	switch targetDB {
 	case "PC":
 		statements.PCDeployStatements = append(statements.PCDeployStatements, deploySQL)

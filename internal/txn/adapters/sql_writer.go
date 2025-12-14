@@ -1,13 +1,14 @@
 package adapters
 
 import (
+	"buddy/internal/txn/domain"
 	"bytes"
 	"fmt"
 	"os"
 )
 
 // WriteSQLFiles writes the SQL statements to database-specific Deploy.sql and Rollback.sql files
-func WriteSQLFiles(statements SQLStatements, basePath string) error {
+func WriteSQLFiles(statements domain.SQLStatements, basePath string) error {
 	// Write PC files
 	if len(statements.PCDeployStatements) > 0 {
 		deployPath := basePath + "_PC_Deploy.sql"
