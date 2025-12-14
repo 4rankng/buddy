@@ -270,19 +270,36 @@ func (r *SOPRepository) IdentifySOPCase(result *domain.TransactionResult, env st
 		return result.CaseType
 	}
 
+	fmt.Printf("[DEBUG] Identifying SOP case for transaction %s in environment %s\n", result.TransactionID, env)
+	fmt.Printf("[DEBUG] PaymentCore.Workflow count: %d\n", len(result.PaymentCore.Workflow))
+	fmt.Printf("[DEBUG] PaymentEngine.Workflow.State: %s\n", result.PaymentEngine.Workflow.State)
+	fmt.Printf("[DEBUG] PaymentEngine.Workflow.WorkflowID: %s\n", result.PaymentEngine.Workflow.WorkflowID)
+	fmt.Printf("[DEBUG] PaymentEngine.Workflow.Attempt: %d\n", result.PaymentEngine.Workflow.Attempt)
+	fmt.Printf("[DEBUG] RPPAdapter.Status: %s\n", result.RPPAdapter.Status)
+	fmt.Printf("[DEBUG] RPPAdapter.Workflow.State: %s\n", result.RPPAdapter.Workflow.State)
+	fmt.Printf("[DEBUG] RPPAdapter.Workflow.WorkflowID: %s\n", result.RPPAdapter.Workflow.WorkflowID)
+	fmt.Printf("[DEBUG] RPPAdapter.Workflow.Attempt: %d\n", result.RPPAdapter.Workflow.Attempt)
+	fmt.Printf("[DEBUG] FastAdapter.Status: %s\n", result.FastAdapter.Status)
+
 	// Check each rule in order
 	for _, rule := range r.rules {
 		// Skip country-specific rules if not matching
 		if rule.Country != "" && rule.Country != env {
+			fmt.Printf("[DEBUG] Skipping rule %s due to country mismatch (rule: %s, env: %s)\n", rule.CaseType, rule.Country, env)
 			continue
 		}
 
+		fmt.Printf("[DEBUG] Evaluating rule: %s\n", rule.CaseType)
 		if r.evaluateRule(rule, result) {
+			fmt.Printf("[DEBUG] Rule matched: %s\n", rule.CaseType)
 			result.CaseType = rule.CaseType
 			return result.CaseType
+		} else {
+			fmt.Printf("[DEBUG] Rule did not match: %s\n", rule.CaseType)
 		}
 	}
 
+	fmt.Printf("[DEBUG] No rules matched for transaction %s\n", result.TransactionID)
 	result.CaseType = domain.SOPCaseNone
 	return result.CaseType
 }
@@ -290,9 +307,12 @@ func (r *SOPRepository) IdentifySOPCase(result *domain.TransactionResult, env st
 // evaluateRule evaluates a single rule against a transaction result
 func (r *SOPRepository) evaluateRule(rule SOPCaseRule, result *domain.TransactionResult) bool {
 	for _, condition := range rule.Conditions {
+		fmt.Printf("[DEBUG] Evaluating condition: %s %s %v\n", condition.FieldPath, condition.Operator, condition.Value)
 		if !r.evaluateCondition(condition, result) {
+			fmt.Printf("[DEBUG] Condition failed: %s %s %v\n", condition.FieldPath, condition.Operator, condition.Value)
 			return false
 		}
+		fmt.Printf("[DEBUG] Condition passed: %s %s %v\n", condition.FieldPath, condition.Operator, condition.Value)
 	}
 	return true
 }
@@ -301,37 +321,46 @@ func (r *SOPRepository) evaluateRule(rule SOPCaseRule, result *domain.Transactio
 func (r *SOPRepository) evaluateCondition(condition RuleCondition, result *domain.TransactionResult) bool {
 	fieldValue := r.getFieldValue(condition.FieldPath, result)
 	if fieldValue == nil {
+		fmt.Printf("[DEBUG] Field value is nil for path: %s\n", condition.FieldPath)
 		return false
 	}
 
+	fmt.Printf("[DEBUG] Field value for %s: %v (type: %T)\n", condition.FieldPath, fieldValue, fieldValue)
+
+	var evalResult bool
 	switch condition.Operator {
 	case "eq":
-		return reflect.DeepEqual(fieldValue, condition.Value)
+		evalResult = reflect.DeepEqual(fieldValue, condition.Value)
 	case "ne":
-		return !reflect.DeepEqual(fieldValue, condition.Value)
+		evalResult = !reflect.DeepEqual(fieldValue, condition.Value)
 	case "lt":
-		return r.compareValues(fieldValue, condition.Value) < 0
+		evalResult = r.compareValues(fieldValue, condition.Value) < 0
 	case "gt":
-		return r.compareValues(fieldValue, condition.Value) > 0
+		evalResult = r.compareValues(fieldValue, condition.Value) > 0
 	case "in":
-		return r.isInSlice(fieldValue, condition.Value)
+		evalResult = r.isInSlice(fieldValue, condition.Value)
 	case "not_in":
-		return !r.isInSlice(fieldValue, condition.Value)
+		evalResult = !r.isInSlice(fieldValue, condition.Value)
 	case "regex":
-		return r.matchRegex(fieldValue, condition.Value)
+		evalResult = r.matchRegex(fieldValue, condition.Value)
 	case "contains":
-		return r.containsValue(fieldValue, condition.Value)
+		evalResult = r.containsValue(fieldValue, condition.Value)
 	default:
-		return false
+		evalResult = false
 	}
+
+	fmt.Printf("[DEBUG] Condition evaluation result: %t\n", evalResult)
+	return evalResult
 }
 
 // getFieldValue retrieves field value from domain.TransactionResult using dot notation
 func (r *SOPRepository) getFieldValue(fieldPath string, result *domain.TransactionResult) interface{} {
 	parts := strings.Split(fieldPath, ".")
+	fmt.Printf("[DEBUG] Getting field value for path: %s (parts: %v)\n", fieldPath, parts)
 	currentValue := reflect.ValueOf(result)
 
 	for i, part := range parts {
+		fmt.Printf("[DEBUG] Processing part %d: %s, current value type: %s\n", i, part, currentValue.Kind())
 		if currentValue.Kind() == reflect.Ptr {
 			currentValue = currentValue.Elem()
 		}
@@ -339,15 +368,18 @@ func (r *SOPRepository) getFieldValue(fieldPath string, result *domain.Transacti
 		if currentValue.Kind() == reflect.Struct {
 			field := currentValue.FieldByName(part)
 			if !field.IsValid() {
+				fmt.Printf("[DEBUG] Field %s not found in struct\n", part)
 				return nil
 			}
 			currentValue = field
 		} else if currentValue.Kind() == reflect.Slice {
+			fmt.Printf("[DEBUG] Encountered slice with %d elements\n", currentValue.Len())
 			// If we're at a slice and there are more parts to process,
 			// we need to find an element in the slice that has the requested field
 			if i < len(parts)-1 {
 				// Look for the first element in the slice that has the next field
 				nextPart := parts[i+1]
+				fmt.Printf("[DEBUG] Looking for element in slice with field %s\n", nextPart)
 				for j := 0; j < currentValue.Len(); j++ {
 					element := currentValue.Index(j)
 					if element.Kind() == reflect.Ptr {
@@ -357,6 +389,7 @@ func (r *SOPRepository) getFieldValue(fieldPath string, result *domain.Transacti
 						field := element.FieldByName(nextPart)
 						if field.IsValid() {
 							// Found an element with the field, continue processing with this element
+							fmt.Printf("[DEBUG] Found element at index %d with field %s\n", j, nextPart)
 							currentValue = element
 							break
 						}
@@ -364,18 +397,23 @@ func (r *SOPRepository) getFieldValue(fieldPath string, result *domain.Transacti
 				}
 				// If we couldn't find a matching element, return nil
 				if currentValue.Kind() == reflect.Slice {
+					fmt.Printf("[DEBUG] No element in slice has field %s\n", nextPart)
 					return nil
 				}
 			} else {
 				// This is the last part and it's a slice, return the whole slice
+				fmt.Printf("[DEBUG] Returning whole slice for path %s\n", fieldPath)
 				return currentValue.Interface()
 			}
 		} else {
+			fmt.Printf("[DEBUG] Unexpected type %s at part %s\n", currentValue.Kind(), part)
 			return nil
 		}
 	}
 
-	return currentValue.Interface()
+	finalValue := currentValue.Interface()
+	fmt.Printf("[DEBUG] Final value for %s: %v (type: %T)\n", fieldPath, finalValue, finalValue)
+	return finalValue
 }
 
 // compareValues compares two numeric or string values
