@@ -90,9 +90,15 @@ func displayPaymentEngineSection(w io.Writer, pe domain.PaymentEngineInfo) error
 
 	// Write workflow if exists
 	if pe.Workflow.RunID != "" {
-		line := fmt.Sprintf("state=%s attempt=%d", pe.Workflow.GetFormattedState(), pe.Workflow.Attempt)
-		if _, err := fmt.Fprintf(w, "%s: %s run_id=%s\n", pe.Workflow.WorkflowID, line, pe.Workflow.RunID); err != nil {
-			fmt.Printf("Warning: failed to write payment engine workflow: %v\n", err)
+		if _, err := fmt.Fprintf(w, "workflow_transfer_payment:\n"); err != nil {
+			fmt.Printf("Warning: failed to write workflow header: %v\n", err)
+		}
+		line := fmt.Sprintf("   state=%s attempt=%d", pe.Workflow.GetFormattedState(), pe.Workflow.Attempt)
+		if _, err := fmt.Fprintf(w, "%s\n", line); err != nil {
+			fmt.Printf("Warning: failed to write workflow state: %v\n", err)
+		}
+		if _, err := fmt.Fprintf(w, "   run_id=%s\n", pe.Workflow.RunID); err != nil {
+			fmt.Printf("Warning: failed to write workflow run id: %v\n", err)
 		}
 	}
 
@@ -112,59 +118,55 @@ func displayPaymentCoreSection(w io.Writer, pc domain.PaymentCoreInfo) error {
 	if hasData {
 		// Display internal transactions
 		for _, tx := range pc.InternalTxns {
-			if _, err := fmt.Fprintf(w, "internal_transaction: tx_id=%s", tx.TxID); err != nil {
+			if _, err := fmt.Fprintf(w, "internal_transaction:\n"); err != nil {
+				fmt.Printf("Warning: failed to write internal transaction header: %v\n", err)
+			}
+			if _, err := fmt.Fprintf(w, "   tx_id=%s\n", tx.TxID); err != nil {
 				fmt.Printf("Warning: failed to write internal tx id: %v\n", err)
 			}
 			if tx.GroupID != "" {
-				if _, err := fmt.Fprintf(w, " group_id=%s", tx.GroupID); err != nil {
+				if _, err := fmt.Fprintf(w, "   group_id=%s\n", tx.GroupID); err != nil {
 					fmt.Printf("Warning: failed to write internal tx group id: %v\n", err)
 				}
 			}
-			if tx.TxType != "" {
-				if _, err := fmt.Fprintf(w, " type=%s", tx.TxType); err != nil {
-					fmt.Printf("Warning: failed to write internal tx type: %v\n", err)
+			if tx.TxType != "" && tx.TxStatus != "" {
+				if _, err := fmt.Fprintf(w, "   type=%s status=%s\n", tx.TxType, tx.TxStatus); err != nil {
+					fmt.Printf("Warning: failed to write internal tx type and status: %v\n", err)
 				}
-			}
-			if tx.TxStatus != "" {
-				if _, err := fmt.Fprintf(w, " status=%s", tx.TxStatus); err != nil {
-					fmt.Printf("Warning: failed to write internal tx status: %v\n", err)
-				}
-			}
-			if _, err := fmt.Fprintln(w); err != nil {
-				fmt.Printf("Warning: failed to write newline after internal transaction: %v\n", err)
 			}
 		}
 
 		// Display external transactions
 		for _, tx := range pc.ExternalTxns {
-			if _, err := fmt.Fprintf(w, "external_transaction: ref_id=%s", tx.RefID); err != nil {
+			if _, err := fmt.Fprintf(w, "external_transaction:\n"); err != nil {
+				fmt.Printf("Warning: failed to write external transaction header: %v\n", err)
+			}
+			if _, err := fmt.Fprintf(w, "   ref_id=%s\n", tx.RefID); err != nil {
 				fmt.Printf("Warning: failed to write external tx ref id: %v\n", err)
 			}
 			if tx.GroupID != "" {
-				if _, err := fmt.Fprintf(w, " group_id=%s", tx.GroupID); err != nil {
+				if _, err := fmt.Fprintf(w, "   group_id=%s\n", tx.GroupID); err != nil {
 					fmt.Printf("Warning: failed to write external tx group id: %v\n", err)
 				}
 			}
-			if tx.TxType != "" {
-				if _, err := fmt.Fprintf(w, " type=%s", tx.TxType); err != nil {
-					fmt.Printf("Warning: failed to write external tx type: %v\n", err)
+			if tx.TxType != "" && tx.TxStatus != "" {
+				if _, err := fmt.Fprintf(w, "   type=%s status=%s\n", tx.TxType, tx.TxStatus); err != nil {
+					fmt.Printf("Warning: failed to write external tx type and status: %v\n", err)
 				}
-			}
-			if tx.TxStatus != "" {
-				if _, err := fmt.Fprintf(w, " status=%s", tx.TxStatus); err != nil {
-					fmt.Printf("Warning: failed to write external tx status: %v\n", err)
-				}
-			}
-			if _, err := fmt.Fprintln(w); err != nil {
-				fmt.Printf("Warning: failed to write newline after external transaction: %v\n", err)
 			}
 		}
 
 		// Display workflows
 		for _, workflow := range pc.Workflow {
-			line := fmt.Sprintf("state=%s attempt=%d", domain.FormatWorkflowState(workflow.WorkflowID, workflow.State), workflow.Attempt)
-			if _, err := fmt.Fprintf(w, "%s: %s run_id=%s\n", workflow.WorkflowID, line, workflow.RunID); err != nil {
-				fmt.Printf("Warning: failed to write payment core workflow: %v\n", err)
+			if _, err := fmt.Fprintf(w, "%s:\n", workflow.WorkflowID); err != nil {
+				fmt.Printf("Warning: failed to write payment core workflow header: %v\n", err)
+			}
+			line := fmt.Sprintf("   state=%s attempt=%d", domain.FormatWorkflowState(workflow.WorkflowID, workflow.State), workflow.Attempt)
+			if _, err := fmt.Fprintf(w, "%s\n", line); err != nil {
+				fmt.Printf("Warning: failed to write payment core workflow state: %v\n", err)
+			}
+			if _, err := fmt.Fprintf(w, "   run_id=%s\n", workflow.RunID); err != nil {
+				fmt.Printf("Warning: failed to write payment core workflow run id: %v\n", err)
 			}
 		}
 	} else {
@@ -319,9 +321,6 @@ func writeResult(w io.Writer, result domain.TransactionResult, index int) {
 		index = 1
 	}
 
-	peStatus := result.PaymentEngine.Transfers.Status
-	ppeStatus := result.PartnerpayEngine.Transfers.Status
-
 	// For RPP E2E IDs with errors, still show the RPP adapter section with NOT FOUND status
 	if domain.IsRppE2EID(result.TransactionID) && result.Error != "" {
 		if _, err := fmt.Fprintf(w, "### [%d] e2e_id: %s\n", index, result.TransactionID); err != nil {
@@ -339,23 +338,16 @@ func writeResult(w io.Writer, result domain.TransactionResult, index int) {
 		return
 	}
 
-	notFound := peStatus == domain.NotFoundStatus || ppeStatus == domain.NotFoundStatus
-
-	if result.Error != "" && !notFound {
+	// Check if there's an error (but NOT_FOUND is not an error for display purposes)
+	if result.Error != "" {
 		if _, err := fmt.Fprintf(w, "### [%d] transaction_id: %s\nError: %s\n\n", index, result.TransactionID, result.Error); err != nil {
 			fmt.Printf("Warning: failed to write error result: %v\n", err)
 		}
 		return
 	}
 
-	if notFound {
-		if _, err := fmt.Fprintf(w, "### [%d] transaction_id: %s\nStatus: %s\n\n", index, result.TransactionID, domain.NotFoundStatus); err != nil {
-			fmt.Printf("Warning: failed to write not found result: %v\n", err)
-		}
-		return
-	}
-
 	// Use e2e_id for RPP E2E IDs, transaction_id for others
+
 	idLabel := "transaction_id"
 	if domain.IsRppE2EID(result.TransactionID) {
 		idLabel = "e2e_id"

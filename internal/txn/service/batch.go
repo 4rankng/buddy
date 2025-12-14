@@ -104,23 +104,16 @@ func generateBatchSummary(results []domain.TransactionResult) BatchSummary {
 	// Count transactions
 	for _, result := range results {
 		// Check if transaction is matched or unmatched
-		notFound := result.PaymentEngine.Transfers.Status == domain.NotFoundStatus ||
-			result.Error != ""
+		// A transaction is "unmatched" if SOP case is NOT_FOUND (SOPCaseNone) or there's an error
+		isUnmatched := result.CaseType == domain.SOPCaseNone || result.Error != ""
 
-		// Also check if there's any actual data in the result
-		hasData := result.PaymentEngine.Transfers.TransactionID != "" ||
-			len(result.PaymentCore.InternalTxns) > 0 ||
-			len(result.PaymentCore.ExternalTxns) > 0 ||
-			result.FastAdapter.InstructionID != "" ||
-			result.RPPAdapter.EndToEndID != ""
-
-		if notFound || !hasData {
+		if isUnmatched {
 			summary.Unmatched++
 		} else {
 			summary.Matched++
 		}
 
-		// Count case types
+		// Count case types (excluding NOT_FOUND cases)
 		if result.CaseType != domain.SOPCaseNone && result.CaseType != "" {
 			summary.CaseTypes[result.CaseType]++
 		}
