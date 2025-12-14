@@ -91,7 +91,7 @@ func (s *TransactionQueryService) QueryTransaction(transactionID string) *domain
 func (s *TransactionQueryService) QueryTransactionWithEnv(transactionID string, env string) *domain.TransactionResult {
 	result := &domain.TransactionResult{
 		TransactionID: transactionID,
-		CaseType:      domain.SOPCaseNone,
+		CaseType:      domain.CaseNone,
 	}
 
 	// Check if it's an RPP E2E ID and handle separately (Malaysia only)
@@ -146,7 +146,7 @@ func (s *TransactionQueryService) QueryTransactionWithEnv(transactionID string, 
 	}
 
 	// Identify SOP case using rule engine
-	s.sopRepo.IdentifySOPCase(result, env)
+	s.sopRepo.IdentifyCase(result, env)
 
 	return result
 }

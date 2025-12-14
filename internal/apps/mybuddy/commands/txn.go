@@ -44,7 +44,7 @@ Remediation SQL is automatically generated based on the detected SOP case:
 			}
 
 			if caseFlag > 0 {
-				processSOPCase(appCtx, caseFlag, input)
+				processCase(appCtx, caseFlag, input)
 				return
 			}
 
@@ -79,10 +79,10 @@ func processInteractiveSOP(appCtx *common.Context, input string) {
 		return
 	}
 
-	processSOPCase(appCtx, caseNum, input)
+	processCase(appCtx, caseNum, input)
 }
 
-func processSOPCase(appCtx *common.Context, caseNum int, input string) {
+func processCase(appCtx *common.Context, caseNum int, input string) {
 	// Since detection is automatic in the txn package, the case flag is primarily
 	// for user intent verification. We proceed with standard processing.
 	fmt.Printf("%sProcessing %s expecting Case %d...\n", appCtx.GetPrefix(), input, caseNum)

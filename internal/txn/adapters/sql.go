@@ -21,11 +21,11 @@ func GenerateSQLStatements(results []domain.TransactionResult) SQLStatements {
 
 	fmt.Println("\n--- Generating SQL Statements ---")
 
-	// Use map[domain.SOPCase]DMLTicket for automatic consolidation
-	caseTickets := make(map[domain.SOPCase]DMLTicket)
+	// Use map[domain.Case]DMLTicket for automatic consolidation
+	caseTickets := make(map[domain.Case]DMLTicket)
 
 	for i := range results {
-		// SOP cases should already be identified by Identifydomain.SOPCases
+		// SOP cases should already be identified by Identifydomain.Cases
 		caseType := results[i].CaseType
 
 		// Get the template function for this case
@@ -72,8 +72,8 @@ func GenerateSQLFromTicket(ticket DMLTicket) SQLStatements {
 // GetDMLTicketForRppResume returns a DML ticket for the RPP resume case only
 func GetDMLTicketForRppResume(result domain.TransactionResult) *DMLTicket {
 	sopRepo := SOPRepo
-	sopRepo.IdentifySOPCase(&result, "my") // Default to MY for backward compatibility
-	if result.CaseType != domain.SOPCaseRppNoResponseResume {
+	sopRepo.IdentifyCase(&result, "my") // Default to MY for backward compatibility
+	if result.CaseType != domain.CaseRppNoResponseResume {
 		return nil
 	}
 

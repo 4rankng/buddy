@@ -26,23 +26,24 @@ type TemplateConfig struct {
 }
 
 // templateConfigs maps SOP cases to their template parameter configurations
-var templateConfigs = map[domain.SOPCase]TemplateConfig{
-	domain.SOPCasePcExternalPaymentFlow200_11:      {Parameters: []string{"run_ids"}},
-	domain.SOPCasePcExternalPaymentFlow201_0RPP210: {Parameters: []string{"run_ids"}},
-	domain.SOPCasePcExternalPaymentFlow201_0RPP900: {Parameters: []string{"run_ids"}},
-	domain.SOPCasePeTransferPayment210_0:           {Parameters: []string{"run_ids"}},
-	domain.SOPCasePe2200FastCashinFailed:           {Parameters: []string{"run_ids"}},
-	domain.SOPCaseRppCashoutReject101_19:           {Parameters: []string{"run_ids"}},
-	domain.SOPCaseRppQrPaymentReject210_0:          {Parameters: []string{"run_ids"}},
-	domain.SOPCaseRppNoResponseResume:              {Parameters: []string{"run_ids", "workflow_ids"}},
+var templateConfigs = map[domain.Case]TemplateConfig{
+	domain.CasePcExternalPaymentFlow200_11:      {Parameters: []string{"run_ids"}},
+	domain.CasePcExternalPaymentFlow201_0RPP210: {Parameters: []string{"run_ids"}},
+	domain.CasePcExternalPaymentFlow201_0RPP900: {Parameters: []string{"run_ids"}},
+	domain.CasePeTransferPayment210_0:           {Parameters: []string{"run_ids"}},
+	domain.CasePeStuck230RepublishPC:            {Parameters: []string{"run_ids"}},
+	domain.CasePe2200FastCashinFailed:           {Parameters: []string{"run_ids"}},
+	domain.CaseRppCashoutReject101_19:           {Parameters: []string{"run_ids"}},
+	domain.CaseRppQrPaymentReject210_0:          {Parameters: []string{"run_ids"}},
+	domain.CaseRppNoResponseResume:              {Parameters: []string{"run_ids", "workflow_ids"}},
 }
 
 // sqlTemplates maps SOP cases to their DML tickets
-var sqlTemplates = map[domain.SOPCase]func(domain.TransactionResult) *DMLTicket{
+var sqlTemplates = map[domain.Case]func(domain.TransactionResult) *DMLTicket{
 	// ========================================
 	// Payment Core (PC) Templates
 	// ========================================
-	domain.SOPCasePcExternalPaymentFlow200_11: func(result domain.TransactionResult) *DMLTicket {
+	domain.CasePcExternalPaymentFlow200_11: func(result domain.TransactionResult) *DMLTicket {
 		if runID := getPcExtPayment200_11RunID(result); runID != "" {
 			return &DMLTicket{
 				RunIDs: []string{runID},
@@ -79,7 +80,7 @@ WHERE run_id IN (%s);`,
 	// ========================================
 	// Payment Engine (PE) Templates
 	// ========================================
-	domain.SOPCasePeTransferPayment210_0: func(result domain.TransactionResult) *DMLTicket {
+	domain.CasePeTransferPayment210_0: func(result domain.TransactionResult) *DMLTicket {
 		return &DMLTicket{
 			RunIDs: []string{result.PaymentEngine.Workflow.RunID},
 			DeployTemplate: `-- Reject PE stuck 210. Reject transactions since it hasn't reached Paynet yet
@@ -111,7 +112,7 @@ AND workflow_id = 'workflow_transfer_payment';`,
 			TargetAttempt: 0,
 		}
 	},
-	domain.SOPCasePe2200FastCashinFailed: func(result domain.TransactionResult) *DMLTicket {
+	domain.CasePe2200FastCashinFailed: func(result domain.TransactionResult) *DMLTicket {
 		if runID := result.PaymentEngine.Workflow.RunID; runID != "" {
 			return &DMLTicket{
 				RunIDs: []string{runID},
@@ -145,11 +146,37 @@ AND workflow_id = 'workflow_transfer_collection';`,
 		}
 		return nil
 	},
+	domain.CasePeStuck230RepublishPC: func(result domain.TransactionResult) *DMLTicket {
+		if runIDs := getInternalPaymentFlowRunIDs(result); len(runIDs) > 0 {
+			return &DMLTicket{
+				RunIDs: runIDs,
+				DeployTemplate: `-- pe_stuck_230_republish_pc
+UPDATE workflow_execution
+SET state = 902,
+    attempt = 1,
+    ` + "`data`" + ` = JSON_SET(` + "`data`" + `, '$.State', 902)
+WHERE run_id IN (%s)
+AND workflow_id = 'internal_payment_flow'
+AND state = 900;`,
+				RollbackTemplate: `UPDATE workflow_execution
+SET state = 900,
+    attempt = 1,
+    ` + "`data`" + ` = JSON_SET(` + "`data`" + `, '$.State', 900)
+WHERE run_id IN (%s)
+AND workflow_id = 'internal_payment_flow'
+AND state = 902;`,
+				TargetDB:    "PC",
+				WorkflowID:  "internal_payment_flow",
+				TargetState: 900,
+			}
+		}
+		return nil
+	},
 
 	// ========================================
 	// RPP (Real-time Payment Processing) Templates
 	// ========================================
-	domain.SOPCasePcExternalPaymentFlow201_0RPP210: func(result domain.TransactionResult) *DMLTicket {
+	domain.CasePcExternalPaymentFlow201_0RPP210: func(result domain.TransactionResult) *DMLTicket {
 		return &DMLTicket{
 			RunIDs: []string{result.RPPAdapter.Workflow.RunID},
 			DeployTemplate: `-- RPP 210, PE 220, PC 201. No response from RPP. Move to 222 to resume. ACSP
@@ -170,7 +197,7 @@ WHERE run_id IN (%s);`,
 		}
 	},
 
-	domain.SOPCasePcExternalPaymentFlow201_0RPP900: func(result domain.TransactionResult) *DMLTicket {
+	domain.CasePcExternalPaymentFlow201_0RPP900: func(result domain.TransactionResult) *DMLTicket {
 		return &DMLTicket{
 			RunIDs: []string{result.RPPAdapter.Workflow.RunID},
 			DeployTemplate: `-- RPP 900, PE 220, PC 201. Republish from RPP to resume. ACSP
@@ -191,7 +218,7 @@ WHERE run_id IN (%s);`,
 		}
 	},
 
-	domain.SOPCaseRppCashoutReject101_19: func(result domain.TransactionResult) *DMLTicket {
+	domain.CaseRppCashoutReject101_19: func(result domain.TransactionResult) *DMLTicket {
 		return &DMLTicket{
 			RunIDs: []string{result.RPPAdapter.Workflow.RunID},
 			DeployTemplate: `-- rpp_cashout_reject_101_19, manual reject
@@ -216,7 +243,7 @@ AND workflow_id = 'wf_ct_cashout';`,
 		}
 	},
 
-	domain.SOPCaseRppQrPaymentReject210_0: func(result domain.TransactionResult) *DMLTicket {
+	domain.CaseRppQrPaymentReject210_0: func(result domain.TransactionResult) *DMLTicket {
 		return &DMLTicket{
 			RunIDs: []string{result.RPPAdapter.Workflow.RunID},
 			DeployTemplate: `-- rpp_qr_payment_reject_210_0, manual reject
@@ -241,7 +268,7 @@ AND workflow_id = 'wf_ct_qr_payment';`,
 		}
 	},
 
-	domain.SOPCaseRppNoResponseResume: func(result domain.TransactionResult) *DMLTicket {
+	domain.CaseRppNoResponseResume: func(result domain.TransactionResult) *DMLTicket {
 		return &DMLTicket{
 			RunIDs:      []string{result.RPPAdapter.Workflow.RunID},
 			WorkflowIDs: []string{"'wf_ct_cashout'", "'wf_ct_qr_payment'"},

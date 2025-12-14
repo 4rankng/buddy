@@ -9,9 +9,9 @@ import (
 	"strings"
 )
 
-// SOPCaseRule defines a rule for identifying SOP cases
-type SOPCaseRule struct {
-	CaseType    domain.SOPCase
+// CaseRule defines a rule for identifying SOP cases
+type CaseRule struct {
+	CaseType    domain.Case
 	Description string
 	Country     string // optional: "", "my", "sg" for country-specific rules
 	Conditions  []RuleCondition
@@ -27,7 +27,7 @@ type RuleCondition struct {
 
 // SOPRepository manages SOP case rules and identification
 type SOPRepository struct {
-	rules []SOPCaseRule
+	rules []CaseRule
 }
 
 // Global SOPRepo instance (singleton)
@@ -41,10 +41,10 @@ func NewSOPRepository() *SOPRepository {
 }
 
 // getDefaultSOPRules returns the default SOP case rules
-func getDefaultSOPRules() []SOPCaseRule {
-	return []SOPCaseRule{
+func getDefaultSOPRules() []CaseRule {
+	return []CaseRule{
 		{
-			CaseType:    domain.SOPCasePcExternalPaymentFlow200_11,
+			CaseType:    domain.CasePcExternalPaymentFlow200_11,
 			Description: "PC External Payment Flow stuck at state 200 with attempt 11",
 			Conditions: []RuleCondition{
 				{
@@ -65,7 +65,7 @@ func getDefaultSOPRules() []SOPCaseRule {
 			},
 		},
 		{
-			CaseType:    domain.SOPCasePeTransferPayment210_0,
+			CaseType:    domain.CasePeTransferPayment210_0,
 			Description: "PE Transfer Payment stuck at state 210 with attempt 0",
 			Conditions: []RuleCondition{
 				{
@@ -86,7 +86,29 @@ func getDefaultSOPRules() []SOPCaseRule {
 			},
 		},
 		{
-			CaseType:    domain.SOPCasePe2200FastCashinFailed,
+			CaseType:    domain.CasePeStuck230RepublishPC,
+			Description: "PE stuck at state 230 (capture) requires PC republish",
+			Country:     "my",
+			Conditions: []RuleCondition{
+				{
+					FieldPath: "PaymentEngine.Workflow.WorkflowID",
+					Operator:  "eq",
+					Value:     "workflow_transfer_payment",
+				},
+				{
+					FieldPath: "PaymentEngine.Workflow.State",
+					Operator:  "eq",
+					Value:     "230",
+				},
+				{
+					FieldPath: "PaymentEngine.Workflow.Attempt",
+					Operator:  "eq",
+					Value:     0,
+				},
+			},
+		},
+		{
+			CaseType:    domain.CasePe2200FastCashinFailed,
 			Description: "PE Transfer Collection at state 220 with attempt 0 and Fast Adapter failed",
 			Conditions: []RuleCondition{
 				{
@@ -112,7 +134,7 @@ func getDefaultSOPRules() []SOPCaseRule {
 			},
 		},
 		{
-			CaseType:    domain.SOPCaseRppCashoutReject101_19,
+			CaseType:    domain.CaseRppCashoutReject101_19,
 			Description: "RPP Cashout Reject at state 101 with attempt 19",
 			Country:     "my",
 			Conditions: []RuleCondition{
@@ -134,7 +156,7 @@ func getDefaultSOPRules() []SOPCaseRule {
 			},
 		},
 		{
-			CaseType:    domain.SOPCaseRppQrPaymentReject210_0,
+			CaseType:    domain.CaseRppQrPaymentReject210_0,
 			Description: "RPP QR Payment Reject at state 210 with attempt 0",
 			Country:     "my",
 			Conditions: []RuleCondition{
@@ -156,7 +178,7 @@ func getDefaultSOPRules() []SOPCaseRule {
 			},
 		},
 		{
-			CaseType:    domain.SOPCaseRppNoResponseResume,
+			CaseType:    domain.CaseRppNoResponseResume,
 			Description: "RPP No Response Resume (timeout scenario)",
 			Country:     "my",
 			Conditions: []RuleCondition{
@@ -178,7 +200,7 @@ func getDefaultSOPRules() []SOPCaseRule {
 			},
 		},
 		{
-			CaseType:    domain.SOPCasePcExternalPaymentFlow201_0RPP900,
+			CaseType:    domain.CasePcExternalPaymentFlow201_0RPP900,
 			Description: "PC External Payment Flow 201/0 with RPP 900 (completed)",
 			Country:     "my",
 			Conditions: []RuleCondition{
@@ -220,7 +242,7 @@ func getDefaultSOPRules() []SOPCaseRule {
 			},
 		},
 		{
-			CaseType:    domain.SOPCasePcExternalPaymentFlow201_0RPP210,
+			CaseType:    domain.CasePcExternalPaymentFlow201_0RPP210,
 			Description: "PC External Payment Flow 201/0 with RPP not completed (stuck)",
 			Country:     "my",
 			Conditions: []RuleCondition{
@@ -263,10 +285,12 @@ func getDefaultSOPRules() []SOPCaseRule {
 		}}
 }
 
-// IdentifySOPCase identifies the SOP case for a transaction result
-func (r *SOPRepository) IdentifySOPCase(result *domain.TransactionResult, env string) domain.SOPCase {
+// IdentifyCase identifies the SOP case for a transaction result
+func (r *SOPRepository) IdentifyCase(result *domain.TransactionResult, env string) domain.Case {
+
 	// Check if we've already identified the case
-	if result.CaseType != domain.SOPCaseNone {
+	if result.CaseType != domain.CaseNone {
+
 		return result.CaseType
 	}
 
@@ -279,16 +303,18 @@ func (r *SOPRepository) IdentifySOPCase(result *domain.TransactionResult, env st
 
 		if r.evaluateRule(rule, result) {
 			result.CaseType = rule.CaseType
+
 			return result.CaseType
 		}
 	}
 
-	result.CaseType = domain.SOPCaseNone
+	result.CaseType = domain.CaseNone
+
 	return result.CaseType
 }
 
 // evaluateRule evaluates a single rule against a transaction result
-func (r *SOPRepository) evaluateRule(rule SOPCaseRule, result *domain.TransactionResult) bool {
+func (r *SOPRepository) evaluateRule(rule CaseRule, result *domain.TransactionResult) bool {
 	// Check if rule involves workflow fields
 	hasWorkflowFields := false
 	for _, condition := range rule.Conditions {
@@ -467,7 +493,6 @@ func (r *SOPRepository) isInSlice(value, slice interface{}) bool {
 	}
 	return false
 }
-
 
 // matchRegex checks if value matches regex pattern
 func (r *SOPRepository) matchRegex(value, pattern interface{}) bool {

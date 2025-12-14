@@ -309,6 +309,10 @@ func displayClassificationSection(w io.Writer, result domain.TransactionResult) 
 		return err
 	}
 
+	// Debug logging to understand what CaseType value we have
+	fmt.Printf("DEBUG: TransactionID=%s, CaseType='%s' (length=%d), IsEmpty=%v\n",
+		result.TransactionID, result.CaseType, len(result.CaseType), result.CaseType == "")
+
 	if _, err := fmt.Fprintf(w, "%s\n", result.CaseType); err != nil {
 		fmt.Printf("Warning: failed to write case type: %v\n", err)
 	}

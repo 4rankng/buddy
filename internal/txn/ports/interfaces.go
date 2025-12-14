@@ -46,5 +46,5 @@ type ClientPort interface {
 
 // SOPRepositoryPort defines the interface for SOP repository operations
 type SOPRepositoryPort interface {
-	IdentifySOPCase(result *domain.TransactionResult, env string)
+	IdentifyCase(result *domain.TransactionResult, env string)
 }

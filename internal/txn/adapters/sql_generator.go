@@ -17,33 +17,33 @@ func contains(slice []string, item string) bool {
 }
 
 // getCaseTypeFromTicket determines the SOP case type based on ticket characteristics
-func getCaseTypeFromTicket(ticket DMLTicket) domain.SOPCase {
+func getCaseTypeFromTicket(ticket DMLTicket) domain.Case {
 	// Match based on template content and other characteristics
 	if strings.Contains(ticket.DeployTemplate, "pc_external_payment_flow_200_11") {
-		return domain.SOPCasePcExternalPaymentFlow200_11
+		return domain.CasePcExternalPaymentFlow200_11
 	}
 	if strings.Contains(ticket.DeployTemplate, "state = 222") {
-		return domain.SOPCasePcExternalPaymentFlow201_0RPP210
+		return domain.CasePcExternalPaymentFlow201_0RPP210
 	}
 	if strings.Contains(ticket.DeployTemplate, "state = 301") {
-		return domain.SOPCasePcExternalPaymentFlow201_0RPP900
+		return domain.CasePcExternalPaymentFlow201_0RPP900
 	}
 	if strings.Contains(ticket.DeployTemplate, "workflow_transfer_payment") {
-		return domain.SOPCasePeTransferPayment210_0
+		return domain.CasePeTransferPayment210_0
 	}
 	if strings.Contains(ticket.DeployTemplate, "pe_220_0_fast_cashin_failed") {
-		return domain.SOPCasePe2200FastCashinFailed
+		return domain.CasePe2200FastCashinFailed
 	}
 	if strings.Contains(ticket.DeployTemplate, "state = 311") {
-		return domain.SOPCaseRppCashoutReject101_19
+		return domain.CaseRppCashoutReject101_19
 	}
 	if strings.Contains(ticket.DeployTemplate, "state = 221") && strings.Contains(ticket.DeployTemplate, "wf_ct_qr_payment") {
-		return domain.SOPCaseRppQrPaymentReject210_0
+		return domain.CaseRppQrPaymentReject210_0
 	}
 	if strings.Contains(ticket.DeployTemplate, "state = 222") && strings.Contains(ticket.DeployTemplate, "rpp_no_response_resume_acsp") {
-		return domain.SOPCaseRppNoResponseResume
+		return domain.CaseRppNoResponseResume
 	}
-	return domain.SOPCaseNone
+	return domain.CaseNone
 }
 
 // appendStatements is a helper to merge results into the main struct
@@ -64,6 +64,17 @@ func getPcExtPayment200_11RunID(result domain.TransactionResult) string {
 		}
 	}
 	return ""
+}
+
+// getInternalPaymentFlowRunIDs returns all internal_payment_flow run IDs for a transaction result
+func getInternalPaymentFlowRunIDs(result domain.TransactionResult) []string {
+	var runIDs []string
+	for _, w := range result.PaymentCore.Workflow {
+		if w.WorkflowID == "internal_payment_flow" && w.RunID != "" {
+			runIDs = append(runIDs, w.RunID)
+		}
+	}
+	return runIDs
 }
 
 // generateSQLFromTicket generates SQL statements from a DML ticket

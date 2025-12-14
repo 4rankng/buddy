@@ -102,27 +102,54 @@ type TransactionResult struct {
 	PaymentCore      PaymentCoreInfo
 	FastAdapter      FastAdapterInfo
 	RPPAdapter       RPPAdapterInfo
-	CaseType         SOPCase // Store the identified SOP case to avoid re-identification
+	CaseType         Case // Store the identified SOP case to avoid re-identification
 	Error            string
 }
 
 // Common status values
 const NotFoundStatus = "NOT_FOUND"
 
-// SOPCase represents the supported remediation cases from SOP.md
-type SOPCase string
+// Case represents the supported remediation cases from SOP.md
+type Case string
 
 const (
-	SOPCaseNone                             SOPCase = NotFoundStatus
-	SOPCasePcExternalPaymentFlow200_11      SOPCase = "pc_external_payment_flow_200_11"
-	SOPCasePcExternalPaymentFlow201_0RPP210 SOPCase = "pc_external_payment_flow_201_0_RPP_210"
-	SOPCasePcExternalPaymentFlow201_0RPP900 SOPCase = "pc_external_payment_flow_201_0_RPP_900"
-	SOPCasePeTransferPayment210_0           SOPCase = "pe_transfer_payment_210_0"
-	SOPCaseRppCashoutReject101_19           SOPCase = "rpp_cashout_reject_101_19"
-	SOPCaseRppQrPaymentReject210_0          SOPCase = "rpp_qr_payment_reject_210_0"
-	SOPCaseRppNoResponseResume              SOPCase = "rpp_no_response_resume"
-	SOPCasePe2200FastCashinFailed           SOPCase = "pe_220_0_fast_cashin_failed"
+	CaseNone                             Case = NotFoundStatus
+	CasePcExternalPaymentFlow200_11      Case = "pc_external_payment_flow_200_11"
+	CasePcExternalPaymentFlow201_0RPP210 Case = "pc_external_payment_flow_201_0_RPP_210"
+	CasePcExternalPaymentFlow201_0RPP900 Case = "pc_external_payment_flow_201_0_RPP_900"
+	CasePeTransferPayment210_0           Case = "pe_transfer_payment_210_0"
+	CasePeStuck230RepublishPC            Case = "pe_stuck_230_republish_pc"
+	CaseRppCashoutReject101_19           Case = "rpp_cashout_reject_101_19"
+	CaseRppQrPaymentReject210_0          Case = "rpp_qr_payment_reject_210_0"
+	CaseRppNoResponseResume              Case = "rpp_no_response_resume"
+	CasePe2200FastCashinFailed           Case = "pe_220_0_fast_cashin_failed"
 )
+
+// CaseSummaryOrder defines the order in which SOP cases should be displayed in summaries
+var CaseSummaryOrder = []Case{
+	CasePcExternalPaymentFlow200_11,
+	CasePcExternalPaymentFlow201_0RPP210,
+	CasePcExternalPaymentFlow201_0RPP900,
+	CasePeTransferPayment210_0,
+	CasePeStuck230RepublishPC,
+	CasePe2200FastCashinFailed,
+	CaseRppCashoutReject101_19,
+	CaseRppQrPaymentReject210_0,
+	CaseRppNoResponseResume,
+}
+
+// CaseDisplayNames maps SOP cases to their printable names
+var CaseDisplayNames = map[Case]string{
+	CasePcExternalPaymentFlow200_11:      "pc_external_payment_flow_200_11",
+	CasePcExternalPaymentFlow201_0RPP210: "pc_external_payment_flow_201_0_RPP_210",
+	CasePcExternalPaymentFlow201_0RPP900: "pc_external_payment_flow_201_0_RPP_900",
+	CasePeTransferPayment210_0:           "pe_transfer_payment_210_0",
+	CasePeStuck230RepublishPC:            "pe_stuck_230_republish_pc",
+	CasePe2200FastCashinFailed:           "pe_220_0_fast_cashin_failed",
+	CaseRppCashoutReject101_19:           "rpp_cashout_reject_101_19",
+	CaseRppQrPaymentReject210_0:          "rpp_qr_payment_reject_210_0",
+	CaseRppNoResponseResume:              "rpp_no_response_resume",
+}
 
 // WorkflowStateMaps contains state mappings for different workflow types
 var WorkflowStateMaps = map[string]map[int]string{
