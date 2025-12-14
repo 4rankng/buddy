@@ -39,6 +39,98 @@ func getInternalPaymentFlowRunIDs(result domain.TransactionResult) []string {
 
 // Helper Functions for SQL Generation
 
+// countPlaceholders counts %s occurrences in a template
+func countPlaceholders(template string) int {
+	return strings.Count(template, "%s")
+}
+
+// flattenParameters converts array parameters into individual parameters
+// It groups array parameters by index to maintain pairing
+func flattenParameters(params []domain.ParamInfo) []domain.ParamInfo {
+	// First, find the maximum array length
+	maxArrayLen := 0
+	for _, param := range params {
+		switch param.Type {
+		case "string_array":
+			if arr, ok := param.Value.([]string); ok && len(arr) > maxArrayLen {
+				maxArrayLen = len(arr)
+			}
+		case "int_array":
+			if arr, ok := param.Value.([]int); ok && len(arr) > maxArrayLen {
+				maxArrayLen = len(arr)
+			}
+		}
+	}
+
+	// If no arrays, return params as-is
+	if maxArrayLen == 0 {
+		return params
+	}
+
+	// Create flattened parameters by grouping array elements
+	var flattened []domain.ParamInfo
+	for i := 0; i < maxArrayLen; i++ {
+		for _, param := range params {
+			switch param.Type {
+			case "string_array":
+				if arr, ok := param.Value.([]string); ok {
+					if i < len(arr) {
+						flattened = append(flattened, domain.ParamInfo{
+							Name:  param.Name,
+							Value: arr[i],
+							Type:  "string",
+						})
+					}
+				}
+			case "int_array":
+				if arr, ok := param.Value.([]int); ok {
+					if i < len(arr) {
+						flattened = append(flattened, domain.ParamInfo{
+							Name:  param.Name,
+							Value: arr[i],
+							Type:  "int",
+						})
+					}
+				}
+			default:
+				// For non-array parameters, repeat them for each group
+				if i == 0 {
+					flattened = append(flattened, param)
+				}
+			}
+		}
+	}
+
+	return flattened
+}
+
+// groupParameters groups flattened parameters by statement count
+func groupParameters(params []domain.ParamInfo, placeholders int) [][]domain.ParamInfo {
+	if placeholders == 0 {
+		return [][]domain.ParamInfo{params}
+	}
+
+	totalParams := len(params)
+
+	// Check if we have enough parameters
+	if totalParams%placeholders != 0 {
+		return nil // Not enough parameters to form complete statements
+	}
+
+	statementsCount := totalParams / placeholders
+	groups := make([][]domain.ParamInfo, statementsCount)
+
+	for i := 0; i < statementsCount; i++ {
+		start := i * placeholders
+		end := start + placeholders
+		group := make([]domain.ParamInfo, placeholders)
+		copy(group, params[start:end])
+		groups[i] = group
+	}
+
+	return groups
+}
+
 // formatParameter formats a parameter value based on its type for SQL usage
 func formatParameter(info domain.ParamInfo) string {
 	switch info.Type {
@@ -86,6 +178,8 @@ func buildSQLFromTemplate(template string, params []domain.ParamInfo) (string, e
 }
 
 // getParamValue finds and returns the value of a parameter by name
+// DEPRECATED: No longer used with the new consolidation strategy
+/*
 func getParamValue(params []domain.ParamInfo, name string) interface{} {
 	for _, param := range params {
 		if param.Name == name {
@@ -96,6 +190,7 @@ func getParamValue(params []domain.ParamInfo, name string) interface{} {
 }
 
 // updateParamValue creates a new parameter slice with updated value for the given parameter name
+// DEPRECATED: No longer used with the new consolidation strategy
 func updateParamValue(params []domain.ParamInfo, name string, newValue interface{}) []domain.ParamInfo {
 	newParams := make([]domain.ParamInfo, len(params))
 	copy(newParams, params)
@@ -108,6 +203,7 @@ func updateParamValue(params []domain.ParamInfo, name string, newValue interface
 	}
 	return newParams
 }
+*/
 
 // validateSQL checks if the generated SQL matches expected template structure
 func validateSQL(sql, template string) error {
@@ -122,13 +218,7 @@ func validateSQL(sql, template string) error {
 	return nil
 }
 
-// checkIndividualStatementNeeded determines if a case requires individual statements
-func checkIndividualStatementNeeded(caseType domain.Case) bool {
-	// Only the thought machine false negative case needs individual statements due to prev_trans_id
-	return caseType == domain.CaseThoughtMachineFalseNegative
-}
-
-// generateSQLFromTicket generates SQL statements from a DML ticket using the universal builder
+// generateSQLFromTicket generates SQL statements from a DML ticket using parameter-based logic
 func generateSQLFromTicket(ticket domain.DMLTicket) (domain.SQLStatements, error) {
 	// Validate input
 	if len(ticket.DeployParams) == 0 && len(ticket.RollbackParams) == 0 {
@@ -142,62 +232,76 @@ func generateSQLFromTicket(ticket domain.DMLTicket) (domain.SQLStatements, error
 
 	statements := domain.SQLStatements{}
 
-	// Check if we need individual statements (for prev_trans_id cases)
-	if checkIndividualStatementNeeded(ticket.CaseType) {
-		// Generate individual statements for each run ID
-		runIDsParam := getParamValue(ticket.DeployParams, "run_ids")
-		if runIDsArray, ok := runIDsParam.([]string); ok {
-			for _, runID := range runIDsArray {
-				// Create a single-run ticket for individual processing
-				singleTicket := ticket
-				singleTicket.DeployParams = updateParamValue(ticket.DeployParams, "run_ids", []string{runID})
-				singleTicket.RollbackParams = updateParamValue(ticket.RollbackParams, "run_ids", []string{runID})
+	// DEPLOY: Use parameter-based logic
+	deployPlaceholders := countPlaceholders(ticket.DeployTemplate)
+	deployFlattened := flattenParameters(ticket.DeployParams)
 
-				// Generate SQL using universal builder
-				deploySQL, err := buildSQLFromTemplate(singleTicket.DeployTemplate, singleTicket.DeployParams)
-				if err != nil {
-					return domain.SQLStatements{}, fmt.Errorf("failed to generate deploy SQL for case %s, run ID %s: %w", ticket.CaseType, runID, err)
-				}
+	if len(deployFlattened) < deployPlaceholders {
+		return domain.SQLStatements{}, fmt.Errorf("insufficient deploy parameters: need %d, got %d", deployPlaceholders, len(deployFlattened))
+	}
 
-				rollbackSQL, err := buildSQLFromTemplate(singleTicket.RollbackTemplate, singleTicket.RollbackParams)
-				if err != nil {
-					return domain.SQLStatements{}, fmt.Errorf("failed to generate rollback SQL for case %s, run ID %s: %w", ticket.CaseType, runID, err)
-				}
-
-				// Validate generated SQL
-				if err := validateSQL(deploySQL, ticket.DeployTemplate); err != nil {
-					return domain.SQLStatements{}, fmt.Errorf("deploy SQL validation failed: %w", err)
-				}
-				if err := validateSQL(rollbackSQL, ticket.RollbackTemplate); err != nil {
-					return domain.SQLStatements{}, fmt.Errorf("rollback SQL validation failed: %w", err)
-				}
-
-				// Add to appropriate statement list based on target DB
-				addStatementToDatabase(&statements, ticket.TargetDB, deploySQL, rollbackSQL)
-			}
-		}
-	} else {
-		// Generate batch statement for all parameters
-		deploySQL, err := buildSQLFromTemplate(ticket.DeployTemplate, ticket.DeployParams)
+	if len(deployFlattened) == deployPlaceholders {
+		// Generate single statement
+		deploySQL, err := buildSQLFromTemplate(ticket.DeployTemplate, deployFlattened)
 		if err != nil {
 			return domain.SQLStatements{}, fmt.Errorf("failed to generate deploy SQL for case %s: %w", ticket.CaseType, err)
 		}
-
-		rollbackSQL, err := buildSQLFromTemplate(ticket.RollbackTemplate, ticket.RollbackParams)
-		if err != nil {
-			return domain.SQLStatements{}, fmt.Errorf("failed to generate rollback SQL for case %s: %w", ticket.CaseType, err)
-		}
-
-		// Validate generated SQL
 		if err := validateSQL(deploySQL, ticket.DeployTemplate); err != nil {
 			return domain.SQLStatements{}, fmt.Errorf("deploy SQL validation failed: %w", err)
+		}
+		addStatementToDatabase(&statements, ticket.TargetDB, deploySQL, "")
+	} else {
+		// Generate multiple statements
+		deployGroups := groupParameters(deployFlattened, deployPlaceholders)
+		if deployGroups == nil {
+			return domain.SQLStatements{}, fmt.Errorf("deploy parameters count (%d) is not divisible by placeholder count (%d)", len(deployFlattened), deployPlaceholders)
+		}
+		for _, group := range deployGroups {
+			deploySQL, err := buildSQLFromTemplate(ticket.DeployTemplate, group)
+			if err != nil {
+				return domain.SQLStatements{}, fmt.Errorf("failed to generate deploy SQL for case %s: %w", ticket.CaseType, err)
+			}
+			if err := validateSQL(deploySQL, ticket.DeployTemplate); err != nil {
+				return domain.SQLStatements{}, fmt.Errorf("deploy SQL validation failed: %w", err)
+			}
+			addStatementToDatabase(&statements, ticket.TargetDB, deploySQL, "")
+		}
+	}
+
+	// ROLLBACK: Use parameter-based logic
+	rollbackPlaceholders := countPlaceholders(ticket.RollbackTemplate)
+	rollbackFlattened := flattenParameters(ticket.RollbackParams)
+
+	if len(rollbackFlattened) < rollbackPlaceholders {
+		return domain.SQLStatements{}, fmt.Errorf("insufficient rollback parameters: need %d, got %d", rollbackPlaceholders, len(rollbackFlattened))
+	}
+
+	if len(rollbackFlattened) == rollbackPlaceholders {
+		// Generate single statement
+		rollbackSQL, err := buildSQLFromTemplate(ticket.RollbackTemplate, rollbackFlattened)
+		if err != nil {
+			return domain.SQLStatements{}, fmt.Errorf("failed to generate rollback SQL for case %s: %w", ticket.CaseType, err)
 		}
 		if err := validateSQL(rollbackSQL, ticket.RollbackTemplate); err != nil {
 			return domain.SQLStatements{}, fmt.Errorf("rollback SQL validation failed: %w", err)
 		}
-
-		// Add to appropriate statement list based on target DB
-		addStatementToDatabase(&statements, ticket.TargetDB, deploySQL, rollbackSQL)
+		addStatementToDatabase(&statements, ticket.TargetDB, "", rollbackSQL)
+	} else {
+		// Generate multiple statements
+		rollbackGroups := groupParameters(rollbackFlattened, rollbackPlaceholders)
+		if rollbackGroups == nil {
+			return domain.SQLStatements{}, fmt.Errorf("rollback parameters count (%d) is not divisible by placeholder count (%d)", len(rollbackFlattened), rollbackPlaceholders)
+		}
+		for _, group := range rollbackGroups {
+			rollbackSQL, err := buildSQLFromTemplate(ticket.RollbackTemplate, group)
+			if err != nil {
+				return domain.SQLStatements{}, fmt.Errorf("failed to generate rollback SQL for case %s: %w", ticket.CaseType, err)
+			}
+			if err := validateSQL(rollbackSQL, ticket.RollbackTemplate); err != nil {
+				return domain.SQLStatements{}, fmt.Errorf("rollback SQL validation failed: %w", err)
+			}
+			addStatementToDatabase(&statements, ticket.TargetDB, "", rollbackSQL)
+		}
 	}
 
 	return statements, nil
@@ -207,13 +311,25 @@ func generateSQLFromTicket(ticket domain.DMLTicket) (domain.SQLStatements, error
 func addStatementToDatabase(statements *domain.SQLStatements, targetDB string, deploySQL, rollbackSQL string) {
 	switch targetDB {
 	case "PC":
-		statements.PCDeployStatements = append(statements.PCDeployStatements, deploySQL)
-		statements.PCRollbackStatements = append(statements.PCRollbackStatements, rollbackSQL)
+		if deploySQL != "" {
+			statements.PCDeployStatements = append(statements.PCDeployStatements, deploySQL)
+		}
+		if rollbackSQL != "" {
+			statements.PCRollbackStatements = append(statements.PCRollbackStatements, rollbackSQL)
+		}
 	case "PE":
-		statements.PEDeployStatements = append(statements.PEDeployStatements, deploySQL)
-		statements.PERollbackStatements = append(statements.PERollbackStatements, rollbackSQL)
+		if deploySQL != "" {
+			statements.PEDeployStatements = append(statements.PEDeployStatements, deploySQL)
+		}
+		if rollbackSQL != "" {
+			statements.PERollbackStatements = append(statements.PERollbackStatements, rollbackSQL)
+		}
 	case "RPP":
-		statements.RPPDeployStatements = append(statements.RPPDeployStatements, deploySQL)
-		statements.RPPRollbackStatements = append(statements.RPPRollbackStatements, rollbackSQL)
+		if deploySQL != "" {
+			statements.RPPDeployStatements = append(statements.RPPDeployStatements, deploySQL)
+		}
+		if rollbackSQL != "" {
+			statements.RPPRollbackStatements = append(statements.RPPRollbackStatements, rollbackSQL)
+		}
 	}
 }

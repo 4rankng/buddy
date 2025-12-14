@@ -574,34 +574,3 @@ func TestValidateSQL(t *testing.T) {
 		})
 	}
 }
-
-func TestCheckIndividualStatementNeeded(t *testing.T) {
-	tests := []struct {
-		name     string
-		caseType domain.Case
-		expected bool
-	}{
-		{
-			name:     "case with prev_trans_id",
-			caseType: domain.CaseThoughtMachineFalseNegative,
-			expected: true,
-		},
-		{
-			name:     "case without prev_trans_id",
-			caseType: domain.CasePcExternalPaymentFlow200_11,
-			expected: false,
-		},
-		{
-			name:     "unknown case",
-			caseType: domain.Case("UnknownCase"),
-			expected: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := checkIndividualStatementNeeded(tt.caseType)
-			assert.Equal(t, tt.expected, result)
-		})
-	}
-}
