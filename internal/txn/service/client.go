@@ -16,12 +16,9 @@ func NewDoormanClient() *DoormanClient {
 	// Ensure the global doorman client is initialized
 	if doorman.Doorman == nil {
 		// Initialize with Malaysia environment as default if not already done
-		if err := doorman.NewDoormanClient("my"); err != nil {
-			// If initialization fails, we can't proceed
-			// This will be caught when QueryPaymentEngine is called
-		}
+		_ = doorman.NewDoormanClient("my") // If initialization fails, it will be caught when QueryPaymentEngine is called
 	}
-	
+
 	return &DoormanClient{
 		client: doorman.Doorman,
 	}

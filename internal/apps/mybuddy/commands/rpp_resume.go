@@ -154,7 +154,11 @@ func generateRppResumeSQL(appCtx *common.Context, result domain.TransactionResul
 	}
 
 	// Generate SQL statements
-	statements := adapters.GenerateSQLFromTicket(*ticket)
+	statements, err := adapters.GenerateSQLFromTicket(*ticket)
+	if err != nil {
+		fmt.Printf("%sError generating SQL: %v\n", appCtx.GetPrefix(), err)
+		return
+	}
 
 	// Output to console
 	if len(statements.RPPDeployStatements) > 0 {

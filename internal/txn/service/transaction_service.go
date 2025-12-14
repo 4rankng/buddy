@@ -205,7 +205,7 @@ func (s *TransactionQueryService) populatePaymentEngineWorkflow(result *domain.T
 			result.PaymentEngine.Workflow.State = fmt.Sprintf("%v", state)
 		}
 	}
-	
+
 	// Populate prev_trans_id field
 	if prevTransID, ok := workflow["prev_trans_id"]; ok {
 		result.PaymentEngine.Workflow.PrevTransID = fmt.Sprintf("%v", prevTransID)

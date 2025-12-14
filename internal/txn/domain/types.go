@@ -23,7 +23,7 @@ type WorkflowInfo struct {
 	Attempt     int    // workflow_execution.attempt
 	State       string // workflow_execution.state
 	RunID       string // workflow_execution.run_id
-	PrevTransID  string // workflow_execution.prev_trans_id
+	PrevTransID string // workflow_execution.prev_trans_id
 }
 
 // GetFormattedState returns the formatted state with name and number

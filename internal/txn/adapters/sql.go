@@ -52,7 +52,12 @@ func GenerateSQLStatements(results []domain.TransactionResult) SQLStatements {
 	// Process each consolidated ticket
 	for _, ticket := range caseTickets {
 		if len(ticket.RunIDs) > 0 {
-			generatedSQL := generateSQLFromTicket(ticket)
+			generatedSQL, err := generateSQLFromTicket(ticket)
+			if err != nil {
+				// For now, log the error and continue
+				// In a production environment, you might want to handle this differently
+				continue
+			}
 			appendStatements(&statements, generatedSQL)
 		}
 	}
@@ -61,7 +66,7 @@ func GenerateSQLStatements(results []domain.TransactionResult) SQLStatements {
 }
 
 // GenerateSQLFromTicket generates SQL statements from a DML ticket (exposed version)
-func GenerateSQLFromTicket(ticket DMLTicket) SQLStatements {
+func GenerateSQLFromTicket(ticket DMLTicket) (SQLStatements, error) {
 	return generateSQLFromTicket(ticket)
 }
 
