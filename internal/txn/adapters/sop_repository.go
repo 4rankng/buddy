@@ -48,17 +48,12 @@ func getDefaultSOPRules() []CaseRule {
 			Description: "PC External Payment Flow stuck at state 200 with attempt 11",
 			Conditions: []RuleCondition{
 				{
-					FieldPath: "PaymentCore.Workflow.WorkflowID",
-					Operator:  "eq",
-					Value:     "external_payment_flow",
-				},
-				{
-					FieldPath: "PaymentCore.Workflow.State",
+					FieldPath: "PaymentCore.ExternalTransfer.Workflow.State",
 					Operator:  "eq",
 					Value:     "200",
 				},
 				{
-					FieldPath: "PaymentCore.Workflow.Attempt",
+					FieldPath: "PaymentCore.ExternalTransfer.Workflow.Attempt",
 					Operator:  "eq",
 					Value:     11,
 				},
@@ -111,17 +106,12 @@ func getDefaultSOPRules() []CaseRule {
 					Value:     0,
 				},
 				{
-					FieldPath: "PaymentCore.Workflow.WorkflowID",
-					Operator:  "eq",
-					Value:     "internal_payment_flow",
-				},
-				{
-					FieldPath: "PaymentCore.Workflow.State",
+					FieldPath: "PaymentCore.InternalCapture.Workflow.State",
 					Operator:  "eq",
 					Value:     "900",
 				},
 				{
-					FieldPath: "PaymentCore.Workflow.Attempt",
+					FieldPath: "PaymentCore.InternalCapture.Workflow.Attempt",
 					Operator:  "eq",
 					Value:     0,
 				},
@@ -240,17 +230,12 @@ func getDefaultSOPRules() []CaseRule {
 					Value:     "",
 				},
 				{
-					FieldPath: "PaymentCore.Workflow.WorkflowID",
-					Operator:  "eq",
-					Value:     "external_payment_flow",
-				},
-				{
-					FieldPath: "PaymentCore.Workflow.State",
+					FieldPath: "PaymentCore.ExternalTransfer.Workflow.State",
 					Operator:  "eq",
 					Value:     "201",
 				},
 				{
-					FieldPath: "PaymentCore.Workflow.Attempt",
+					FieldPath: "PaymentCore.ExternalTransfer.Workflow.Attempt",
 					Operator:  "eq",
 					Value:     0,
 				},
@@ -282,17 +267,12 @@ func getDefaultSOPRules() []CaseRule {
 					Value:     "",
 				},
 				{
-					FieldPath: "PaymentCore.Workflow.WorkflowID",
-					Operator:  "eq",
-					Value:     "external_payment_flow",
-				},
-				{
-					FieldPath: "PaymentCore.Workflow.State",
+					FieldPath: "PaymentCore.ExternalTransfer.Workflow.State",
 					Operator:  "eq",
 					Value:     "201",
 				},
 				{
-					FieldPath: "PaymentCore.Workflow.Attempt",
+					FieldPath: "PaymentCore.ExternalTransfer.Workflow.Attempt",
 					Operator:  "eq",
 					Value:     0,
 				},
