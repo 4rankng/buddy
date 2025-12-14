@@ -27,17 +27,13 @@ func (p *PaymentEngineAdapter) QueryTransfer(transactionID string) (map[string]i
 }
 
 func (p *PaymentEngineAdapter) QueryWorkflow(referenceID string) (map[string]interface{}, error) {
-	query := fmt.Sprintf("SELECT run_id, workflow_id, state, attempt, created_at, updated_at FROM workflow_execution WHERE run_id='%s'", referenceID)
-	fmt.Printf("DEBUG: Executing workflow query: %s\n", query)
+	query := fmt.Sprintf("SELECT run_id, workflow_id, prev_trans_id, state, attempt, created_at, updated_at FROM workflow_execution WHERE run_id='%s'", referenceID)
 	workflows, err := p.client.QueryPaymentEngine(query)
 	if err != nil {
-		fmt.Printf("DEBUG: Workflow query returned error: %v\n", err)
 		return nil, err
 	}
 	if len(workflows) == 0 {
-		fmt.Printf("DEBUG: Workflow query returned no results for ReferenceID: %s\n", referenceID)
 		return nil, fmt.Errorf("no workflow found")
 	}
-	fmt.Printf("DEBUG: Workflow query returned %d results\n", len(workflows))
 	return workflows[0], nil
 }

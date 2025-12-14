@@ -16,7 +16,7 @@ func contains(slice []string, item string) bool {
 	return false
 }
 
-// appendStatements is a helper to merge results into the main struct
+// appendStatements is a helper to merge results into main struct
 func appendStatements(main *SQLStatements, new SQLStatements) {
 	main.PCDeployStatements = append(main.PCDeployStatements, new.PCDeployStatements...)
 	main.PCRollbackStatements = append(main.PCRollbackStatements, new.PCRollbackStatements...)
@@ -53,56 +53,123 @@ func generateSQLFromTicket(ticket DMLTicket) SQLStatements {
 		return SQLStatements{}
 	}
 
-	// Create comma-separated list of quoted IDs
-	quotedIDs := make([]string, len(ticket.RunIDs))
-	for i, id := range ticket.RunIDs {
-		quotedIDs[i] = fmt.Sprintf("'%s'", id)
-	}
-	inClause := strings.Join(quotedIDs, ", ")
-
 	statements := SQLStatements{}
 
-	// Generate deploy and rollback statements
-	var deploySQL, rollbackSQL string
-
-	// Use the CaseType from the ticket instead of a parameter
+	// Use CaseType from ticket instead of a parameter
 	config, exists := templateConfigs[ticket.CaseType]
-	if !exists {
-		// Default to run_ids only
-		deploySQL = fmt.Sprintf(ticket.DeployTemplate, inClause)
-		rollbackSQL = fmt.Sprintf(ticket.RollbackTemplate, inClause)
+	
+	// Check if we need individual statements (for prev_trans_id cases)
+	needsIndividualStatements := exists && contains(config.Parameters, "prev_trans_id")
+	
+	if needsIndividualStatements {
+		// Generate individual statements for each run ID
+		for _, runID := range ticket.RunIDs {
+			quotedID := fmt.Sprintf("'%s'", runID)
+			
+			// Get the original prev_trans_id for this specific run_id
+			// For thought_machine_false_negative, we need to query the current prev_trans_id
+			// This would be done before creating the ticket, so we assume it's stored in the ticket
+			var prevTransID string
+			if ticket.CaseType == domain.CaseThoughtMachineFalseNegative {
+				// For rollback, we need to use the original prev_trans_id value
+				// This should be populated when the ticket is created
+				prevTransID = ticket.PrevTransID
+			}
+			
+			// Generate deploy and rollback statements
+			var deploySQL, rollbackSQL string
+			if !exists {
+				// Default to run_ids only
+				deploySQL = fmt.Sprintf(ticket.DeployTemplate, quotedID)
+				rollbackSQL = fmt.Sprintf(ticket.RollbackTemplate, quotedID)
+			} else {
+				// Generate based on parameter types
+				if len(config.Parameters) == 2 {
+					// Check if it's workflow_id (single), workflow_ids (multiple), or prev_trans_id
+					if contains(config.Parameters, "workflow_ids") {
+						workflowIDsClause := strings.Join(ticket.WorkflowIDs, ", ")
+						deploySQL = fmt.Sprintf(ticket.DeployTemplate, quotedID, workflowIDsClause)
+						rollbackSQL = fmt.Sprintf(ticket.RollbackTemplate, quotedID, workflowIDsClause)
+					} else if contains(config.Parameters, "workflow_id") {
+						deploySQL = fmt.Sprintf(ticket.DeployTemplate, quotedID, ticket.WorkflowID)
+						rollbackSQL = fmt.Sprintf(ticket.RollbackTemplate, quotedID, ticket.WorkflowID)
+					} else if contains(config.Parameters, "prev_trans_id") {
+						deploySQL = fmt.Sprintf(ticket.DeployTemplate, quotedID)
+						rollbackSQL = fmt.Sprintf(ticket.RollbackTemplate, prevTransID, quotedID)
+					} else {
+						deploySQL = fmt.Sprintf(ticket.DeployTemplate, quotedID)
+						rollbackSQL = fmt.Sprintf(ticket.RollbackTemplate, quotedID)
+					}
+				} else {
+					deploySQL = fmt.Sprintf(ticket.DeployTemplate, quotedID)
+					rollbackSQL = fmt.Sprintf(ticket.RollbackTemplate, quotedID)
+				}
+			}
+
+			// Add to appropriate statement list based on target DB
+			switch ticket.TargetDB {
+			case "PC":
+				statements.PCDeployStatements = append(statements.PCDeployStatements, deploySQL)
+				statements.PCRollbackStatements = append(statements.PCRollbackStatements, rollbackSQL)
+			case "PE":
+				statements.PEDeployStatements = append(statements.PEDeployStatements, deploySQL)
+				statements.PERollbackStatements = append(statements.PERollbackStatements, rollbackSQL)
+			case "RPP":
+				statements.RPPDeployStatements = append(statements.RPPDeployStatements, deploySQL)
+				statements.RPPRollbackStatements = append(statements.RPPRollbackStatements, rollbackSQL)
+			}
+		}
 	} else {
-		// Generate based on parameter types
-		if len(config.Parameters) == 2 {
-			// Check if it's workflow_id (single) or workflow_ids (multiple)
-			if contains(config.Parameters, "workflow_ids") {
-				workflowIDsClause := strings.Join(ticket.WorkflowIDs, ", ")
-				deploySQL = fmt.Sprintf(ticket.DeployTemplate, inClause, workflowIDsClause)
-				rollbackSQL = fmt.Sprintf(ticket.RollbackTemplate, inClause, workflowIDsClause)
-			} else if contains(config.Parameters, "workflow_id") {
-				deploySQL = fmt.Sprintf(ticket.DeployTemplate, inClause, ticket.WorkflowID)
-				rollbackSQL = fmt.Sprintf(ticket.RollbackTemplate, inClause, ticket.WorkflowID)
+		// Generate batch statement for all run IDs
+		// Create comma-separated list of quoted IDs
+		quotedIDs := make([]string, len(ticket.RunIDs))
+		for i, id := range ticket.RunIDs {
+			quotedIDs[i] = fmt.Sprintf("'%s'", id)
+		}
+		inClause := strings.Join(quotedIDs, ", ")
+
+		// Generate deploy and rollback statements
+		var deploySQL, rollbackSQL string
+		if !exists {
+			// Default to run_ids only
+			deploySQL = fmt.Sprintf(ticket.DeployTemplate, inClause)
+			rollbackSQL = fmt.Sprintf(ticket.RollbackTemplate, inClause)
+		} else {
+			// Generate based on parameter types
+			if len(config.Parameters) == 2 {
+				// Check if it's workflow_id (single), workflow_ids (multiple), or prev_trans_id
+				if contains(config.Parameters, "workflow_ids") {
+					workflowIDsClause := strings.Join(ticket.WorkflowIDs, ", ")
+					deploySQL = fmt.Sprintf(ticket.DeployTemplate, inClause, workflowIDsClause)
+					rollbackSQL = fmt.Sprintf(ticket.RollbackTemplate, inClause, workflowIDsClause)
+				} else if contains(config.Parameters, "workflow_id") {
+					deploySQL = fmt.Sprintf(ticket.DeployTemplate, inClause, ticket.WorkflowID)
+					rollbackSQL = fmt.Sprintf(ticket.RollbackTemplate, inClause, ticket.WorkflowID)
+				} else if contains(config.Parameters, "prev_trans_id") {
+					deploySQL = fmt.Sprintf(ticket.DeployTemplate, inClause)
+					rollbackSQL = fmt.Sprintf(ticket.RollbackTemplate, ticket.PrevTransID, inClause)
+				} else {
+					deploySQL = fmt.Sprintf(ticket.DeployTemplate, inClause)
+					rollbackSQL = fmt.Sprintf(ticket.RollbackTemplate, inClause)
+				}
 			} else {
 				deploySQL = fmt.Sprintf(ticket.DeployTemplate, inClause)
 				rollbackSQL = fmt.Sprintf(ticket.RollbackTemplate, inClause)
 			}
-		} else {
-			deploySQL = fmt.Sprintf(ticket.DeployTemplate, inClause)
-			rollbackSQL = fmt.Sprintf(ticket.RollbackTemplate, inClause)
 		}
-	}
 
-	// Add to the appropriate statement list based on target DB
-	switch ticket.TargetDB {
-	case "PC":
-		statements.PCDeployStatements = append(statements.PCDeployStatements, deploySQL)
-		statements.PCRollbackStatements = append(statements.PCRollbackStatements, rollbackSQL)
-	case "PE":
-		statements.PEDeployStatements = append(statements.PEDeployStatements, deploySQL)
-		statements.PERollbackStatements = append(statements.PERollbackStatements, rollbackSQL)
-	case "RPP":
-		statements.RPPDeployStatements = append(statements.RPPDeployStatements, deploySQL)
-		statements.RPPRollbackStatements = append(statements.RPPRollbackStatements, rollbackSQL)
+		// Add to appropriate statement list based on target DB
+		switch ticket.TargetDB {
+		case "PC":
+			statements.PCDeployStatements = append(statements.PCDeployStatements, deploySQL)
+			statements.PCRollbackStatements = append(statements.PCRollbackStatements, rollbackSQL)
+		case "PE":
+			statements.PEDeployStatements = append(statements.PEDeployStatements, deploySQL)
+			statements.PERollbackStatements = append(statements.PERollbackStatements, rollbackSQL)
+		case "RPP":
+			statements.RPPDeployStatements = append(statements.RPPDeployStatements, deploySQL)
+			statements.RPPRollbackStatements = append(statements.RPPRollbackStatements, rollbackSQL)
+		}
 	}
 
 	return statements

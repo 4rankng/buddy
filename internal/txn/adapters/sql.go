@@ -2,7 +2,6 @@ package adapters
 
 import (
 	"buddy/internal/txn/domain"
-	"fmt"
 )
 
 // SQLStatements contains the deploy and rollback SQL statements separated by database
@@ -51,9 +50,8 @@ func GenerateSQLStatements(results []domain.TransactionResult) SQLStatements {
 	}
 
 	// Process each consolidated ticket
-	for caseType, ticket := range caseTickets {
+	for _, ticket := range caseTickets {
 		if len(ticket.RunIDs) > 0 {
-			fmt.Printf("Generating SQL for %s with %d transactions\n", caseType, ticket.TransactionCount)
 			generatedSQL := generateSQLFromTicket(ticket)
 			appendStatements(&statements, generatedSQL)
 		}

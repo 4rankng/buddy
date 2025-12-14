@@ -16,6 +16,7 @@ type DMLTicket struct {
 	StateField       string      // field name for state in WHERE clause (usually "state")
 	WorkflowIDs      []string    // multiple workflow_ids for IN clause
 	CaseType         domain.Case // SOP case type for this ticket
+	PrevTransID      string      // original prev_trans_id for rollback
 
 	// Consolidation metadata
 	TransactionCount int // Number of transactions consolidated
@@ -34,7 +35,7 @@ var templateConfigs = map[domain.Case]TemplateConfig{
 	domain.CasePeTransferPayment210_0:           {Parameters: []string{"run_ids"}},
 	domain.CasePeStuck230RepublishPC:            {Parameters: []string{"run_ids"}},
 	domain.CasePe2200FastCashinFailed:           {Parameters: []string{"run_ids"}},
-	domain.CaseThoughtMachineFalseNegative:      {Parameters: []string{"run_ids"}},
+	domain.CaseThoughtMachineFalseNegative:      {Parameters: []string{"run_ids", "prev_trans_id"}},
 	domain.CaseRppCashoutReject101_19:           {Parameters: []string{"run_ids"}},
 	domain.CaseRppQrPaymentReject210_0:          {Parameters: []string{"run_ids"}},
 	domain.CaseRppNoResponseResume:              {Parameters: []string{"run_ids", "workflow_ids"}},
@@ -185,22 +186,23 @@ AND state = 902;`,
 				DeployTemplate: `-- thought_machine_false_negative
 UPDATE workflow_execution
 SET state = 230,
-  prev_trans_id = JSON_EXTRACT(data, '$.StreamMessage.ReferenceID'),
-  ` + "`data`" + ` = JSON_SET(` + "`data`" + `, '$.State', 230)
+	 prev_trans_id = JSON_EXTRACT(data, '$.StreamMessage.ReferenceID'),
+	 ` + "`data`" + ` = JSON_SET(` + "`data`" + `, '$.State', 230)
 WHERE run_id IN (%s)
 AND state = 701;`,
 				RollbackTemplate: `UPDATE workflow_execution
 SET
-  state = 701,
-  attempt = 0,
-  prev_trans_id = '{OrigPrevTransID}',
-  ` + "`data`" + ` = JSON_SET(` + "`data`" + `, '$.State', 701)
+	 state = 701,
+	 attempt = 0,
+	 prev_trans_id = '%s',
+	 ` + "`data`" + ` = JSON_SET(` + "`data`" + `, '$.State', 701)
 WHERE run_id IN (%s)
 AND state = 230;`,
 				TargetDB:    "PE",
 				WorkflowID:  "workflow_transfer_payment",
 				TargetState: 701,
 				CaseType:    domain.CaseThoughtMachineFalseNegative,
+				PrevTransID: result.PaymentEngine.Workflow.PrevTransID,
 			}
 		}
 		return nil

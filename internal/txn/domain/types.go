@@ -19,10 +19,11 @@ type PETransfersInfo struct {
 
 // WorkflowInfo contains information about a specific workflow execution
 type WorkflowInfo struct {
-	WorkflowID string // workflow_execution.workflow_id
-	Attempt    int    // workflow_execution.attempt
-	State      string // workflow_execution.state
-	RunID      string // workflow_execution.run_id
+	WorkflowID  string // workflow_execution.workflow_id
+	Attempt     int    // workflow_execution.attempt
+	State       string // workflow_execution.state
+	RunID       string // workflow_execution.run_id
+	PrevTransID  string // workflow_execution.prev_trans_id
 }
 
 // GetFormattedState returns the formatted state with name and number
