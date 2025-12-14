@@ -32,7 +32,7 @@ info: RPP Status: PROCESSING
 - **Fix**: Patch data to retry flow; Move PE to 230 and retry PC capture
 
 
-so we can extract ReferenceID=JSON_EXTRACT(data, '$.StreamMessage.ReferenceID') 
+so we can extract ReferenceID=JSON_EXTRACT(data, '$.StreamMessage.ReferenceID')
 in payment-engine workflow_execution table
 and store original OrigPrevTransID = workflow_execution.prev_trans_id
 
@@ -43,21 +43,24 @@ PE_Deploy.sql
 
 # 20251202GXSPMYKL010ORB62198922
 UPDATE workflow_execution SET state = 230,
-  prev_trans_id = '{ReferenceID}', 
+  prev_trans_id = '{ReferenceID}',
   `data` = JSON_SET(`data`, '$.State', 230)
 WHERE run_id in (
-  'DE9FD4A8-F738-407A-9E15-D0439CF87DAE'
+  '{run_id}'
 ) AND state = 701;
 
 PE_Rollback.sql
 
 
-UPDATE workflow_execution SET  state = 701,
+UPDATE workflow_execution
+SET
+  state = 701,
+  attempt=0,
   prev_trans_id = '{OrigPrevTransID}',
   `data` = JSON_SET(`data`, '$.State', 701)
 WHERE run_id in (
-  'DE9FD4A8-F738-407A-9E15-D0439CF87DAE'
-) AND state = 230;
+  '{run_id}'
+);
 
 
 

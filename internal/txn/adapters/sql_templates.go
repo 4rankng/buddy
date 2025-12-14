@@ -185,21 +185,18 @@ AND state = 902;`,
 				DeployTemplate: `-- thought_machine_false_negative
 UPDATE workflow_execution
 SET state = 230,
-    ` + "`data`" + ` = JSON_SET(
-      ` + "`data`" + `,
-      '$.State', 230,
-      '$.prev_trans_id', ` + "`data`" + ` ->> '$.trans_id')
+  prev_trans_id = JSON_EXTRACT(data, '$.StreamMessage.ReferenceID'),
+  ` + "`data`" + ` = JSON_SET(` + "`data`" + `, '$.State', 230)
 WHERE run_id IN (%s)
-AND workflow_id = 'workflow_transfer_payment'
 AND state = 701;`,
 				RollbackTemplate: `UPDATE workflow_execution
-SET state = 701,
-    ` + "`data`" + ` = JSON_SET(
-      ` + "`data`" + `,
-      '$.State', 701,
-      '$.prev_trans_id', NULL)
+SET
+  state = 701,
+  attempt = 0,
+  prev_trans_id = '{OrigPrevTransID}',
+  ` + "`data`" + ` = JSON_SET(` + "`data`" + `, '$.State', 701)
 WHERE run_id IN (%s)
-AND workflow_id = 'workflow_transfer_payment';`,
+AND state = 230;`,
 				TargetDB:    "PE",
 				WorkflowID:  "workflow_transfer_payment",
 				TargetState: 701,

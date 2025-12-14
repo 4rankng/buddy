@@ -210,3 +210,62 @@ func TestFormatWorkflowStateTransferCollection(t *testing.T) {
 		})
 	}
 }
+
+func TestThoughtMachineFalseNegativeCase(t *testing.T) {
+	// Test E2E ID from documentation
+	testCases := []struct {
+		name     string
+		input    string
+		expected bool
+	}{
+		{
+			name:     "Valid E2E ID from documentation",
+			input:    "20251212GXSPMYKL040OQR32194316",
+			expected: true,
+		},
+		{
+			name:     "Another valid E2E ID",
+			input:    "20251202GXSPMYKL010ORB62198922",
+			expected: true,
+		},
+		{
+			name:     "Invalid E2E ID",
+			input:    "invalid-id",
+			expected: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			result := IsRppE2EID(tc.input)
+			if result != tc.expected {
+				t.Errorf("IsRppE2EID(%s) = %v; expected %v", tc.input, result, tc.expected)
+			}
+		})
+	}
+
+	// Test workflow state formatting
+	state := FormatWorkflowState("workflow_transfer_payment", "701")
+	expected := "stCaptureFailed(701)"
+	if state != expected {
+		t.Errorf("Expected workflow state %s, got %s", expected, state)
+	}
+
+	// Test case constant
+	if CaseThoughtMachineFalseNegative != "thought_machine_false_negative" {
+		t.Errorf("Case constant mismatch: got %s, expected thought_machine_false_negative", CaseThoughtMachineFalseNegative)
+	}
+
+	// Test that case is in summary order
+	summaryOrder := GetCaseSummaryOrder()
+	found := false
+	for _, c := range summaryOrder {
+		if c == CaseThoughtMachineFalseNegative {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Error("CaseThoughtMachineFalseNegative not found in summary order")
+	}
+}
