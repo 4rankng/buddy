@@ -38,28 +38,30 @@ type PaymentEngineInfo struct {
 }
 
 // PCInternalTxnInfo contains payment-core internal transaction information
-type PCInternalTxnInfo struct {
+type PCInternalInfo struct {
 	TxID      string // payment-core internal transaction ID
 	GroupID   string // payment-core transaction group ID
 	TxType    string // payment-core transaction type
 	TxStatus  string // payment-core transaction status
 	CreatedAt string // created_at timestamp
+	Workflow  WorkflowInfo
 }
 
 // PCExternalTxnInfo contains payment-core external transaction information
-type PCExternalTxnInfo struct {
+type PCExternalInfo struct {
 	RefID     string // payment-core external transaction reference ID
 	GroupID   string // payment-core transaction group ID
 	TxType    string // payment-core transaction type
 	TxStatus  string // payment-core transaction status
 	CreatedAt string // created_at timestamp
+	Workflow  WorkflowInfo
 }
 
 // PaymentCoreInfo contains payment-core related information
 type PaymentCoreInfo struct {
-	InternalTxns []PCInternalTxnInfo
-	ExternalTxns []PCExternalTxnInfo
-	Workflow     []WorkflowInfo
+	InternalCapture  PCInternalInfo // when TxType is AUTH
+	InternalAuth     PCInternalInfo // when TxType is CAPTURE
+	ExternalTransfer PCExternalInfo // when TxType is TRANSFER
 }
 
 // FastAdapterInfo contains fast adapter related information

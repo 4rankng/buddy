@@ -101,6 +101,11 @@ func getDefaultSOPRules() []CaseRule {
 					Value:     "230",
 				},
 				{
+					FieldPath: "PaymentEngine.InternalTxns.TxType",
+					Operator:  "eq",
+					Value:     "CAPTURE",
+				},
+				{
 					FieldPath: "PaymentEngine.Workflow.Attempt",
 					Operator:  "eq",
 					Value:     0,
