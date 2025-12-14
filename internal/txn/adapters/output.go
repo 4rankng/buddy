@@ -256,7 +256,7 @@ func displayRPPAdapterSection(w io.Writer, ra domain.RPPAdapterInfo, isE2EID boo
 			}
 		}
 		if ra.Workflow.RunID != "" {
-			if _, err := fmt.Fprintf(w, "workflow_%s:\n", ra.Workflow.WorkflowID); err != nil {
+			if _, err := fmt.Fprintf(w, "%s:\n", ra.Workflow.WorkflowID); err != nil {
 				fmt.Printf("Warning: failed to write rpp workflow header: %v\n", err)
 			}
 			if _, err := fmt.Fprintf(w, "   state=%s attempt=%d\n", ra.Workflow.GetFormattedState(), ra.Workflow.Attempt); err != nil {
@@ -292,7 +292,7 @@ func displayRPPAdapterSection(w io.Writer, ra domain.RPPAdapterInfo, isE2EID boo
 		}
 	}
 	if ra.Workflow.RunID != "" {
-		if _, err := fmt.Fprintf(w, "workflow_%s:\n", ra.Workflow.WorkflowID); err != nil {
+		if _, err := fmt.Fprintf(w, "%s:\n", ra.Workflow.WorkflowID); err != nil {
 			fmt.Printf("Warning: failed to write rpp workflow header: %v\n", err)
 		}
 		if _, err := fmt.Fprintf(w, "   state=%s attempt=%d\n", ra.Workflow.GetFormattedState(), ra.Workflow.Attempt); err != nil {
