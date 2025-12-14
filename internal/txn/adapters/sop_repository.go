@@ -333,8 +333,20 @@ func (r *SOPRepository) IdentifyCase(result *domain.TransactionResult, env strin
 			continue
 		}
 
+		// Debug logging for thought_machine_false_negative rule
+		if rule.CaseType == domain.CaseThoughtMachineFalseNegative {
+			fmt.Printf("DEBUG: Evaluating thought_machine_false_negative rule for transaction: %s\n", result.TransactionID)
+			fmt.Printf("DEBUG: PE WorkflowID: %s, State: %s, Attempt: %d\n",
+				result.PaymentEngine.Workflow.WorkflowID,
+				result.PaymentEngine.Workflow.State,
+				result.PaymentEngine.Workflow.Attempt)
+			fmt.Printf("DEBUG: PC InternalTxns length: %d\n", len(result.PaymentCore.InternalTxns))
+			fmt.Printf("DEBUG: RPP Status: %s\n", result.RPPAdapter.Status)
+		}
+
 		if r.evaluateRule(rule, result) {
 			result.CaseType = rule.CaseType
+			fmt.Printf("DEBUG: Rule matched: %s for transaction: %s\n", rule.CaseType, result.TransactionID)
 
 			return result.CaseType
 		}
@@ -397,14 +409,49 @@ func (r *SOPRepository) evaluateRule(rule CaseRule, result *domain.TransactionRe
 func (r *SOPRepository) evaluateConditionSimple(condition RuleCondition, result *domain.TransactionResult) bool {
 	fieldValue := r.getFieldValue(condition.FieldPath, result)
 
+	// Debug logging for thought_machine_false_negative rule
+	if strings.Contains(condition.FieldPath, "PaymentCore.InternalTxns") || strings.Contains(condition.FieldPath, "RPPAdapter.Status") {
+		fmt.Printf("DEBUG: Evaluating condition - Field: %s, Operator: %s, Value: %v, FieldValue: %v\n",
+			condition.FieldPath, condition.Operator, condition.Value, fieldValue)
+	}
+
 	switch condition.Operator {
 	case "eq":
 		// Special handling for nil comparison
 		if condition.Value == nil {
-			return fieldValue == nil
+			result := fieldValue == nil
+			if strings.Contains(condition.FieldPath, "PaymentCore.InternalTxns") {
+				fmt.Printf("DEBUG: Nil comparison result for %s: %v\n", condition.FieldPath, result)
+			}
+			return result
 		}
 		if fieldValue == nil {
+			if strings.Contains(condition.FieldPath, "PaymentCore.InternalTxns") {
+				fmt.Printf("DEBUG: FieldValue is nil for %s, returning false\n", condition.FieldPath)
+			}
 			return false
+		}
+		// Special handling for empty slice comparison
+		if strings.Contains(condition.FieldPath, "PaymentCore.InternalTxns") {
+			fmt.Printf("DEBUG: Checking PaymentCore.InternalTxns - fieldValue type: %T, value: %v\n", fieldValue, fieldValue)
+			// Check if fieldValue is an empty slice
+			if fieldSlice, ok := fieldValue.([]domain.PCInternalTxnInfo); ok {
+				fmt.Printf("DEBUG: Successfully cast to []domain.PCInternalTxnInfo, length: %d\n", len(fieldSlice))
+				if len(fieldSlice) == 0 {
+					// Check if condition.Value is also an empty slice or nil
+					if conditionSlice, ok := condition.Value.([]domain.PCInternalTxnInfo); ok {
+						result := len(conditionSlice) == 0
+						fmt.Printf("DEBUG: Empty slice comparison result for %s: %v\n", condition.FieldPath, result)
+						return result
+					}
+					if condition.Value == nil {
+						fmt.Printf("DEBUG: Empty slice vs nil comparison result for %s: true\n", condition.FieldPath)
+						return true
+					}
+				}
+			} else {
+				fmt.Printf("DEBUG: Failed to cast fieldValue to []domain.PCInternalTxnInfo\n")
+			}
 		}
 		// Handle string to int conversion for numeric comparisons
 		if conditionStr, ok := condition.Value.(string); ok {
@@ -417,7 +464,11 @@ func (r *SOPRepository) evaluateConditionSimple(condition RuleCondition, result 
 				}
 			}
 		}
-		return reflect.DeepEqual(fieldValue, condition.Value)
+		result := reflect.DeepEqual(fieldValue, condition.Value)
+		if strings.Contains(condition.FieldPath, "PaymentCore.InternalTxns") || strings.Contains(condition.FieldPath, "RPPAdapter.Status") {
+			fmt.Printf("DEBUG: DeepEqual result for %s: %v\n", condition.FieldPath, result)
+		}
+		return result
 	case "ne":
 		// Handle string to int conversion for numeric comparisons
 		if conditionStr, ok := condition.Value.(string); ok {

@@ -19,8 +19,6 @@ type SQLStatements struct {
 func GenerateSQLStatements(results []domain.TransactionResult) SQLStatements {
 	statements := SQLStatements{}
 
-	fmt.Println("\n--- Generating SQL Statements ---")
-
 	// Use map[domain.Case]DMLTicket for automatic consolidation
 	caseTickets := make(map[domain.Case]DMLTicket)
 

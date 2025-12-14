@@ -127,7 +127,7 @@ func generateBatchSummary(results []domain.TransactionResult) BatchSummary {
 
 // printBatchSummary prints the summary to stdout in the exact format specified
 func printBatchSummary(filename string, summary BatchSummary, outputPath string) {
-	fmt.Printf("\n--- Generating SQL Statements ---\n")
+
 	fmt.Printf("Results written to %s\n", outputPath)
 	fmt.Printf("Summary: \n")
 	fmt.Printf("  Total: %d\n", summary.Total)

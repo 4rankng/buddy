@@ -119,9 +119,15 @@ func (s *TransactionQueryService) QueryTransactionWithEnv(transactionID string, 
 
 	// Query Payment Engine workflow information if we have reference ID
 	if result.PaymentEngine.Transfers.ReferenceID != "" {
+		fmt.Printf("DEBUG: Querying workflow for ReferenceID: %s\n", result.PaymentEngine.Transfers.ReferenceID)
 		if workflow, err := s.adapters.PaymentEngine.QueryWorkflow(result.PaymentEngine.Transfers.ReferenceID); err == nil && workflow != nil {
+			fmt.Printf("DEBUG: Workflow found: %+v\n", workflow)
 			s.populatePaymentEngineWorkflow(result, workflow)
+		} else {
+			fmt.Printf("DEBUG: Workflow query failed or returned nil. Error: %v\n", err)
 		}
+	} else {
+		fmt.Printf("DEBUG: ReferenceID is empty, skipping workflow query for transaction: %s\n", result.TransactionID)
 	}
 
 	// Query RPP adapter if available and we have external ID (Malaysia only)
