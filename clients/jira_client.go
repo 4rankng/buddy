@@ -173,6 +173,97 @@ func (c *JiraClient) GetIssueDetails(ctx context.Context, issueKey string) (*Jir
 	return c.convertIssueResponse(&issue)
 }
 
+// SearchIssues searches for issues matching the search term in summary or description
+func (c *JiraClient) SearchIssues(ctx context.Context, searchTerm string) ([]JiraTicket, error) {
+	// Escape search term to prevent JQL injection
+	escapedTerm := strings.ReplaceAll(searchTerm, "\"", "\\\"")
+	escapedTerm = strings.ReplaceAll(escapedTerm, "\\", "\\\\")
+	escapedTerm = strings.ReplaceAll(escapedTerm, "\n", "\\n")
+	escapedTerm = strings.ReplaceAll(escapedTerm, "\r", "\\r")
+
+	// Build JQL query for searching in summary and description
+	jql := fmt.Sprintf(
+		`project = %s AND assignee = currentUser() AND status NOT IN (Completed, Closed) AND (summary ~ "%s" OR description ~ "%s") ORDER BY created DESC`,
+		c.config.Project,
+		escapedTerm,
+		escapedTerm,
+	)
+
+	// Build request URL with correct endpoint
+	apiURL, err := url.Parse(c.config.Domain + "/rest/api/3/search/jql")
+	if err != nil {
+		return nil, &JiraError{
+			StatusCode: 0,
+			Message:    fmt.Sprintf("invalid JIRA domain: %v", err),
+		}
+	}
+
+	requestPayload := map[string]interface{}{
+		"jql":        jql,
+		"fields":     []string{"assignee", "summary", "issuetype", "key", "priority", "status", "created", "duedate", "customfield_10060", "description", "attachment"},
+		"maxResults": c.config.MaxItems,
+	}
+
+	reqBody, err := json.Marshal(requestPayload)
+	if err != nil {
+		return nil, &JiraError{
+			StatusCode: 0,
+			Message:    fmt.Sprintf("failed to marshal search payload: %v", err),
+		}
+	}
+
+	// Create and execute request with context
+	req, err := http.NewRequestWithContext(ctx, "POST", apiURL.String(), bytes.NewReader(reqBody))
+	if err != nil {
+		return nil, &JiraError{
+			StatusCode: 0,
+			Message:    fmt.Sprintf("failed to create request: %v", err),
+		}
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	c.setAuthHeaders(req)
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, &JiraError{
+			StatusCode: 0,
+			Message:    fmt.Sprintf("request failed: %v", err),
+		}
+	}
+	defer func() {
+		_ = resp.Body.Close()
+	}()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, c.handleAPIError(resp)
+	}
+
+	// Parse response
+	var searchResponse struct {
+		Issues []jiraIssueResponse `json:"issues"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&searchResponse); err != nil {
+		return nil, &JiraError{
+			StatusCode: 0,
+			Message:    fmt.Sprintf("failed to decode response: %v", err),
+		}
+	}
+
+	// Convert to JiraTicket objects
+	tickets := make([]JiraTicket, len(searchResponse.Issues))
+	for i, issue := range searchResponse.Issues {
+		ticket, err := c.convertIssueResponse(&issue)
+		if err != nil {
+			return nil, err
+		}
+		tickets[i] = *ticket
+	}
+
+	return tickets, nil
+}
+
 // GetAttachmentContent downloads attachment content
 func (c *JiraClient) GetAttachmentContent(ctx context.Context, attachmentURL string) ([]byte, error) {
 	// Handle redirects with context
