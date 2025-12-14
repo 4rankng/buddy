@@ -4,7 +4,10 @@
       "Bash(wc:*)",
       "Bash(go fmt:*)",
       "Bash(go get:*)",
-      "Bash(go version:*)"
+      "Bash(go version:*)",
+      "Bash({} ;)",
+      "Bash(xargs:*)",
+      "Bash(git checkout:*)"
     ],
     "deny": [
       "Bash(go build:*)"

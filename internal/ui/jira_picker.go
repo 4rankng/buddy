@@ -7,14 +7,14 @@ import (
 	"strings"
 	"time"
 
-	"buddy/clients"
+	"buddy/internal/clients/jira"
 
 	"github.com/manifoldco/promptui"
 	"github.com/pkg/browser"
 )
 
 // Attachment represents a JIRA attachment for UI display
-type Attachment = clients.Attachment
+type Attachment = jira.Attachment
 
 // JiraIssue represents a JIRA ticket for UI display
 type JiraIssue struct {
@@ -46,7 +46,7 @@ type JiraPickerConfig struct {
 	ShowAttachments   bool
 	MaxDescriptionLen int // 0 = no limit
 	HyperlinksMode    HyperlinksMode
-	JiraClient        clients.JiraInterface // Client for downloading attachments
+	JiraClient        jira.JiraInterface // Client for downloading attachments
 }
 
 // RunJiraPicker runs an interactive JIRA ticket picker

@@ -10,12 +10,12 @@ build-my:
 	@echo "Building mybuddy with Malaysia environment..."
 	@mkdir -p bin
 	@eval $$(grep -v '^#' .env.my | grep '=' | xargs) && \
-	go build -ldflags "-X buddy/internal/compiletime.JiraDomain=$$JIRA_DOMAIN \
-	                   -X buddy/internal/compiletime.JiraUsername=$$JIRA_USERNAME \
-	                   -X buddy/internal/compiletime.JiraApiKey=$$JIRA_API_KEY \
-	                   -X buddy/internal/compiletime.DoormanUsername=$$DOORMAN_USERNAME \
-	                   -X buddy/internal/compiletime.DoormanPassword=$$DOORMAN_PASSWORD \
-	                   -X buddy/internal/compiletime.BuildEnvironment=my" \
+	go build -ldflags "-X buddy/internal/buildinfo.JiraDomain=$$JIRA_DOMAIN \
+	                   -X buddy/internal/buildinfo.JiraUsername=$$JIRA_USERNAME \
+	                   -X buddy/internal/buildinfo.JiraApiKey=$$JIRA_API_KEY \
+	                   -X buddy/internal/buildinfo.DoormanUsername=$$DOORMAN_USERNAME \
+	                   -X buddy/internal/buildinfo.DoormanPassword=$$DOORMAN_PASSWORD \
+	                   -X buddy/internal/buildinfo.BuildEnvironment=my" \
 		-o bin/mybuddy ./cmd/mybuddy || exit 1
 	@echo "mybuddy built successfully"
 
@@ -24,12 +24,12 @@ build-sg:
 	@echo "Building sgbuddy with Singapore environment..."
 	@mkdir -p bin
 	@eval $$(grep -v '^#' .env.sg | grep '=' | xargs) && \
-	go build -ldflags "-X buddy/internal/compiletime.JiraDomain=$$JIRA_DOMAIN \
-	                   -X buddy/internal/compiletime.JiraUsername=$$JIRA_USERNAME \
-	                   -X buddy/internal/compiletime.JiraApiKey=$$JIRA_API_KEY \
-	                   -X buddy/internal/compiletime.DoormanUsername=$$DOORMAN_USERNAME \
-	                   -X buddy/internal/compiletime.DoormanPassword=$$DOORMAN_PASSWORD \
-	                   -X buddy/internal/compiletime.BuildEnvironment=sg" \
+	go build -ldflags "-X buddy/internal/buildinfo.JiraDomain=$$JIRA_DOMAIN \
+	                   -X buddy/internal/buildinfo.JiraUsername=$$JIRA_USERNAME \
+	                   -X buddy/internal/buildinfo.JiraApiKey=$$JIRA_API_KEY \
+	                   -X buddy/internal/buildinfo.DoormanUsername=$$DOORMAN_USERNAME \
+	                   -X buddy/internal/buildinfo.DoormanPassword=$$DOORMAN_PASSWORD \
+	                   -X buddy/internal/buildinfo.BuildEnvironment=sg" \
 		-o bin/sgbuddy ./cmd/sgbuddy || exit 1
 	@echo "sgbuddy built successfully"
 
