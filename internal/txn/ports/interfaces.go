@@ -15,6 +15,7 @@ type PaymentCorePort interface {
 	QueryInternalTransactions(transactionID string, createdAt string) ([]map[string]interface{}, error)
 	QueryExternalTransactions(transactionID string, createdAt string) ([]map[string]interface{}, error)
 	QueryWorkflows(runIDs []string) ([]map[string]interface{}, error)
+	QueryPaymentCore(query string) ([]map[string]interface{}, error)
 }
 
 // RPPAdapterPort defines the interface for RPP adapter queries

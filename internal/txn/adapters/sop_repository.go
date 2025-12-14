@@ -30,6 +30,9 @@ type SOPRepository struct {
 	rules []SOPCaseRule
 }
 
+// Global SOPRepo instance (singleton)
+var SOPRepo = NewSOPRepository()
+
 // NewSOPRepository creates a new SOP repository with predefined rules
 func NewSOPRepository() *SOPRepository {
 	return &SOPRepository{

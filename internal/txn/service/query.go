@@ -2,7 +2,7 @@ package service
 
 import (
 	"buddy/internal/txn/domain"
-	"fmt"
+	"buddy/internal/txn/utils"
 	"regexp"
 )
 
@@ -15,36 +15,23 @@ var defaultService = NewTransactionQueryService("my")
 
 // QueryTransactionStatus returns structured data about a transaction
 func QueryTransactionStatus(transactionID string) *domain.TransactionResult {
-	return QueryTransactionStatusWithEnv(transactionID, "my")
+	return utils.QueryTransactionStatus(transactionID, defaultService)
 }
 
 // QueryTransactionStatusWithEnv returns structured data about a transaction with specified environment
 func QueryTransactionStatusWithEnv(transactionID string, env string) *domain.TransactionResult {
 	// Create service for specified environment
 	service := NewTransactionQueryService(env)
-	return service.QueryTransaction(transactionID)
+	return utils.QueryTransactionStatus(transactionID, service)
 }
 
 // QueryPartnerpayEngine queries the partnerpay-engine database for a transaction by run_id
 func QueryPartnerpayEngine(runID string) (domain.PartnerpayEngineInfo, error) {
-	return defaultService.QueryPartnerpayEngine(runID)
+	return utils.QueryPartnerpayEngine(runID, defaultService)
 }
 
 // PrintTransactionStatusWithEnv prints transaction information in the new format with specified environment
 func PrintTransactionStatusWithEnv(transactionID string, env string) {
-	result := QueryTransactionStatusWithEnv(transactionID, env)
-	// Simplified output to avoid circular dependency
-	fmt.Printf("\n### [1] transaction_id: %s\n", result.TransactionID)
-	fmt.Printf("Environment: %s\n", env)
-	// Note: Full formatting would require adapters, using simplified output
-}
-
-// Helper function to safely extract string values
-func getStringValue(row map[string]interface{}, key string) string {
-	if val, ok := row[key]; ok {
-		if str, ok := val.(string); ok {
-			return str
-		}
-	}
-	return ""
+	service := NewTransactionQueryService(env)
+	utils.PrintTransactionStatusWithEnv(transactionID, env, service)
 }

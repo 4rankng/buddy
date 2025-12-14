@@ -63,7 +63,7 @@ func processSingleE2E(appCtx *common.Context, e2eID string) {
 	adapters.WriteResult(os.Stdout, *result, 1)
 
 	// Check if it matches the resume criteria
-	sopRepo := adapters.NewSOPRepository()
+	sopRepo := adapters.SOPRepo
 	sopRepo.IdentifySOPCase(result, "my") // Malaysia environment
 	if result.CaseType != domain.SOPCaseRppNoResponseResume {
 		fmt.Printf("%sThis E2E ID does not match the resume criteria (state=210, attempt=0, workflow_id in ('wf_ct_cashout', 'wf_ct_qr_payment'))\n", appCtx.GetPrefix())
@@ -94,7 +94,7 @@ func processBatchFile(appCtx *common.Context, filePath string) {
 
 		// Check if it matches the resume criteria
 		if result.Error == "" {
-			sopRepo := adapters.NewSOPRepository()
+			sopRepo := adapters.SOPRepo
 			sopRepo.IdentifySOPCase(result, "my") // Malaysia environment
 			if result.CaseType == domain.SOPCaseRppNoResponseResume {
 				matchingResults = append(matchingResults, *result)

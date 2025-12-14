@@ -7,7 +7,8 @@
       "Bash(go version:*)",
       "Bash({} ;)",
       "Bash(xargs:*)",
-      "Bash(git checkout:*)"
+      "Bash(git checkout:*)",
+      "Bash(done:*)"
     ],
     "deny": [
       "Bash(go build:*)"
