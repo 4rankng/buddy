@@ -99,6 +99,7 @@ AND workflow_id IN (%s);`,
 		TargetDB:      "RPP",
 		TargetState:   210,
 		TargetAttempt: 0,
+		CaseType:      domain.CaseRppNoResponseResume,
 	}
 
 }

@@ -16,36 +16,6 @@ func contains(slice []string, item string) bool {
 	return false
 }
 
-// getCaseTypeFromTicket determines the SOP case type based on ticket characteristics
-func getCaseTypeFromTicket(ticket DMLTicket) domain.Case {
-	// Match based on template content and other characteristics
-	if strings.Contains(ticket.DeployTemplate, string(domain.CasePcExternalPaymentFlow200_11)) {
-		return domain.CasePcExternalPaymentFlow200_11
-	}
-	if strings.Contains(ticket.DeployTemplate, "state = 222") {
-		return domain.CasePcExternalPaymentFlow201_0RPP210
-	}
-	if strings.Contains(ticket.DeployTemplate, "state = 301") {
-		return domain.CasePcExternalPaymentFlow201_0RPP900
-	}
-	if strings.Contains(ticket.DeployTemplate, "workflow_transfer_payment") {
-		return domain.CasePeTransferPayment210_0
-	}
-	if strings.Contains(ticket.DeployTemplate, string(domain.CasePe2200FastCashinFailed)) {
-		return domain.CasePe2200FastCashinFailed
-	}
-	if strings.Contains(ticket.DeployTemplate, "state = 311") {
-		return domain.CaseRppCashoutReject101_19
-	}
-	if strings.Contains(ticket.DeployTemplate, "state = 221") && strings.Contains(ticket.DeployTemplate, "wf_ct_qr_payment") {
-		return domain.CaseRppQrPaymentReject210_0
-	}
-	if strings.Contains(ticket.DeployTemplate, "state = 222") && strings.Contains(ticket.DeployTemplate, "rpp_no_response_resume_acsp") {
-		return domain.CaseRppNoResponseResume
-	}
-	return domain.CaseNone
-}
-
 // appendStatements is a helper to merge results into the main struct
 func appendStatements(main *SQLStatements, new SQLStatements) {
 	main.PCDeployStatements = append(main.PCDeployStatements, new.PCDeployStatements...)
@@ -95,9 +65,8 @@ func generateSQLFromTicket(ticket DMLTicket) SQLStatements {
 	// Generate deploy and rollback statements
 	var deploySQL, rollbackSQL string
 
-	// Use explicit config instead of string counting
-	caseType := getCaseTypeFromTicket(ticket)
-	config, exists := templateConfigs[caseType]
+	// Use the CaseType from the ticket instead of a parameter
+	config, exists := templateConfigs[ticket.CaseType]
 	if !exists {
 		// Default to run_ids only
 		deploySQL = fmt.Sprintf(ticket.DeployTemplate, inClause)
@@ -123,7 +92,7 @@ func generateSQLFromTicket(ticket DMLTicket) SQLStatements {
 		}
 	}
 
-	// Add to appropriate statement list based on target DB
+	// Add to the appropriate statement list based on target DB
 	switch ticket.TargetDB {
 	case "PC":
 		statements.PCDeployStatements = append(statements.PCDeployStatements, deploySQL)

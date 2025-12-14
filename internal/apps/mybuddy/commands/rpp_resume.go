@@ -21,7 +21,7 @@ func NewRppResumeCmd(appCtx *common.Context) *cobra.Command {
 		Long: `Resume RPP workflows that are stuck in state 210 with attempt 0.
 Supports both wf_ct_cashout and wf_ct_qr_payment workflow types.
 
-The command queries the RPP adapter database directly and generates
+The command queries RPP adapter database directly and generates
 SQL to move workflows from state 210 to state 222 for resuming.
 
 Supported inputs:
@@ -51,22 +51,22 @@ func processRppResume(appCtx *common.Context, input string) {
 }
 
 func processSingleE2E(appCtx *common.Context, e2eID string) {
-	// Query the RPP adapter directly for this E2E ID
+	// Query RPP adapter directly for this E2E ID
 	result := queryRPPAdapterForE2E(e2eID)
 	if result.Error != "" {
 		fmt.Printf("%sError: %s\n", appCtx.GetPrefix(), result.Error)
 		return
 	}
 
-	// Always display the RPP transaction status and workflow info
+	// Always display RPP transaction status and workflow info
 	fmt.Printf("\n%s--- RPP Transaction Status ---\n", appCtx.GetPrefix())
 	adapters.WriteResult(os.Stdout, *result, 1)
 
-	// Check if it matches the resume criteria
+	// Check if it matches resume criteria
 	sopRepo := adapters.SOPRepo
 	sopRepo.IdentifyCase(result, "my") // Malaysia environment
 	if result.CaseType != domain.CaseRppNoResponseResume {
-		fmt.Printf("%sThis E2E ID does not match the resume criteria (state=210, attempt=0, workflow_id in ('wf_ct_cashout', 'wf_ct_qr_payment'))\n", appCtx.GetPrefix())
+		fmt.Printf("%sThis E2E ID does not match resume criteria (state=210, attempt=0, workflow_id in ('wf_ct_cashout', 'wf_ct_qr_payment'))\n", appCtx.GetPrefix())
 		return
 	}
 
@@ -92,7 +92,7 @@ func processBatchFile(appCtx *common.Context, filePath string) {
 		result := queryRPPAdapterForE2E(id)
 		allResults = append(allResults, *result)
 
-		// Check if it matches the resume criteria
+		// Check if it matches resume criteria
 		if result.Error == "" {
 			sopRepo := adapters.SOPRepo
 			sopRepo.IdentifyCase(result, "my") // Malaysia environment
@@ -123,7 +123,7 @@ func processBatchFile(appCtx *common.Context, filePath string) {
 	}
 
 	for i, result := range allResults {
-		// Always write the result in the proper format, even if there's an error
+		// Always write the result in proper format, even if there's an error
 		adapters.WriteResult(outputFile, result, i+1)
 
 		// Also show error messages on console for visibility

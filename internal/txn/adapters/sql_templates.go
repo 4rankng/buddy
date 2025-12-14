@@ -15,6 +15,7 @@ type DMLTicket struct {
 	TargetAttempt    int      // target attempt to check in WHERE clause
 	StateField       string   // field name for state in WHERE clause (usually "state")
 	WorkflowIDs      []string // multiple workflow_ids for IN clause
+	CaseType         domain.Case // SOP case type for this ticket
 
 	// Consolidation metadata
 	TransactionCount int // Number of transactions consolidated
@@ -72,6 +73,7 @@ WHERE run_id IN (%s);`,
 				WorkflowID:    "pc_external_payment_flow",
 				TargetState:   200,
 				TargetAttempt: 11,
+				CaseType:      domain.CasePcExternalPaymentFlow200_11,
 			}
 		}
 		return nil
@@ -110,6 +112,7 @@ AND workflow_id = 'workflow_transfer_payment';`,
 			WorkflowID:    "workflow_transfer_payment",
 			TargetState:   210,
 			TargetAttempt: 0,
+			CaseType:      domain.CasePeTransferPayment210_0,
 		}
 	},
 	domain.CasePe2200FastCashinFailed: func(result domain.TransactionResult) *DMLTicket {
@@ -142,6 +145,7 @@ AND workflow_id = 'workflow_transfer_collection';`,
 				WorkflowID:    "workflow_transfer_collection",
 				TargetState:   220,
 				TargetAttempt: 0,
+				CaseType:      domain.CasePe2200FastCashinFailed,
 			}
 		}
 		return nil
@@ -168,6 +172,7 @@ AND state = 902;`,
 				TargetDB:    "PC",
 				WorkflowID:  "internal_payment_flow",
 				TargetState: 900,
+				CaseType:     domain.CasePeStuck230RepublishPC,
 			}
 		}
 		return nil
@@ -194,6 +199,7 @@ WHERE run_id IN (%s);`,
 			TargetDB:      "RPP",
 			TargetState:   210,
 			TargetAttempt: 0,
+			CaseType:      domain.CasePcExternalPaymentFlow201_0RPP210,
 		}
 	},
 
@@ -215,6 +221,7 @@ WHERE run_id IN (%s);`,
 			TargetDB:      "RPP",
 			TargetState:   900,
 			TargetAttempt: 0,
+			CaseType:      domain.CasePcExternalPaymentFlow201_0RPP900,
 		}
 	},
 
@@ -240,6 +247,7 @@ AND workflow_id = 'wf_ct_cashout';`,
 			WorkflowID:    "'wf_ct_cashout'",
 			TargetState:   101,
 			TargetAttempt: 19,
+			CaseType:      domain.CaseRppCashoutReject101_19,
 		}
 	},
 
@@ -265,6 +273,7 @@ AND workflow_id = 'wf_ct_qr_payment';`,
 			WorkflowID:    "'wf_ct_qr_payment'",
 			TargetState:   210,
 			TargetAttempt: 0,
+			CaseType:      domain.CaseRppQrPaymentReject210_0,
 		}
 	},
 
@@ -291,6 +300,7 @@ AND workflow_id IN (%s);`,
 			TargetDB:      "RPP",
 			TargetState:   210,
 			TargetAttempt: 0,
+			CaseType:      domain.CaseRppNoResponseResume,
 		}
 	},
 }
