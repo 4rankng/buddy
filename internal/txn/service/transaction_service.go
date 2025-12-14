@@ -94,14 +94,11 @@ func (s *TransactionQueryService) QueryTransactionWithEnv(transactionID string, 
 		CaseType:      domain.CaseNone,
 	}
 
-	// Check if it's an RPP E2E ID and handle separately (Malaysia only)
-	if env == "my" && s.adapters.RPPAdapter != nil && domain.IsRppE2EID(transactionID) {
-		if rppResult, err := s.adapters.RPPAdapter.QueryByE2EID(transactionID); err == nil && rppResult != nil {
-			if rppResult.CaseType == "" {
-				rppResult.CaseType = domain.CaseNone
-			}
-			s.sopRepo.IdentifyCase(rppResult, env)
-			return rppResult
+	// Check if it's an RPP E2E ID and query RPP adapter first (Malaysia only)
+	isRppE2EID := env == "my" && s.adapters.RPPAdapter != nil && domain.IsRppE2EID(transactionID)
+	if isRppE2EID {
+		if rppInfo, err := s.adapters.RPPAdapter.QueryByE2EID(transactionID); err == nil && rppInfo != nil {
+			result.RPPAdapter = *rppInfo
 		}
 	}
 
@@ -109,12 +106,15 @@ func (s *TransactionQueryService) QueryTransactionWithEnv(transactionID string, 
 	if transfer, err := s.adapters.PaymentEngine.QueryTransfer(transactionID); err == nil && transfer != nil {
 		s.populatePaymentEngineInfo(result, transfer)
 	} else {
-		if err != nil {
-			result.Error = fmt.Sprintf("failed to query payment engine: %v", err)
-		} else {
-			result.Error = "No transaction found with the given ID"
+		// For RPP E2E IDs, don't return error if Payment Engine query fails
+		if !isRppE2EID {
+			if err != nil {
+				result.Error = fmt.Sprintf("failed to query payment engine: %v", err)
+			} else {
+				result.Error = "No transaction found with the given ID"
+			}
+			return result
 		}
-		return result
 	}
 
 	// Query Payment Engine workflow information if we have reference ID
@@ -125,8 +125,9 @@ func (s *TransactionQueryService) QueryTransactionWithEnv(transactionID string, 
 	}
 
 	// Query RPP adapter if available and we have external ID (Malaysia only)
-	if s.adapters.RPPAdapter != nil && result.PaymentEngine.Transfers.ExternalID != "" {
-		if rppInfo, err := s.adapters.RPPAdapter.QueryByExternalID(result.PaymentEngine.Transfers.ExternalID); err == nil && rppInfo != nil {
+	// This handles cases where Payment Engine returns an external_id that's different from the input transactionID
+	if s.adapters.RPPAdapter != nil && result.PaymentEngine.Transfers.ExternalID != "" && result.PaymentEngine.Transfers.ExternalID != transactionID {
+		if rppInfo, err := s.adapters.RPPAdapter.QueryByE2EID(result.PaymentEngine.Transfers.ExternalID); err == nil && rppInfo != nil {
 			result.RPPAdapter = *rppInfo
 		}
 	}

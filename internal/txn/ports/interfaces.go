@@ -20,8 +20,7 @@ type PaymentCorePort interface {
 
 // RPPAdapterPort defines the interface for RPP adapter queries
 type RPPAdapterPort interface {
-	QueryByExternalID(externalID string) (*domain.RPPAdapterInfo, error)
-	QueryByE2EID(e2eID string) (*domain.TransactionResult, error)
+	QueryByE2EID(externalID string) (*domain.RPPAdapterInfo, error)
 }
 
 // FastAdapterPort defines the interface for fast adapter queries
