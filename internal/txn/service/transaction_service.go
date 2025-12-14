@@ -230,10 +230,11 @@ func (s *TransactionQueryService) populatePaymentCoreInfo(result *domain.Transac
 			status := strings.TrimSpace(strings.ToUpper(utils.GetStringValue(internalTx, "status")))
 
 			result.PaymentCore.InternalTxns = append(result.PaymentCore.InternalTxns, domain.PCInternalTxnInfo{
-				TxID:     utils.GetStringValue(internalTx, "tx_id"),
-				GroupID:  result.TransactionID,
-				TxType:   txType,
-				TxStatus: status,
+				TxID:      utils.GetStringValue(internalTx, "tx_id"),
+				GroupID:   result.TransactionID,
+				TxType:    txType,
+				TxStatus:  status,
+				CreatedAt: utils.GetStringValue(internalTx, "created_at"),
 			})
 		}
 	}
@@ -246,10 +247,11 @@ func (s *TransactionQueryService) populatePaymentCoreInfo(result *domain.Transac
 			status := strings.TrimSpace(strings.ToUpper(utils.GetStringValue(externalTx, "status")))
 
 			result.PaymentCore.ExternalTxns = append(result.PaymentCore.ExternalTxns, domain.PCExternalTxnInfo{
-				RefID:    utils.GetStringValue(externalTx, "ref_id"),
-				GroupID:  result.TransactionID,
-				TxType:   txType,
-				TxStatus: status,
+				RefID:     utils.GetStringValue(externalTx, "ref_id"),
+				GroupID:   result.TransactionID,
+				TxType:    txType,
+				TxStatus:  status,
+				CreatedAt: utils.GetStringValue(externalTx, "created_at"),
 			})
 		}
 	}
@@ -302,7 +304,7 @@ func (s *TransactionQueryService) QueryPaymentCoreTransactions(result *domain.Tr
 
 	// Query internal transactions
 	if internalTxs, err := client.QueryPaymentCore(fmt.Sprintf(
-		"SELECT tx_id, tx_type, status FROM internal_transaction WHERE tx_id = '%s' AND created_at >= '%s' AND created_at <= '%s'",
+		"SELECT tx_id, tx_type, status, created_at FROM internal_transaction WHERE tx_id = '%s' AND created_at >= '%s' AND created_at <= '%s'",
 		transactionID,
 		windowStart.Format(time.RFC3339),
 		windowEnd.Format(time.RFC3339),
@@ -312,17 +314,18 @@ func (s *TransactionQueryService) QueryPaymentCoreTransactions(result *domain.Tr
 			status := strings.TrimSpace(strings.ToUpper(utils.GetStringValue(internalTx, "status")))
 
 			result.PaymentCore.InternalTxns = append(result.PaymentCore.InternalTxns, domain.PCInternalTxnInfo{
-				TxID:     utils.GetStringValue(internalTx, "tx_id"),
-				GroupID:  result.TransactionID,
-				TxType:   txType,
-				TxStatus: status,
+				TxID:      utils.GetStringValue(internalTx, "tx_id"),
+				GroupID:   result.TransactionID,
+				TxType:    txType,
+				TxStatus:  status,
+				CreatedAt: utils.GetStringValue(internalTx, "created_at"),
 			})
 		}
 	}
 
 	// Query external transactions
 	if externalTxs, err := client.QueryPaymentCore(fmt.Sprintf(
-		"SELECT ref_id, tx_type, status FROM external_transaction WHERE ref_id = '%s' AND created_at >= '%s' AND created_at <= '%s'",
+		"SELECT ref_id, tx_type, status, created_at FROM external_transaction WHERE ref_id = '%s' AND created_at >= '%s' AND created_at <= '%s'",
 		transactionID,
 		windowStart.Format(time.RFC3339),
 		windowEnd.Format(time.RFC3339),
@@ -332,10 +335,11 @@ func (s *TransactionQueryService) QueryPaymentCoreTransactions(result *domain.Tr
 			status := strings.TrimSpace(strings.ToUpper(utils.GetStringValue(externalTx, "status")))
 
 			result.PaymentCore.ExternalTxns = append(result.PaymentCore.ExternalTxns, domain.PCExternalTxnInfo{
-				RefID:    utils.GetStringValue(externalTx, "ref_id"),
-				GroupID:  result.TransactionID,
-				TxType:   txType,
-				TxStatus: status,
+				RefID:     utils.GetStringValue(externalTx, "ref_id"),
+				GroupID:   result.TransactionID,
+				TxType:    txType,
+				TxStatus:  status,
+				CreatedAt: utils.GetStringValue(externalTx, "created_at"),
 			})
 		}
 	}

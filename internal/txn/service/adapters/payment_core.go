@@ -28,7 +28,7 @@ func (p *PaymentCoreAdapter) QueryInternalTransactions(transactionID string, cre
 		return nil, err
 	}
 	endTime := startTime.Add(1 * time.Hour)
-	query := fmt.Sprintf("SELECT tx_id, tx_type, status FROM internal_transaction WHERE group_id='%s' AND created_at >= '%s' AND created_at <= '%s'", transactionID, createdAt, endTime.Format(time.RFC3339))
+	query := fmt.Sprintf("SELECT tx_id, tx_type, status, created_at FROM internal_transaction WHERE group_id='%s' AND created_at >= '%s' AND created_at <= '%s'", transactionID, createdAt, endTime.Format(time.RFC3339))
 	return p.client.QueryPaymentCore(query)
 }
 
@@ -41,7 +41,7 @@ func (p *PaymentCoreAdapter) QueryExternalTransactions(transactionID string, cre
 		return nil, err
 	}
 	endTime := startTime.Add(1 * time.Hour)
-	query := fmt.Sprintf("SELECT ref_id, tx_type, status FROM external_transaction WHERE group_id='%s' AND created_at >= '%s' AND created_at <= '%s'", transactionID, createdAt, endTime.Format(time.RFC3339))
+	query := fmt.Sprintf("SELECT ref_id, tx_type, status, created_at FROM external_transaction WHERE group_id='%s' AND created_at >= '%s' AND created_at <= '%s'", transactionID, createdAt, endTime.Format(time.RFC3339))
 	return p.client.QueryPaymentCore(query)
 }
 
