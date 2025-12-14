@@ -306,19 +306,62 @@ func (r *SOPRepository) IdentifySOPCase(result *domain.TransactionResult, env st
 
 // evaluateRule evaluates a single rule against a transaction result
 func (r *SOPRepository) evaluateRule(rule SOPCaseRule, result *domain.TransactionResult) bool {
+	// Check if rule involves workflow fields
+	hasWorkflowFields := false
 	for _, condition := range rule.Conditions {
-		fmt.Printf("[DEBUG] Evaluating condition: %s %s %v\n", condition.FieldPath, condition.Operator, condition.Value)
-		if !r.evaluateCondition(condition, result) {
-			fmt.Printf("[DEBUG] Condition failed: %s %s %v\n", condition.FieldPath, condition.Operator, condition.Value)
-			return false
+		if strings.Contains(condition.FieldPath, "PaymentCore.Workflow.") {
+			hasWorkflowFields = true
+			break
 		}
-		fmt.Printf("[DEBUG] Condition passed: %s %s %v\n", condition.FieldPath, condition.Operator, condition.Value)
 	}
-	return true
+
+	if !hasWorkflowFields {
+		// Simple evaluation for rules without workflow fields
+		for _, condition := range rule.Conditions {
+			fmt.Printf("[DEBUG] Evaluating condition: %s %s %v\n", condition.FieldPath, condition.Operator, condition.Value)
+			if !r.evaluateConditionSimple(condition, result) {
+				fmt.Printf("[DEBUG] Condition failed: %s %s %v\n", condition.FieldPath, condition.Operator, condition.Value)
+				return false
+			}
+			fmt.Printf("[DEBUG] Condition passed: %s %s %v\n", condition.FieldPath, condition.Operator, condition.Value)
+		}
+		return true
+	}
+
+	// For workflow fields, check each workflow in the slice
+	fmt.Printf("[DEBUG] Rule has workflow fields, checking each workflow in PaymentCore.Workflow slice\n")
+	for i, workflow := range result.PaymentCore.Workflow {
+		fmt.Printf("[DEBUG] Checking workflow %d: %+v\n", i, workflow)
+
+		allConditionsMatch := true
+		for _, condition := range rule.Conditions {
+			if !strings.Contains(condition.FieldPath, "PaymentCore.Workflow.") {
+				// For non-workflow conditions, use simple evaluation
+				if !r.evaluateConditionSimple(condition, result) {
+					allConditionsMatch = false
+					break
+				}
+			} else {
+				// For workflow conditions, check against this specific workflow
+				if !r.evaluateWorkflowCondition(condition, &workflow) {
+					allConditionsMatch = false
+					break
+				}
+			}
+		}
+
+		if allConditionsMatch {
+			fmt.Printf("[DEBUG] All conditions matched for workflow %d\n", i)
+			return true
+		}
+	}
+
+	fmt.Printf("[DEBUG] No workflows matched all conditions\n")
+	return false
 }
 
-// evaluateCondition evaluates a single condition
-func (r *SOPRepository) evaluateCondition(condition RuleCondition, result *domain.TransactionResult) bool {
+// evaluateConditionSimple evaluates a single condition for non-workflow fields
+func (r *SOPRepository) evaluateConditionSimple(condition RuleCondition, result *domain.TransactionResult) bool {
 	fieldValue := r.getFieldValue(condition.FieldPath, result)
 	if fieldValue == nil {
 		fmt.Printf("[DEBUG] Field value is nil for path: %s\n", condition.FieldPath)
@@ -353,6 +396,51 @@ func (r *SOPRepository) evaluateCondition(condition RuleCondition, result *domai
 	return evalResult
 }
 
+// evaluateWorkflowCondition evaluates a condition against a specific workflow
+func (r *SOPRepository) evaluateWorkflowCondition(condition RuleCondition, workflow *domain.WorkflowInfo) bool {
+	fmt.Printf("[DEBUG] Evaluating workflow condition: %s %s %v\n", condition.FieldPath, condition.Operator, condition.Value)
+
+	// Extract the field name from the path (last part after the dot)
+	parts := strings.Split(condition.FieldPath, ".")
+	fieldName := parts[len(parts)-1]
+
+	var fieldValue interface{}
+	switch fieldName {
+	case "WorkflowID":
+		fieldValue = workflow.WorkflowID
+	case "State":
+		fieldValue = workflow.State
+	case "Attempt":
+		fieldValue = workflow.Attempt
+	default:
+		fmt.Printf("[DEBUG] Unknown workflow field: %s\n", fieldName)
+		return false
+	}
+
+	fmt.Printf("[DEBUG] Workflow field %s value: %v (type: %T)\n", fieldName, fieldValue, fieldValue)
+
+	var evalResult bool
+	switch condition.Operator {
+	case "eq":
+		evalResult = reflect.DeepEqual(fieldValue, condition.Value)
+	case "ne":
+		evalResult = !reflect.DeepEqual(fieldValue, condition.Value)
+	case "lt":
+		evalResult = r.compareValues(fieldValue, condition.Value) < 0
+	case "gt":
+		evalResult = r.compareValues(fieldValue, condition.Value) > 0
+	case "in":
+		evalResult = r.isInSlice(fieldValue, condition.Value)
+	case "not_in":
+		evalResult = !r.isInSlice(fieldValue, condition.Value)
+	default:
+		evalResult = false
+	}
+
+	fmt.Printf("[DEBUG] Workflow condition evaluation result: %t\n", evalResult)
+	return evalResult
+}
+
 // getFieldValue retrieves field value from domain.TransactionResult using dot notation
 func (r *SOPRepository) getFieldValue(fieldPath string, result *domain.TransactionResult) interface{} {
 	parts := strings.Split(fieldPath, ".")
@@ -377,29 +465,10 @@ func (r *SOPRepository) getFieldValue(fieldPath string, result *domain.Transacti
 			// If we're at a slice and there are more parts to process,
 			// we need to find an element in the slice that has the requested field
 			if i < len(parts)-1 {
-				// Look for the first element in the slice that has the next field
-				nextPart := parts[i+1]
-				fmt.Printf("[DEBUG] Looking for element in slice with field %s\n", nextPart)
-				for j := 0; j < currentValue.Len(); j++ {
-					element := currentValue.Index(j)
-					if element.Kind() == reflect.Ptr {
-						element = element.Elem()
-					}
-					if element.Kind() == reflect.Struct {
-						field := element.FieldByName(nextPart)
-						if field.IsValid() {
-							// Found an element with the field, continue processing with this element
-							fmt.Printf("[DEBUG] Found element at index %d with field %s\n", j, nextPart)
-							currentValue = element
-							break
-						}
-					}
-				}
-				// If we couldn't find a matching element, return nil
-				if currentValue.Kind() == reflect.Slice {
-					fmt.Printf("[DEBUG] No element in slice has field %s\n", nextPart)
-					return nil
-				}
+				// For PaymentCore.Workflow.WorkflowID, State, or Attempt, we need to search for elements matching criteria
+				// Return the whole slice and let the evaluation handle the matching
+				fmt.Printf("[DEBUG] Returning whole slice for field %s to be evaluated by condition\n", part)
+				return currentValue.Interface()
 			} else {
 				// This is the last part and it's a slice, return the whole slice
 				fmt.Printf("[DEBUG] Returning whole slice for path %s\n", fieldPath)
@@ -456,6 +525,7 @@ func (r *SOPRepository) isInSlice(value, slice interface{}) bool {
 	}
 	return false
 }
+
 
 // matchRegex checks if value matches regex pattern
 func (r *SOPRepository) matchRegex(value, pattern interface{}) bool {
