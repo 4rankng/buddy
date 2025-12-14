@@ -370,8 +370,30 @@ func (r *SOPRepository) evaluateConditionSimple(condition RuleCondition, result 
 
 	switch condition.Operator {
 	case "eq":
+		// Handle string to int conversion for numeric comparisons
+		if conditionStr, ok := condition.Value.(string); ok {
+			if fieldStr, ok := fieldValue.(string); ok {
+				// Try to convert both to int for numeric comparison
+				if conditionInt, err1 := strconv.Atoi(conditionStr); err1 == nil {
+					if fieldInt, err2 := strconv.Atoi(fieldStr); err2 == nil {
+						return conditionInt == fieldInt
+					}
+				}
+			}
+		}
 		return reflect.DeepEqual(fieldValue, condition.Value)
 	case "ne":
+		// Handle string to int conversion for numeric comparisons
+		if conditionStr, ok := condition.Value.(string); ok {
+			if fieldStr, ok := fieldValue.(string); ok {
+				// Try to convert both to int for numeric comparison
+				if conditionInt, err1 := strconv.Atoi(conditionStr); err1 == nil {
+					if fieldInt, err2 := strconv.Atoi(fieldStr); err2 == nil {
+						return conditionInt != fieldInt
+					}
+				}
+			}
+		}
 		return !reflect.DeepEqual(fieldValue, condition.Value)
 	case "lt":
 		return r.compareValues(fieldValue, condition.Value) < 0
@@ -410,8 +432,36 @@ func (r *SOPRepository) evaluateWorkflowCondition(condition RuleCondition, workf
 
 	switch condition.Operator {
 	case "eq":
+		// Handle string to int conversion for numeric comparisons
+		if conditionStr, ok := condition.Value.(string); ok {
+			if fieldStr, ok := fieldValue.(string); ok {
+				// Debug logging
+				fmt.Printf("DEBUG EQ: condition='%s' (%T), field='%s' (%T)", conditionStr, condition.Value, fieldStr, fieldValue)
+				// Try to convert both to int for numeric comparison
+				if conditionInt, err1 := strconv.Atoi(conditionStr); err1 == nil {
+					if fieldInt, err2 := strconv.Atoi(fieldStr); err2 == nil {
+						fmt.Printf("DEBUG EQ: converted to int - condition=%d, field=%d, result=%v", conditionInt, fieldInt, conditionInt == fieldInt)
+						return conditionInt == fieldInt
+					}
+				}
+			}
+		}
 		return reflect.DeepEqual(fieldValue, condition.Value)
 	case "ne":
+		// Handle string to int conversion for numeric comparisons
+		if conditionStr, ok := condition.Value.(string); ok {
+			if fieldStr, ok := fieldValue.(string); ok {
+				// Debug logging
+				fmt.Printf("DEBUG NE: condition='%s' (%T), field='%s' (%T)", conditionStr, condition.Value, fieldStr, fieldValue)
+				// Try to convert both to int for numeric comparison
+				if conditionInt, err1 := strconv.Atoi(conditionStr); err1 == nil {
+					if fieldInt, err2 := strconv.Atoi(fieldStr); err2 == nil {
+						fmt.Printf("DEBUG NE: converted to int - condition=%d, field=%d, result=%v", conditionInt, fieldInt, conditionInt != fieldInt)
+						return conditionInt != fieldInt
+					}
+				}
+			}
+		}
 		return !reflect.DeepEqual(fieldValue, condition.Value)
 	case "lt":
 		return r.compareValues(fieldValue, condition.Value) < 0

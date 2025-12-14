@@ -1,8 +1,10 @@
 package service
 
 import (
+	"buddy/internal/txn/adapters"
 	"buddy/internal/txn/domain"
 	"buddy/internal/txn/utils"
+	"os"
 	"regexp"
 )
 
@@ -33,5 +35,7 @@ func QueryPartnerpayEngine(runID string) (domain.PartnerpayEngineInfo, error) {
 // PrintTransactionStatusWithEnv prints transaction information in the new format with specified environment
 func PrintTransactionStatusWithEnv(transactionID string, env string) {
 	service := NewTransactionQueryService(env)
-	utils.PrintTransactionStatusWithEnv(transactionID, env, service)
+	result := utils.QueryTransactionStatusWithEnv(transactionID, env, service)
+	// Use the full formatting from adapters package
+	adapters.WriteResult(os.Stdout, *result, 1)
 }

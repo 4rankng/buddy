@@ -93,8 +93,7 @@ func displayPaymentEngineSection(w io.Writer, pe domain.PaymentEngineInfo) error
 		if _, err := fmt.Fprintf(w, "workflow_transfer_payment:\n"); err != nil {
 			fmt.Printf("Warning: failed to write workflow header: %v\n", err)
 		}
-		line := fmt.Sprintf("   state=%s attempt=%d", pe.Workflow.GetFormattedState(), pe.Workflow.Attempt)
-		if _, err := fmt.Fprintf(w, "%s\n", line); err != nil {
+		if _, err := fmt.Fprintf(w, "   state=%s attempt=%d\n", pe.Workflow.GetFormattedState(), pe.Workflow.Attempt); err != nil {
 			fmt.Printf("Warning: failed to write workflow state: %v\n", err)
 		}
 		if _, err := fmt.Fprintf(w, "   run_id=%s\n", pe.Workflow.RunID); err != nil {
@@ -257,9 +256,14 @@ func displayRPPAdapterSection(w io.Writer, ra domain.RPPAdapterInfo, isE2EID boo
 			}
 		}
 		if ra.Workflow.RunID != "" {
-			line := fmt.Sprintf("state=%s attempt=%d", ra.Workflow.GetFormattedState(), ra.Workflow.Attempt)
-			if _, err := fmt.Fprintf(w, "workflow_%s: %s run_id=%s\n", ra.Workflow.WorkflowID, line, ra.Workflow.RunID); err != nil {
-				fmt.Printf("Warning: failed to write rpp workflow: %v\n", err)
+			if _, err := fmt.Fprintf(w, "workflow_%s:\n", ra.Workflow.WorkflowID); err != nil {
+				fmt.Printf("Warning: failed to write rpp workflow header: %v\n", err)
+			}
+			if _, err := fmt.Fprintf(w, "   state=%s attempt=%d\n", ra.Workflow.GetFormattedState(), ra.Workflow.Attempt); err != nil {
+				fmt.Printf("Warning: failed to write rpp workflow state: %v\n", err)
+			}
+			if _, err := fmt.Fprintf(w, "   run_id=%s\n", ra.Workflow.RunID); err != nil {
+				fmt.Printf("Warning: failed to write rpp workflow run id: %v\n", err)
 			}
 		}
 		return nil
@@ -288,9 +292,14 @@ func displayRPPAdapterSection(w io.Writer, ra domain.RPPAdapterInfo, isE2EID boo
 		}
 	}
 	if ra.Workflow.RunID != "" {
-		line := fmt.Sprintf("state=%s attempt=%d", ra.Workflow.GetFormattedState(), ra.Workflow.Attempt)
-		if _, err := fmt.Fprintf(w, "workflow_%s: %s run_id=%s\n", ra.Workflow.WorkflowID, line, ra.Workflow.RunID); err != nil {
-			fmt.Printf("Warning: failed to write rpp workflow: %v\n", err)
+		if _, err := fmt.Fprintf(w, "workflow_%s:\n", ra.Workflow.WorkflowID); err != nil {
+			fmt.Printf("Warning: failed to write rpp workflow header: %v\n", err)
+		}
+		if _, err := fmt.Fprintf(w, "   state=%s attempt=%d\n", ra.Workflow.GetFormattedState(), ra.Workflow.Attempt); err != nil {
+			fmt.Printf("Warning: failed to write rpp workflow state: %v\n", err)
+		}
+		if _, err := fmt.Fprintf(w, "   run_id=%s\n", ra.Workflow.RunID); err != nil {
+			fmt.Printf("Warning: failed to write rpp workflow run id: %v\n", err)
 		}
 	}
 	if ra.Info != "" {
@@ -309,11 +318,13 @@ func displayClassificationSection(w io.Writer, result domain.TransactionResult) 
 		return err
 	}
 
-	// Debug logging to understand what CaseType value we have
-	fmt.Printf("DEBUG: TransactionID=%s, CaseType='%s' (length=%d), IsEmpty=%v\n",
-		result.TransactionID, result.CaseType, len(result.CaseType), result.CaseType == "")
+	// Show NOT_FOUND for empty case types
+	caseType := result.CaseType
+	if caseType == "" || caseType == domain.CaseNone {
+		caseType = "NOT_FOUND"
+	}
 
-	if _, err := fmt.Fprintf(w, "%s\n", result.CaseType); err != nil {
+	if _, err := fmt.Fprintf(w, "%s\n", caseType); err != nil {
 		fmt.Printf("Warning: failed to write case type: %v\n", err)
 	}
 
