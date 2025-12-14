@@ -303,16 +303,6 @@ func getDefaultSOPRules() []CaseRule {
 					Operator:  "eq",
 					Value:     0,
 				},
-				{
-					FieldPath: "PaymentCore.InternalTxns",
-					Operator:  "eq",
-					Value:     nil, // No internal transactions found (NOT_FOUND)
-				},
-				{
-					FieldPath: "RPPAdapter.Status",
-					Operator:  "eq",
-					Value:     "PROCESSING",
-				},
 			},
 		}}
 }
