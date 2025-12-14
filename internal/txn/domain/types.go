@@ -101,12 +101,12 @@ type PartnerpayEngineInfo struct {
 
 // TransactionResult represents the result of a transaction query
 type TransactionResult struct {
-	TransactionID    string
-	PaymentEngine    PaymentEngineInfo
-	PartnerpayEngine PartnerpayEngineInfo
-	PaymentCore      PaymentCoreInfo
-	FastAdapter      FastAdapterInfo
-	RPPAdapter       RPPAdapterInfo
+	InputID          string
+	PaymentEngine    *PaymentEngineInfo
+	PartnerpayEngine *PartnerpayEngineInfo
+	PaymentCore      *PaymentCoreInfo
+	FastAdapter      *FastAdapterInfo
+	RPPAdapter       *RPPAdapterInfo
 	CaseType         Case // Store the identified SOP case to avoid re-identification
 	Error            string
 }

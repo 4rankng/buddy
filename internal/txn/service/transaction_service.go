@@ -88,68 +88,155 @@ func (s *TransactionQueryService) QueryTransaction(transactionID string) *domain
 }
 
 // QueryTransactionWithEnv retrieves complete transaction information by ID with specified environment
-func (s *TransactionQueryService) QueryTransactionWithEnv(transactionID string, env string) *domain.TransactionResult {
+func (s *TransactionQueryService) QueryTransactionWithEnv(inputID string, env string) *domain.TransactionResult {
 	result := &domain.TransactionResult{
-		TransactionID: transactionID,
-		CaseType:      domain.CaseNone,
+		InputID:  inputID,
+		CaseType: domain.CaseNone,
 	}
 
-	// Check if it's an RPP E2E ID and query RPP adapter first (Malaysia only)
-	isRppE2EID := env == "my" && s.adapters.RPPAdapter != nil && domain.IsRppE2EID(transactionID)
-	if isRppE2EID {
-		if rppInfo, err := s.adapters.RPPAdapter.QueryByE2EID(transactionID); err == nil && rppInfo != nil {
-			result.RPPAdapter = *rppInfo
-		}
-	}
+	// Step 1: Determine input type and fill primary adapters
+	isE2EID := domain.IsRppE2EID(inputID) &&
+		((env == "my" && s.adapters.RPPAdapter != nil) ||
+			(env == "sg" && s.adapters.FastAdapter != nil))
 
-	// Query Payment Engine transfer information
-	if transfer, err := s.adapters.PaymentEngine.QueryTransfer(transactionID); err == nil && transfer != nil {
-		s.populatePaymentEngineInfo(result, transfer)
+	if isE2EID {
+		// E2E ID: Fill RPP/Fast adapter first
+		s.fillAdapterFromE2EID(result, env)
 	} else {
-		// For RPP E2E IDs, don't return error if Payment Engine query fails
-		if !isRppE2EID {
-			if err != nil {
-				result.Error = fmt.Sprintf("failed to query payment engine: %v", err)
-			} else {
-				result.Error = "No transaction found with the given ID"
-			}
-			return result
-		}
+		// Transaction ID: Fill PaymentEngine first
+		s.fillPaymentEngineFromTransactionID(result, inputID)
 	}
 
-	// Query Payment Engine workflow information if we have reference ID
-	if result.PaymentEngine.Transfers.ReferenceID != "" {
-		if workflow, err := s.adapters.PaymentEngine.QueryWorkflow(result.PaymentEngine.Transfers.ReferenceID); err == nil && workflow != nil {
-			s.populatePaymentEngineWorkflow(result, workflow)
-		}
+	// Step 2: Ensure PaymentEngine is populated
+	if result.PaymentEngine == nil {
+		s.populatePaymentEngineFromAdapters(result, env)
 	}
 
-	// Query RPP adapter if available and we have external ID (Malaysia only)
-	// This handles cases where Payment Engine returns an external_id that's different from the input transactionID
-	if s.adapters.RPPAdapter != nil && result.PaymentEngine.Transfers.ExternalID != "" && result.PaymentEngine.Transfers.ExternalID != transactionID {
-		if rppInfo, err := s.adapters.RPPAdapter.QueryByE2EID(result.PaymentEngine.Transfers.ExternalID); err == nil && rppInfo != nil {
-			result.RPPAdapter = *rppInfo
-		}
-	}
-
-	// Query Payment Core transactions if we have created_at timestamp
-	if result.PaymentEngine.Transfers.CreatedAt != "" {
+	// Step 3: Ensure PaymentCore is populated
+	if result.PaymentCore == nil && result.PaymentEngine != nil {
 		s.populatePaymentCoreInfo(result)
 	}
 
-	// Query Fast Adapter if we have external ID
-	if result.PaymentEngine.Transfers.ExternalID != "" {
-		if fastInfo, err := s.adapters.FastAdapter.QueryByInstructionID(
-			result.PaymentEngine.Transfers.ExternalID,
-			result.PaymentEngine.Transfers.CreatedAt); err == nil && fastInfo != nil {
-			result.FastAdapter = *fastInfo
-		}
+	// Step 4: Ensure adapters are populated from PaymentEngine
+	if result.PaymentEngine != nil {
+		s.populateAdaptersFromPaymentEngine(result, env)
 	}
 
-	// Identify SOP case using rule engine
+	// Step 5: Identify SOP case
 	s.sopRepo.IdentifyCase(result, env)
 
 	return result
+}
+
+// fillAdapterFromE2EID fills RPP/Fast adapter from E2E ID
+func (s *TransactionQueryService) fillAdapterFromE2EID(result *domain.TransactionResult, env string) {
+	if env == "my" && s.adapters.RPPAdapter != nil {
+		// Malaysia: Query RPP adapter
+		if rppInfo, err := s.adapters.RPPAdapter.QueryByE2EID(result.InputID); err == nil && rppInfo != nil {
+			result.RPPAdapter = rppInfo
+		}
+	} else if env == "sg" && s.adapters.FastAdapter != nil {
+		// Singapore: Query Fast adapter
+		if fastInfo, err := s.adapters.FastAdapter.QueryByInstructionID(result.InputID, ""); err == nil && fastInfo != nil {
+			result.FastAdapter = fastInfo
+		}
+	}
+}
+
+// fillPaymentEngineFromTransactionID fills PaymentEngine from Transaction ID
+func (s *TransactionQueryService) fillPaymentEngineFromTransactionID(result *domain.TransactionResult, transactionID string) {
+	if transfer, err := s.adapters.PaymentEngine.QueryTransfer(transactionID); err == nil && transfer != nil {
+		paymentEngineInfo := &domain.PaymentEngineInfo{
+			Transfers: domain.PETransfersInfo{},
+			Workflow:  domain.WorkflowInfo{},
+		}
+		s.populatePaymentEngineInfoFromTransfer(paymentEngineInfo, transfer)
+		result.PaymentEngine = paymentEngineInfo
+
+		// Query workflow if we have reference_id
+		if paymentEngineInfo.Transfers.ReferenceID != "" {
+			if workflow, err := s.adapters.PaymentEngine.QueryWorkflow(
+				paymentEngineInfo.Transfers.ReferenceID); err == nil && workflow != nil {
+				s.populatePaymentEngineWorkflowFromWorkflow(paymentEngineInfo, workflow)
+			}
+		}
+	} else {
+		// For non-E2E IDs, if payment-engine query fails, return error
+		if err != nil {
+			result.Error = fmt.Sprintf("failed to query payment engine: %v", err)
+		} else {
+			result.Error = "No transaction found with the given ID"
+		}
+	}
+}
+
+// populatePaymentEngineFromAdapters populates PaymentEngine from RPP/Fast adapters
+func (s *TransactionQueryService) populatePaymentEngineFromAdapters(result *domain.TransactionResult, env string) {
+	if env == "my" && result.RPPAdapter != nil {
+		// Use RPP adapter data
+		if result.RPPAdapter.EndToEndID != "" && result.RPPAdapter.CreatedAt != "" {
+			if transfer, err := s.adapters.PaymentEngine.QueryTransferByExternalID(
+				result.RPPAdapter.EndToEndID, result.RPPAdapter.CreatedAt); err == nil && transfer != nil {
+				paymentEngineInfo := &domain.PaymentEngineInfo{
+					Transfers: domain.PETransfersInfo{},
+					Workflow:  domain.WorkflowInfo{},
+				}
+				s.populatePaymentEngineInfoFromTransfer(paymentEngineInfo, transfer)
+				result.PaymentEngine = paymentEngineInfo
+
+				// Query workflow if we have reference_id
+				if paymentEngineInfo.Transfers.ReferenceID != "" {
+					if workflow, err := s.adapters.PaymentEngine.QueryWorkflow(
+						paymentEngineInfo.Transfers.ReferenceID); err == nil && workflow != nil {
+						s.populatePaymentEngineWorkflowFromWorkflow(paymentEngineInfo, workflow)
+					}
+				}
+			}
+		}
+	} else if env == "sg" && result.FastAdapter != nil {
+		// Use Fast adapter data
+		if result.FastAdapter.InstructionID != "" && result.FastAdapter.CreatedAt != "" {
+			if transfer, err := s.adapters.PaymentEngine.QueryTransferByExternalID(
+				result.FastAdapter.InstructionID, result.FastAdapter.CreatedAt); err == nil && transfer != nil {
+				paymentEngineInfo := &domain.PaymentEngineInfo{
+					Transfers: domain.PETransfersInfo{},
+					Workflow:  domain.WorkflowInfo{},
+				}
+				s.populatePaymentEngineInfoFromTransfer(paymentEngineInfo, transfer)
+				result.PaymentEngine = paymentEngineInfo
+
+				// Query workflow if we have reference_id
+				if paymentEngineInfo.Transfers.ReferenceID != "" {
+					if workflow, err := s.adapters.PaymentEngine.QueryWorkflow(
+						paymentEngineInfo.Transfers.ReferenceID); err == nil && workflow != nil {
+						s.populatePaymentEngineWorkflowFromWorkflow(paymentEngineInfo, workflow)
+					}
+				}
+			}
+		}
+	}
+}
+
+// populateAdaptersFromPaymentEngine populates adapters from PaymentEngine
+func (s *TransactionQueryService) populateAdaptersFromPaymentEngine(result *domain.TransactionResult, env string) {
+	if result.PaymentEngine.Transfers.ExternalID == "" {
+		return
+	}
+
+	if env == "my" && result.RPPAdapter == nil && s.adapters.RPPAdapter != nil {
+		// Query RPP adapter using external_id
+		if rppInfo, err := s.adapters.RPPAdapter.QueryByE2EID(
+			result.PaymentEngine.Transfers.ExternalID); err == nil && rppInfo != nil {
+			result.RPPAdapter = rppInfo
+		}
+	} else if env == "sg" && result.FastAdapter == nil && s.adapters.FastAdapter != nil {
+		// Query Fast adapter using external_id
+		if fastInfo, err := s.adapters.FastAdapter.QueryByInstructionID(
+			result.PaymentEngine.Transfers.ExternalID,
+			result.PaymentEngine.Transfers.CreatedAt); err == nil && fastInfo != nil {
+			result.FastAdapter = fastInfo
+		}
+	}
 }
 
 // QueryPartnerpayEngine queries the partnerpay-engine database for a transaction by run_id
@@ -162,76 +249,24 @@ func (s *TransactionQueryService) GetAdapters() AdapterSet {
 	return s.adapters
 }
 
-// populatePaymentEngineInfo populates payment engine transfer information
-func (s *TransactionQueryService) populatePaymentEngineInfo(result *domain.TransactionResult, transfer map[string]interface{}) {
-	// Extract status
-	if status, ok := transfer["status"].(string); ok {
-		result.PaymentEngine.Transfers.Status = status
-	}
-
-	// Extract transaction_id
-	if txID, ok := transfer["transaction_id"].(string); ok && txID != "" {
-		result.TransactionID = txID
-		result.PaymentEngine.Transfers.TransactionID = txID
-	} else {
-		result.PaymentEngine.Transfers.TransactionID = result.TransactionID
-	}
-
-	// Extract other fields
-	result.PaymentEngine.Transfers.ReferenceID = utils.GetStringValue(transfer, "reference_id")
-	result.PaymentEngine.Transfers.CreatedAt = utils.GetStringValue(transfer, "created_at")
-	result.PaymentEngine.Transfers.Type = utils.GetStringValue(transfer, "type")
-	result.PaymentEngine.Transfers.TxnSubtype = utils.GetStringValue(transfer, "txn_subtype")
-	result.PaymentEngine.Transfers.TxnDomain = utils.GetStringValue(transfer, "txn_domain")
-	result.PaymentEngine.Transfers.ExternalID = utils.GetStringValue(transfer, "external_id")
-}
-
-// populatePaymentEngineWorkflow populates payment engine workflow information
-func (s *TransactionQueryService) populatePaymentEngineWorkflow(result *domain.TransactionResult, workflow map[string]interface{}) {
-	if workflowID, ok := workflow["workflow_id"]; ok {
-		result.PaymentEngine.Workflow.WorkflowID = fmt.Sprintf("%v", workflowID)
-	}
-	if runID, ok := workflow["run_id"]; ok {
-		result.PaymentEngine.Workflow.RunID = fmt.Sprintf("%v", runID)
-	}
-	if attemptVal, ok := workflow["attempt"]; ok {
-		if attemptFloat, ok := attemptVal.(float64); ok {
-			result.PaymentEngine.Workflow.Attempt = int(attemptFloat)
-		}
-	}
-	if state, ok := workflow["state"]; ok {
-		if stateInt, ok := state.(float64); ok {
-			result.PaymentEngine.Workflow.State = fmt.Sprintf("%d", int(stateInt))
-		} else {
-			result.PaymentEngine.Workflow.State = fmt.Sprintf("%v", state)
-		}
-	}
-
-	// Populate prev_trans_id field
-	if prevTransID, ok := workflow["prev_trans_id"]; ok {
-		result.PaymentEngine.Workflow.PrevTransID = fmt.Sprintf("%v", prevTransID)
-	}
-
-	// If we don't have created_at from transfer, use workflow timestamps
-	if result.PaymentEngine.Transfers.CreatedAt == "" {
-		if createdAt, ok := workflow["created_at"]; ok {
-			result.PaymentEngine.Transfers.CreatedAt = fmt.Sprintf("%v", createdAt)
-		}
-	}
-}
-
 // populatePaymentCoreInfo populates payment core information
 func (s *TransactionQueryService) populatePaymentCoreInfo(result *domain.TransactionResult) {
+	// Use the transaction_id from payment engine if available, otherwise use InputID
+	transactionID := result.PaymentEngine.Transfers.TransactionID
+	if transactionID == "" {
+		transactionID = result.InputID
+	}
+
 	// Query internal transactions
 	if internalTxs, err := s.adapters.PaymentCore.QueryInternalTransactions(
-		result.TransactionID, result.PaymentEngine.Transfers.CreatedAt); err == nil {
+		transactionID, result.PaymentEngine.Transfers.CreatedAt); err == nil {
 		for _, internalTx := range internalTxs {
 			txType := strings.TrimSpace(strings.ToUpper(utils.GetStringValue(internalTx, "tx_type")))
 			status := strings.TrimSpace(strings.ToUpper(utils.GetStringValue(internalTx, "status")))
 
 			result.PaymentCore.InternalTxns = append(result.PaymentCore.InternalTxns, domain.PCInternalTxnInfo{
 				TxID:      utils.GetStringValue(internalTx, "tx_id"),
-				GroupID:   result.TransactionID,
+				GroupID:   transactionID,
 				TxType:    txType,
 				TxStatus:  status,
 				CreatedAt: utils.GetStringValue(internalTx, "created_at"),
@@ -241,14 +276,14 @@ func (s *TransactionQueryService) populatePaymentCoreInfo(result *domain.Transac
 
 	// Query external transactions
 	if externalTxs, err := s.adapters.PaymentCore.QueryExternalTransactions(
-		result.TransactionID, result.PaymentEngine.Transfers.CreatedAt); err == nil {
+		transactionID, result.PaymentEngine.Transfers.CreatedAt); err == nil {
 		for _, externalTx := range externalTxs {
 			txType := strings.TrimSpace(strings.ToUpper(utils.GetStringValue(externalTx, "tx_type")))
 			status := strings.TrimSpace(strings.ToUpper(utils.GetStringValue(externalTx, "status")))
 
 			result.PaymentCore.ExternalTxns = append(result.PaymentCore.ExternalTxns, domain.PCExternalTxnInfo{
 				RefID:     utils.GetStringValue(externalTx, "ref_id"),
-				GroupID:   result.TransactionID,
+				GroupID:   transactionID,
 				TxType:    txType,
 				TxStatus:  status,
 				CreatedAt: utils.GetStringValue(externalTx, "created_at"),
@@ -315,7 +350,7 @@ func (s *TransactionQueryService) QueryPaymentCoreTransactions(result *domain.Tr
 
 			result.PaymentCore.InternalTxns = append(result.PaymentCore.InternalTxns, domain.PCInternalTxnInfo{
 				TxID:      utils.GetStringValue(internalTx, "tx_id"),
-				GroupID:   result.TransactionID,
+				GroupID:   transactionID,
 				TxType:    txType,
 				TxStatus:  status,
 				CreatedAt: utils.GetStringValue(internalTx, "created_at"),
@@ -336,7 +371,7 @@ func (s *TransactionQueryService) QueryPaymentCoreTransactions(result *domain.Tr
 
 			result.PaymentCore.ExternalTxns = append(result.PaymentCore.ExternalTxns, domain.PCExternalTxnInfo{
 				RefID:     utils.GetStringValue(externalTx, "ref_id"),
-				GroupID:   result.TransactionID,
+				GroupID:   transactionID,
 				TxType:    txType,
 				TxStatus:  status,
 				CreatedAt: utils.GetStringValue(externalTx, "created_at"),
@@ -392,6 +427,61 @@ func (s *TransactionQueryService) QueryPaymentCoreTransactions(result *domain.Tr
 					Attempt:    attempt,
 				})
 			}
+		}
+	}
+}
+
+// populatePaymentEngineInfoFromTransfer populates payment engine transfer information from transfer map to PaymentEngineInfo
+func (s *TransactionQueryService) populatePaymentEngineInfoFromTransfer(paymentEngineInfo *domain.PaymentEngineInfo, transfer map[string]interface{}) {
+	// Extract status
+	if status, ok := transfer["status"].(string); ok {
+		paymentEngineInfo.Transfers.Status = status
+	}
+
+	// Extract transaction_id
+	if txID, ok := transfer["transaction_id"].(string); ok && txID != "" {
+		paymentEngineInfo.Transfers.TransactionID = txID
+	}
+
+	// Extract other fields
+	paymentEngineInfo.Transfers.ReferenceID = utils.GetStringValue(transfer, "reference_id")
+	paymentEngineInfo.Transfers.CreatedAt = utils.GetStringValue(transfer, "created_at")
+	paymentEngineInfo.Transfers.Type = utils.GetStringValue(transfer, "type")
+	paymentEngineInfo.Transfers.TxnSubtype = utils.GetStringValue(transfer, "txn_subtype")
+	paymentEngineInfo.Transfers.TxnDomain = utils.GetStringValue(transfer, "txn_domain")
+	paymentEngineInfo.Transfers.ExternalID = utils.GetStringValue(transfer, "external_id")
+}
+
+// populatePaymentEngineWorkflowFromWorkflow populates payment engine workflow information from workflow map to PaymentEngineInfo
+func (s *TransactionQueryService) populatePaymentEngineWorkflowFromWorkflow(paymentEngineInfo *domain.PaymentEngineInfo, workflow map[string]interface{}) {
+	if workflowID, ok := workflow["workflow_id"]; ok {
+		paymentEngineInfo.Workflow.WorkflowID = fmt.Sprintf("%v", workflowID)
+	}
+	if runID, ok := workflow["run_id"]; ok {
+		paymentEngineInfo.Workflow.RunID = fmt.Sprintf("%v", runID)
+	}
+	if attemptVal, ok := workflow["attempt"]; ok {
+		if attemptFloat, ok := attemptVal.(float64); ok {
+			paymentEngineInfo.Workflow.Attempt = int(attemptFloat)
+		}
+	}
+	if state, ok := workflow["state"]; ok {
+		if stateInt, ok := state.(float64); ok {
+			paymentEngineInfo.Workflow.State = fmt.Sprintf("%d", int(stateInt))
+		} else {
+			paymentEngineInfo.Workflow.State = fmt.Sprintf("%v", state)
+		}
+	}
+
+	// Populate prev_trans_id field
+	if prevTransID, ok := workflow["prev_trans_id"]; ok {
+		paymentEngineInfo.Workflow.PrevTransID = fmt.Sprintf("%v", prevTransID)
+	}
+
+	// If we do not have created_at from transfer, use workflow timestamps
+	if paymentEngineInfo.Transfers.CreatedAt == "" {
+		if createdAt, ok := workflow["created_at"]; ok {
+			paymentEngineInfo.Transfers.CreatedAt = fmt.Sprintf("%v", createdAt)
 		}
 	}
 }

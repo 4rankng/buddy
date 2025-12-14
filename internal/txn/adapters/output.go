@@ -337,8 +337,8 @@ func writeResult(w io.Writer, result domain.TransactionResult, index int) {
 	}
 
 	// For RPP E2E IDs with errors, still show the RPP adapter section with NOT FOUND status
-	if domain.IsRppE2EID(result.TransactionID) && result.Error != "" {
-		if _, err := fmt.Fprintf(w, "### [%d] e2e_id: %s\n", index, result.TransactionID); err != nil {
+	if domain.IsRppE2EID(result.InputID) && result.Error != "" {
+		if _, err := fmt.Fprintf(w, "### [%d] e2e_id: %s\n", index, result.InputID); err != nil {
 			fmt.Printf("Warning: failed to write e2e_id: %v\n", err)
 		}
 		if _, err := fmt.Fprintln(w, "[rpp-adapter]"); err != nil {
@@ -355,7 +355,7 @@ func writeResult(w io.Writer, result domain.TransactionResult, index int) {
 
 	// Check if there's an error (but NOT_FOUND is not an error for display purposes)
 	if result.Error != "" {
-		if _, err := fmt.Fprintf(w, "### [%d] transaction_id: %s\nError: %s\n\n", index, result.TransactionID, result.Error); err != nil {
+		if _, err := fmt.Fprintf(w, "### [%d] transaction_id: %s\nError: %s\n\n", index, result.InputID, result.Error); err != nil {
 			fmt.Printf("Warning: failed to write error result: %v\n", err)
 		}
 		return
@@ -364,16 +364,47 @@ func writeResult(w io.Writer, result domain.TransactionResult, index int) {
 	// Use e2e_id for RPP E2E IDs, transaction_id for others
 
 	idLabel := "transaction_id"
-	if domain.IsRppE2EID(result.TransactionID) {
+	if domain.IsRppE2EID(result.InputID) {
 		idLabel = "e2e_id"
 	}
-	if _, err := fmt.Fprintf(w, "### [%d] %s: %s\n", index, idLabel, result.TransactionID); err != nil {
+	if _, err := fmt.Fprintf(w, "### [%d] %s: %s\n", index, idLabel, result.InputID); err != nil {
 		fmt.Printf("Warning: failed to write ID: %v\n", err)
 	}
 
-	// If this is an E2E ID lookup, show RPP adapter info first
-	if domain.IsRppE2EID(result.TransactionID) {
-		if err := displayRPPAdapterSection(w, result.RPPAdapter, true, result.TransactionID); err != nil {
+	// Display sections in fix order: PaymentEngine -> PaymentCore -> FastAdapter/RPPAdapter -> PartnerpayEngine
+
+	// 1. Payment Engine
+	if result.PaymentEngine != nil {
+		if err := displayPaymentEngineSection(w, *result.PaymentEngine); err != nil {
+			fmt.Printf("Warning: failed to display payment engine section: %v\n", err)
+		}
+		if _, err := fmt.Fprintln(w); err != nil {
+			fmt.Printf("Warning: failed to write newline: %v\n", err)
+		}
+	}
+
+	// 2. Payment Core
+	if result.PaymentCore != nil {
+		if err := displayPaymentCoreSection(w, *result.PaymentCore); err != nil {
+			fmt.Printf("Warning: failed to display payment core section: %v\n", err)
+		}
+		if _, err := fmt.Fprintln(w); err != nil {
+			fmt.Printf("Warning: failed to write newline: %v\n", err)
+		}
+	}
+
+	// 3. Fast Adapter (SG) or RPP Adapter (MY)
+	if result.FastAdapter != nil {
+		if err := displayFastAdapterSection(w, *result.FastAdapter); err != nil {
+			fmt.Printf("Warning: failed to display fast adapter section: %v\n", err)
+		}
+		if _, err := fmt.Fprintln(w); err != nil {
+			fmt.Printf("Warning: failed to write newline: %v\n", err)
+		}
+	}
+
+	if result.RPPAdapter != nil {
+		if err := displayRPPAdapterSection(w, *result.RPPAdapter, false, result.InputID); err != nil {
 			fmt.Printf("Warning: failed to display RPP adapter section: %v\n", err)
 		}
 		if _, err := fmt.Fprintln(w); err != nil {
@@ -381,22 +412,11 @@ func writeResult(w io.Writer, result domain.TransactionResult, index int) {
 		}
 	}
 
-	// Display sections based on data availability
-	if err := displayPaymentEngineSection(w, result.PaymentEngine); err == nil {
-		// payment-engine was shown, now show payment-core
-		if err := displayPaymentCoreSection(w, result.PaymentCore); err != nil {
-			fmt.Printf("Warning: failed to display payment core section: %v\n", err)
-		}
-	}
-
-	if err := displayFastAdapterSection(w, result.FastAdapter); err != nil {
-		fmt.Printf("Warning: failed to display fast adapter section: %v\n", err)
-	}
-
-	// Display RPP adapter for non-E2E IDs
-	if !domain.IsRppE2EID(result.TransactionID) {
-		if err := displayRPPAdapterSection(w, result.RPPAdapter, false, result.TransactionID); err != nil {
-			fmt.Printf("Warning: failed to display RPP adapter section: %v\n", err)
+	// 4. Partnerpay Engine
+	if result.PartnerpayEngine != nil {
+		WriteEcoTransactionInfo(w, *result.PartnerpayEngine, result.InputID, index)
+		if _, err := fmt.Fprintln(w); err != nil {
+			fmt.Printf("Warning: failed to write newline: %v\n", err)
 		}
 	}
 
@@ -411,7 +431,9 @@ func writeResult(w io.Writer, result domain.TransactionResult, index int) {
 
 // WriteEcoTransactionResult writes a partnerpay-engine transaction result in the required format
 func WriteEcoTransactionResult(w io.Writer, result domain.TransactionResult, index int) {
-	WriteEcoTransactionInfo(w, result.PartnerpayEngine, result.TransactionID, index)
+	if result.PartnerpayEngine != nil {
+		WriteEcoTransactionInfo(w, *result.PartnerpayEngine, result.InputID, index)
+	}
 }
 
 // WriteEcoTransactionInfo writes a partnerpay-engine transaction info in the required format

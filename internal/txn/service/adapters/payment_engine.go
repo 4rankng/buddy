@@ -49,26 +49,26 @@ func (p *PaymentEngineAdapter) QueryTransferByExternalID(externalID, createdAt s
 			return nil, fmt.Errorf("failed to parse created_at timestamp: %w", err)
 		}
 	}
-	
+
 	// Calculate time window (±30 minutes)
 	startTime := parsedTime.Add(-30 * time.Minute)
 	endTime := parsedTime.Add(30 * time.Minute)
-	
+
 	query := fmt.Sprintf(
 		"SELECT transaction_id, status, reference_id, created_at, updated_at, type, txn_subtype, txn_domain, external_id "+
-		"FROM transfer "+
-		"WHERE external_id='%s' "+
-		"AND created_at >= '%s' "+
-		"AND created_at <= '%s'",
+			"FROM transfer "+
+			"WHERE external_id='%s' "+
+			"AND created_at >= '%s' "+
+			"AND created_at <= '%s'",
 		externalID,
 		startTime.Format(time.RFC3339),
 		endTime.Format(time.RFC3339),
 	)
-	
+
 	transfers, err := p.client.QueryPaymentEngine(query)
 	if err != nil || len(transfers) == 0 {
 		return nil, err
 	}
-	
+
 	return transfers[0], nil
 }

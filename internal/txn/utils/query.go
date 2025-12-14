@@ -45,7 +45,7 @@ func QueryPartnerpayEngine(runID string, defaultService DefaultServiceInstance) 
 func PrintTransactionStatusWithEnv(transactionID string, env string, defaultService DefaultServiceInstance) {
 	result := QueryTransactionStatusWithEnv(transactionID, env, defaultService)
 	// Simplified output to avoid circular dependency
-	fmt.Printf("\n### [1] transaction_id: %s\n", result.TransactionID)
+	fmt.Printf("\n### [1] Input ID: %s\n", result.InputID)
 	fmt.Printf("Environment: %s\n", env)
 	// Note: Full formatting would require adapters, using simplified output
 }

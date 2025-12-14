@@ -128,7 +128,7 @@ func processBatchFile(appCtx *common.Context, filePath string) {
 
 		// Also show error messages on console for visibility
 		if result.Error != "" {
-			fmt.Printf("%sError for %s: %s\n", appCtx.GetPrefix(), result.TransactionID, result.Error)
+			fmt.Printf("%sError for %s: %s\n", appCtx.GetPrefix(), result.InputID, result.Error)
 		}
 	}
 

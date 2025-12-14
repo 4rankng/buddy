@@ -8,6 +8,7 @@ import "buddy/internal/txn/domain"
 type PaymentEnginePort interface {
 	QueryTransfer(transactionID string) (map[string]interface{}, error)
 	QueryWorkflow(referenceID string) (map[string]interface{}, error)
+	QueryTransferByExternalID(externalID, createdAt string) (map[string]interface{}, error)
 }
 
 // PaymentCorePort defines the interface for payment core queries
