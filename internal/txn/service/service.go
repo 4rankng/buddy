@@ -301,8 +301,237 @@ func (r *rppAdapter) QueryByExternalID(externalID string) (*domain.RPPAdapterInf
 }
 
 func (r *rppAdapter) QueryByE2EID(e2eID string) (*domain.TransactionResult, error) {
-	// Similar implementation from the original query.go
-	return nil, nil
+	// Validate E2E ID format
+	if !r.IsRppE2EID(e2eID) {
+		return &domain.TransactionResult{
+			TransactionID: e2eID,
+			RPPAdapter: domain.RPPAdapterInfo{
+				EndToEndID: e2eID,
+				Status:     domain.NotFoundStatus,
+				Info:       "Invalid E2E ID format",
+			},
+		}, nil
+	}
+
+	// Query credit_transfer table
+	query := fmt.Sprintf("SELECT req_biz_msg_id, partner_tx_id, partner_tx_sts AS status, created_at FROM credit_transfer WHERE end_to_end_id = '%s'", e2eID)
+	rppResults, err := r.client.ExecuteQuery("prd-payments-rpp-adapter-rds-mysql", "prd-payments-rpp-adapter-rds-mysql", "rpp_adapter", query)
+	if err != nil || len(rppResults) == 0 {
+		return &domain.TransactionResult{
+			TransactionID: e2eID,
+			RPPAdapter: domain.RPPAdapterInfo{
+				EndToEndID: e2eID,
+				Status:     domain.NotFoundStatus,
+				Info:       "No record found in RPP adapter",
+			},
+		}, nil
+	}
+
+	// Extract RPP data
+	row := rppResults[0]
+	partnerTxID := getStringValue(row, "partner_tx_id")
+	reqBizMsgID := getStringValue(row, "req_biz_msg_id")
+	rppStatus := getStringValue(row, "status")
+	createdAt := getStringValue(row, "created_at")
+
+	// Initialize result
+	result := &domain.TransactionResult{
+		TransactionID: e2eID,
+		RPPAdapter: domain.RPPAdapterInfo{
+			ReqBizMsgID: reqBizMsgID,
+			PartnerTxID: partnerTxID,
+			EndToEndID:  e2eID,
+			Status:      rppStatus,
+		},
+	}
+
+	// Query workflow_execution if partner_tx_id exists
+	if partnerTxID != "" {
+		workflowQuery := fmt.Sprintf("SELECT run_id, workflow_id, state, attempt FROM workflow_execution WHERE run_id = '%s'", partnerTxID)
+		if workflows, err := r.client.QueryRppAdapter(workflowQuery); err == nil && len(workflows) > 0 {
+			workflow := workflows[0]
+			result.RPPAdapter.Workflow.RunID = partnerTxID
+			result.RPPAdapter.Workflow.WorkflowID = getStringValue(workflow, "workflow_id")
+			result.RPPAdapter.Workflow.State = getStringValue(workflow, "state")
+			if attemptVal, ok := workflow["attempt"]; ok {
+				if attemptFloat, ok := attemptVal.(float64); ok {
+					result.RPPAdapter.Workflow.Attempt = int(attemptFloat)
+				}
+			}
+		}
+	}
+
+	result.RPPAdapter.Info = fmt.Sprintf("RPP Status: %s", rppStatus)
+
+	// Query Payment Engine using external_id and time window
+	if createdAt != "" {
+		// Parse created_at and calculate time window
+		var startTime time.Time
+		var err error
+
+		// Try RFC3339 format first
+		if startTime, err = time.Parse(time.RFC3339, createdAt); err != nil {
+			// Try alternative date formats
+			if startTime, err = time.Parse("2006-01-02 15:04:05", createdAt); err != nil {
+				// Try one more format
+				if startTime, err = time.Parse("2006-01-02T15:04:05Z", createdAt); err != nil {
+					// Continue with empty created_at if parsing fails
+					return result, nil
+				}
+			}
+		}
+
+		timeWindow := 30 * time.Minute
+		windowStart := startTime.Add(-timeWindow)
+		windowEnd := startTime.Add(timeWindow)
+
+		peQuery := fmt.Sprintf(
+			"SELECT transaction_id, status, reference_id, external_id, type, txn_subtype, txn_domain, created_at FROM transfer WHERE external_id = '%s' AND created_at >= '%s' AND created_at <= '%s'",
+			e2eID,
+			windowStart.Format(time.RFC3339),
+			windowEnd.Format(time.RFC3339),
+		)
+
+		if transfers, err := r.client.QueryPaymentEngine(peQuery); err == nil && len(transfers) > 0 {
+			transfer := transfers[0]
+
+			// Populate PaymentEngine info
+			result.PaymentEngine.Transfers.TransactionID = getStringValue(transfer, "transaction_id")
+			result.PaymentEngine.Transfers.Status = getStringValue(transfer, "status")
+			result.PaymentEngine.Transfers.ReferenceID = getStringValue(transfer, "reference_id")
+			result.PaymentEngine.Transfers.ExternalID = getStringValue(transfer, "external_id")
+			result.PaymentEngine.Transfers.Type = getStringValue(transfer, "type")
+			result.PaymentEngine.Transfers.TxnSubtype = getStringValue(transfer, "txn_subtype")
+			result.PaymentEngine.Transfers.TxnDomain = getStringValue(transfer, "txn_domain")
+			result.PaymentEngine.Transfers.CreatedAt = getStringValue(transfer, "created_at")
+
+			// Update the main TransactionID with the one from Payment Engine
+			if result.PaymentEngine.Transfers.TransactionID != "" {
+				result.TransactionID = result.PaymentEngine.Transfers.TransactionID
+			}
+
+			// Query Payment Engine workflow if we have reference_id
+			if result.PaymentEngine.Transfers.ReferenceID != "" {
+				peWorkflowQuery := fmt.Sprintf(
+					"SELECT run_id, workflow_id, state, attempt, created_at FROM workflow_execution WHERE run_id = '%s'",
+					result.PaymentEngine.Transfers.ReferenceID,
+				)
+				if peWorkflows, err := r.client.QueryPaymentEngine(peWorkflowQuery); err == nil && len(peWorkflows) > 0 {
+					peWorkflow := peWorkflows[0]
+					result.PaymentEngine.Workflow.RunID = result.PaymentEngine.Transfers.ReferenceID
+					result.PaymentEngine.Workflow.WorkflowID = getStringValue(peWorkflow, "workflow_id")
+					if state, ok := peWorkflow["state"]; ok {
+						if stateInt, ok := state.(float64); ok {
+							result.PaymentEngine.Workflow.State = fmt.Sprintf("%d", int(stateInt))
+						} else {
+							result.PaymentEngine.Workflow.State = fmt.Sprintf("%v", state)
+						}
+					}
+					if attemptVal, ok := peWorkflow["attempt"]; ok {
+						if attemptFloat, ok := attemptVal.(float64); ok {
+							result.PaymentEngine.Workflow.Attempt = int(attemptFloat)
+						}
+					}
+				}
+			}
+
+			// Query Payment Core if we have transaction_id and created_at
+			if result.PaymentEngine.Transfers.TransactionID != "" && result.PaymentEngine.Transfers.CreatedAt != "" {
+				// Query internal transactions
+				if internalTxs, err := r.client.QueryPaymentCore(fmt.Sprintf(
+					"SELECT tx_id, tx_type, status FROM internal_transaction WHERE tx_id = '%s' AND created_at >= '%s' AND created_at <= '%s'",
+					result.PaymentEngine.Transfers.TransactionID,
+					windowStart.Format(time.RFC3339),
+					windowEnd.Format(time.RFC3339),
+				)); err == nil {
+					for _, internalTx := range internalTxs {
+						txType := strings.TrimSpace(strings.ToUpper(getStringValue(internalTx, "tx_type")))
+						status := strings.TrimSpace(strings.ToUpper(getStringValue(internalTx, "status")))
+
+						result.PaymentCore.InternalTxns = append(result.PaymentCore.InternalTxns, domain.PCInternalTxnInfo{
+							TxID:     getStringValue(internalTx, "tx_id"),
+							GroupID:  result.TransactionID,
+							TxType:   txType,
+							TxStatus: status,
+						})
+					}
+				}
+
+				// Query external transactions
+				if externalTxs, err := r.client.QueryPaymentCore(fmt.Sprintf(
+					"SELECT ref_id, tx_type, status FROM external_transaction WHERE ref_id = '%s' AND created_at >= '%s' AND created_at <= '%s'",
+					result.PaymentEngine.Transfers.TransactionID,
+					windowStart.Format(time.RFC3339),
+					windowEnd.Format(time.RFC3339),
+				)); err == nil {
+					for _, externalTx := range externalTxs {
+						txType := strings.TrimSpace(strings.ToUpper(getStringValue(externalTx, "tx_type")))
+						status := strings.TrimSpace(strings.ToUpper(getStringValue(externalTx, "status")))
+
+						result.PaymentCore.ExternalTxns = append(result.PaymentCore.ExternalTxns, domain.PCExternalTxnInfo{
+							RefID:    getStringValue(externalTx, "ref_id"),
+							GroupID:  result.TransactionID,
+							TxType:   txType,
+							TxStatus: status,
+						})
+					}
+				}
+
+				// Query PaymentCore workflows for all transactions
+				var pcRunIDs []string
+				for _, internalTx := range result.PaymentCore.InternalTxns {
+					if internalTx.TxID != "" {
+						pcRunIDs = append(pcRunIDs, internalTx.TxID)
+					}
+				}
+				for _, externalTx := range result.PaymentCore.ExternalTxns {
+					if externalTx.RefID != "" {
+						pcRunIDs = append(pcRunIDs, externalTx.RefID)
+					}
+				}
+
+				if len(pcRunIDs) > 0 {
+					// Build WHERE clause for multiple run IDs
+					var pcRunIDConditions []string
+					for _, runID := range pcRunIDs {
+						pcRunIDConditions = append(pcRunIDConditions, fmt.Sprintf("'%s'", runID))
+					}
+					pcWhereClause := strings.Join(pcRunIDConditions, ",")
+
+					pcWorkflowQuery := fmt.Sprintf(
+						"SELECT run_id, workflow_id, state, attempt, created_at FROM workflow_execution WHERE run_id IN (%s)",
+						pcWhereClause,
+					)
+					if pcWorkflows, err := r.client.QueryPaymentCore(pcWorkflowQuery); err == nil {
+						for _, pcWorkflow := range pcWorkflows {
+							workflowID := getStringValue(pcWorkflow, "workflow_id")
+							runID := getStringValue(pcWorkflow, "run_id")
+							state := pcWorkflow["state"]
+
+							var stateNum int
+							if stateInt, ok := state.(float64); ok {
+								stateNum = int(stateInt)
+							}
+
+							var attempt int
+							if attemptFloat, ok := pcWorkflow["attempt"].(float64); ok {
+								attempt = int(attemptFloat)
+							}
+
+							result.PaymentCore.Workflow = append(result.PaymentCore.Workflow, domain.WorkflowInfo{
+								WorkflowID: workflowID,
+								RunID:      runID,
+								State:      fmt.Sprintf("%d", stateNum),
+								Attempt:    attempt,
+							})
+						}
+					}
+				}
+			}
+		}
+	}
+
+	return result, nil
 }
 
 func (r *rppAdapter) IsRppE2EID(id string) bool {
