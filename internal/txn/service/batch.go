@@ -41,11 +41,6 @@ func processBatchFileWithEnv(filePath, env string) {
 		return
 	}
 
-	if env == "sg" {
-		fmt.Printf("[SG] Processing batch file: %s\n", filePath)
-	} else {
-		fmt.Printf("[MY] Processing batch file: %s\n", filePath)
-	}
 	fmt.Printf("Processing %d transaction IDs from %s\n", len(ids), filePath)
 
 	// Process each transaction ID
