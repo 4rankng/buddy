@@ -20,7 +20,7 @@ func NewRPPAdapter(client ports.ClientPort) *RPPAdapter {
 }
 
 func (r *RPPAdapter) QueryByE2EID(externalID string) (*domain.RPPAdapterInfo, error) {
-	query := fmt.Sprintf("SELECT req_biz_msg_id, partner_tx_id, partner_tx_sts AS status FROM credit_transfer WHERE end_to_end_id = '%s'", externalID)
+	query := fmt.Sprintf("SELECT req_biz_msg_id, partner_tx_id, partner_tx_sts AS status, created_at FROM credit_transfer WHERE end_to_end_id = '%s'", externalID)
 	rppResults, err := r.client.ExecuteQuery("prd-payments-rpp-adapter-rds-mysql", "prd-payments-rpp-adapter-rds-mysql", "rpp_adapter", query)
 	if err != nil || len(rppResults) == 0 {
 		return nil, err
@@ -31,6 +31,7 @@ func (r *RPPAdapter) QueryByE2EID(externalID string) (*domain.RPPAdapterInfo, er
 		PartnerTxID: utils.GetStringValue(row, "partner_tx_id"),
 		EndToEndID:  externalID,
 		Status:      utils.GetStringValue(row, "status"),
+		CreatedAt:   utils.GetStringValue(row, "created_at"),
 	}
 	if info.PartnerTxID != "" {
 		workflowQuery := fmt.Sprintf("SELECT run_id, workflow_id, state, attempt FROM workflow_execution WHERE run_id='%s'", info.PartnerTxID)
