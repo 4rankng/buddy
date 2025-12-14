@@ -61,3 +61,31 @@ SET
 WHERE run_id in (
   '{run_id}'
 );
+
+
+DEBUG
+
+
+### [3] transaction_id: 8da1ee9e11a44cf389b7604aea39cfb4
+[payment-engine]
+type: PAYMENT
+subtype: RPP_NETWORK
+domain: DEPOSITS
+status: FAILED
+created_at: 2025-12-11T16:10:12.381401Z
+reference_id: 33FABDFC-C067-45B1-AF50-288D63E508EE
+external_id: 20251212GXSPMYKL040OQR49782779
+workflow_transfer_payment:
+   state=stCaptureFailed(701) attempt=0
+   run_id=33FABDFC-C067-45B1-AF50-288D63E508EE
+[payment-core]
+NOT_FOUND
+[rpp-adapter]
+req_biz_msg_id: 20251212GXSPMYKL040OQR49782779
+partner_tx_id: 8da1ee9e11a44cf389b7604aea39cfb4
+workflow_wf_ct_qr_payment:
+   state= attempt=0
+   run_id=8da1ee9e11a44cf389b7604aea39cfb4
+info: RPP Status: PROCESSING
+[Classification]
+NOT_FOUND
