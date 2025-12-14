@@ -333,21 +333,8 @@ func (r *SOPRepository) IdentifyCase(result *domain.TransactionResult, env strin
 			continue
 		}
 
-		// Debug logging for thought_machine_false_negative rule
-		if rule.CaseType == domain.CaseThoughtMachineFalseNegative {
-			fmt.Printf("DEBUG: Evaluating thought_machine_false_negative rule for transaction: %s\n", result.TransactionID)
-			fmt.Printf("DEBUG: PE WorkflowID: %s, State: %s, Attempt: %d\n",
-				result.PaymentEngine.Workflow.WorkflowID,
-				result.PaymentEngine.Workflow.State,
-				result.PaymentEngine.Workflow.Attempt)
-			fmt.Printf("DEBUG: PC InternalTxns length: %d\n", len(result.PaymentCore.InternalTxns))
-			fmt.Printf("DEBUG: RPP Status: %s\n", result.RPPAdapter.Status)
-		}
-
 		if r.evaluateRule(rule, result) {
 			result.CaseType = rule.CaseType
-			fmt.Printf("DEBUG: Rule matched: %s for transaction: %s\n", rule.CaseType, result.TransactionID)
-
 			return result.CaseType
 		}
 	}
@@ -409,49 +396,14 @@ func (r *SOPRepository) evaluateRule(rule CaseRule, result *domain.TransactionRe
 func (r *SOPRepository) evaluateConditionSimple(condition RuleCondition, result *domain.TransactionResult) bool {
 	fieldValue := r.getFieldValue(condition.FieldPath, result)
 
-	// Debug logging for thought_machine_false_negative rule
-	if strings.Contains(condition.FieldPath, "PaymentCore.InternalTxns") || strings.Contains(condition.FieldPath, "RPPAdapter.Status") {
-		fmt.Printf("DEBUG: Evaluating condition - Field: %s, Operator: %s, Value: %v, FieldValue: %v\n",
-			condition.FieldPath, condition.Operator, condition.Value, fieldValue)
-	}
-
 	switch condition.Operator {
 	case "eq":
 		// Special handling for nil comparison
 		if condition.Value == nil {
-			result := fieldValue == nil
-			if strings.Contains(condition.FieldPath, "PaymentCore.InternalTxns") {
-				fmt.Printf("DEBUG: Nil comparison result for %s: %v\n", condition.FieldPath, result)
-			}
-			return result
+			return fieldValue == nil
 		}
 		if fieldValue == nil {
-			if strings.Contains(condition.FieldPath, "PaymentCore.InternalTxns") {
-				fmt.Printf("DEBUG: FieldValue is nil for %s, returning false\n", condition.FieldPath)
-			}
 			return false
-		}
-		// Special handling for empty slice comparison
-		if strings.Contains(condition.FieldPath, "PaymentCore.InternalTxns") {
-			fmt.Printf("DEBUG: Checking PaymentCore.InternalTxns - fieldValue type: %T, value: %v\n", fieldValue, fieldValue)
-			// Check if fieldValue is an empty slice
-			if fieldSlice, ok := fieldValue.([]domain.PCInternalTxnInfo); ok {
-				fmt.Printf("DEBUG: Successfully cast to []domain.PCInternalTxnInfo, length: %d\n", len(fieldSlice))
-				if len(fieldSlice) == 0 {
-					// Check if condition.Value is also an empty slice or nil
-					if conditionSlice, ok := condition.Value.([]domain.PCInternalTxnInfo); ok {
-						result := len(conditionSlice) == 0
-						fmt.Printf("DEBUG: Empty slice comparison result for %s: %v\n", condition.FieldPath, result)
-						return result
-					}
-					if condition.Value == nil {
-						fmt.Printf("DEBUG: Empty slice vs nil comparison result for %s: true\n", condition.FieldPath)
-						return true
-					}
-				}
-			} else {
-				fmt.Printf("DEBUG: Failed to cast fieldValue to []domain.PCInternalTxnInfo\n")
-			}
 		}
 		// Handle string to int conversion for numeric comparisons
 		if conditionStr, ok := condition.Value.(string); ok {
@@ -464,11 +416,7 @@ func (r *SOPRepository) evaluateConditionSimple(condition RuleCondition, result 
 				}
 			}
 		}
-		result := reflect.DeepEqual(fieldValue, condition.Value)
-		if strings.Contains(condition.FieldPath, "PaymentCore.InternalTxns") || strings.Contains(condition.FieldPath, "RPPAdapter.Status") {
-			fmt.Printf("DEBUG: DeepEqual result for %s: %v\n", condition.FieldPath, result)
-		}
-		return result
+		return reflect.DeepEqual(fieldValue, condition.Value)
 	case "ne":
 		// Handle string to int conversion for numeric comparisons
 		if conditionStr, ok := condition.Value.(string); ok {
@@ -522,12 +470,9 @@ func (r *SOPRepository) evaluateWorkflowCondition(condition RuleCondition, workf
 		// Handle string to int conversion for numeric comparisons
 		if conditionStr, ok := condition.Value.(string); ok {
 			if fieldStr, ok := fieldValue.(string); ok {
-				// Debug logging
-				fmt.Printf("DEBUG EQ: condition='%s' (%T), field='%s' (%T)", conditionStr, condition.Value, fieldStr, fieldValue)
 				// Try to convert both to int for numeric comparison
 				if conditionInt, err1 := strconv.Atoi(conditionStr); err1 == nil {
 					if fieldInt, err2 := strconv.Atoi(fieldStr); err2 == nil {
-						fmt.Printf("DEBUG EQ: converted to int - condition=%d, field=%d, result=%v", conditionInt, fieldInt, conditionInt == fieldInt)
 						return conditionInt == fieldInt
 					}
 				}
@@ -538,12 +483,9 @@ func (r *SOPRepository) evaluateWorkflowCondition(condition RuleCondition, workf
 		// Handle string to int conversion for numeric comparisons
 		if conditionStr, ok := condition.Value.(string); ok {
 			if fieldStr, ok := fieldValue.(string); ok {
-				// Debug logging
-				fmt.Printf("DEBUG NE: condition='%s' (%T), field='%s' (%T)", conditionStr, condition.Value, fieldStr, fieldValue)
 				// Try to convert both to int for numeric comparison
 				if conditionInt, err1 := strconv.Atoi(conditionStr); err1 == nil {
 					if fieldInt, err2 := strconv.Atoi(fieldStr); err2 == nil {
-						fmt.Printf("DEBUG NE: converted to int - condition=%d, field=%d, result=%v", conditionInt, fieldInt, conditionInt != fieldInt)
 						return conditionInt != fieldInt
 					}
 				}
@@ -583,12 +525,11 @@ func (r *SOPRepository) getFieldValue(fieldPath string, result *domain.Transacti
 			// For slices (like PaymentCore.InternalTxns), check if this is the last part
 			if i == len(parts)-1 {
 				// Return the whole slice when this is the final field
-				sliceValue := currentValue.Interface()
 				// Check if slice is empty or nil
-				if sliceValue == nil || currentValue.Len() == 0 {
+				if currentValue.IsNil() || currentValue.Len() == 0 {
 					return nil
 				}
-				return sliceValue
+				return currentValue.Interface()
 			}
 			// If not the last part, we can't navigate further into slices
 			return nil
