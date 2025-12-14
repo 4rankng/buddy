@@ -139,6 +139,7 @@ func GetCaseSummaryOrder() []Case {
 		CaseRppCashoutReject101_19,
 		CaseRppQrPaymentReject210_0,
 		CaseRppNoResponseResume,
+		CaseThoughtMachineFalseNegative,
 	}
 }
 

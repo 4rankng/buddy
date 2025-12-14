@@ -285,21 +285,32 @@ func getDefaultSOPRules() []CaseRule {
 		},
 		{
 			CaseType:    domain.CaseThoughtMachineFalseNegative,
-			Description: "Thought Machine false negative - PE state 701 (stCaptureFailed) but RPP indicates success",
+			Description: "Thought Machine returning errors/false negatives, but transaction was successful",
+			Country:     "my",
 			Conditions: []RuleCondition{
-				{
-					FieldPath: "PaymentEngine.Workflow.State",
-					Operator:  "eq",
-					Value:     "701",
-				},
 				{
 					FieldPath: "PaymentEngine.Workflow.WorkflowID",
 					Operator:  "eq",
 					Value:     "workflow_transfer_payment",
 				},
 				{
-					FieldPath: "RPPAdapter.Info",
-					Operator:  "contains",
+					FieldPath: "PaymentEngine.Workflow.State",
+					Operator:  "eq",
+					Value:     "701", // stCaptureFailed
+				},
+				{
+					FieldPath: "PaymentEngine.Workflow.Attempt",
+					Operator:  "eq",
+					Value:     0,
+				},
+				{
+					FieldPath: "PaymentCore.InternalTxns",
+					Operator:  "eq",
+					Value:     nil, // No internal transactions found (NOT_FOUND)
+				},
+				{
+					FieldPath: "RPPAdapter.Status",
+					Operator:  "eq",
 					Value:     "PROCESSING",
 				},
 			},
@@ -385,12 +396,16 @@ func (r *SOPRepository) evaluateRule(rule CaseRule, result *domain.TransactionRe
 // evaluateConditionSimple evaluates a single condition for non-workflow fields
 func (r *SOPRepository) evaluateConditionSimple(condition RuleCondition, result *domain.TransactionResult) bool {
 	fieldValue := r.getFieldValue(condition.FieldPath, result)
-	if fieldValue == nil {
-		return false
-	}
 
 	switch condition.Operator {
 	case "eq":
+		// Special handling for nil comparison
+		if condition.Value == nil {
+			return fieldValue == nil
+		}
+		if fieldValue == nil {
+			return false
+		}
 		// Handle string to int conversion for numeric comparisons
 		if conditionStr, ok := condition.Value.(string); ok {
 			if fieldStr, ok := fieldValue.(string); ok {
@@ -502,7 +517,7 @@ func (r *SOPRepository) getFieldValue(fieldPath string, result *domain.Transacti
 	parts := strings.Split(fieldPath, ".")
 	currentValue := reflect.ValueOf(result)
 
-	for _, part := range parts {
+	for i, part := range parts {
 		if currentValue.Kind() == reflect.Ptr {
 			currentValue = currentValue.Elem()
 		}
@@ -514,8 +529,18 @@ func (r *SOPRepository) getFieldValue(fieldPath string, result *domain.Transacti
 			}
 			currentValue = field
 		} else if currentValue.Kind() == reflect.Slice {
-			// Return the whole slice when encountering workflow slices
-			return currentValue.Interface()
+			// For slices (like PaymentCore.InternalTxns), check if this is the last part
+			if i == len(parts)-1 {
+				// Return the whole slice when this is the final field
+				sliceValue := currentValue.Interface()
+				// Check if slice is empty or nil
+				if sliceValue == nil || currentValue.Len() == 0 {
+					return nil
+				}
+				return sliceValue
+			}
+			// If not the last part, we can't navigate further into slices
+			return nil
 		} else {
 			return nil
 		}
