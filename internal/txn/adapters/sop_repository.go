@@ -96,11 +96,6 @@ func getDefaultSOPRules() []CaseRule {
 					Value:     "230",
 				},
 				{
-					FieldPath: "PaymentEngine.InternalTxns.TxType",
-					Operator:  "eq",
-					Value:     "CAPTURE",
-				},
-				{
 					FieldPath: "PaymentEngine.Workflow.Attempt",
 					Operator:  "eq",
 					Value:     0,
@@ -304,15 +299,14 @@ func getDefaultSOPRules() []CaseRule {
 					Value:     0,
 				},
 			},
-		}}
+		},
+	}
 }
 
 // IdentifyCase identifies the SOP case for a transaction result
 func (r *SOPRepository) IdentifyCase(result *domain.TransactionResult, env string) domain.Case {
-
 	// Check if we've already identified the case
 	if result.CaseType != domain.CaseNone {
-
 		return result.CaseType
 	}
 
@@ -330,85 +324,32 @@ func (r *SOPRepository) IdentifyCase(result *domain.TransactionResult, env strin
 	}
 
 	result.CaseType = domain.CaseNone
-
 	return result.CaseType
 }
 
-// evaluateRule evaluates a single rule against a transaction result
+// evaluateRule evaluates a single rule against a transaction result.
+//
+// This implementation is fully driven by FieldPath traversal. It does NOT special-case
+// workflow paths; instead, getFieldValue is nil-safe and returns (value, ok).
 func (r *SOPRepository) evaluateRule(rule CaseRule, result *domain.TransactionResult) bool {
-	// Evaluate all conditions
-	allConditionsMatch := true
 	for _, condition := range rule.Conditions {
-		// For workflow fields, check against the relevant transaction's workflow
-		if strings.Contains(condition.FieldPath, "PaymentCore.InternalCapture.Workflow.") {
-			if result.PaymentCore == nil || result.PaymentCore.InternalCapture.Workflow.WorkflowID == "" {
-				// If the transaction doesn't exist, condition fails
-				if condition.Operator == "eq" && condition.Value == "" {
-					continue // Empty value matches empty struct
-				}
-				allConditionsMatch = false
-				break
-			}
-			// Update field path to point to the workflow directly
-			originalPath := condition.FieldPath
-			condition.FieldPath = strings.Replace(condition.FieldPath, "PaymentCore.InternalCapture.Workflow.", "Workflow.", 1)
-			if !r.evaluateWorkflowCondition(condition, &result.PaymentCore.InternalCapture.Workflow) {
-				allConditionsMatch = false
-				break
-			}
-			// Restore original field path
-			condition.FieldPath = originalPath
-		} else if strings.Contains(condition.FieldPath, "PaymentCore.InternalAuth.Workflow.") {
-			if result.PaymentCore == nil || result.PaymentCore.InternalAuth.Workflow.WorkflowID == "" {
-				// If the transaction doesn't exist, condition fails
-				if condition.Operator == "eq" && condition.Value == "" {
-					continue // Empty value matches empty struct
-				}
-				allConditionsMatch = false
-				break
-			}
-			// Update field path to point to the workflow directly
-			originalPath := condition.FieldPath
-			condition.FieldPath = strings.Replace(condition.FieldPath, "PaymentCore.InternalAuth.Workflow.", "Workflow.", 1)
-			if !r.evaluateWorkflowCondition(condition, &result.PaymentCore.InternalAuth.Workflow) {
-				allConditionsMatch = false
-				break
-			}
-			// Restore original field path
-			condition.FieldPath = originalPath
-		} else if strings.Contains(condition.FieldPath, "PaymentCore.ExternalTransfer.Workflow.") {
-			if result.PaymentCore == nil || result.PaymentCore.ExternalTransfer.Workflow.WorkflowID == "" {
-				// If the transaction doesn't exist, condition fails
-				if condition.Operator == "eq" && condition.Value == "" {
-					continue // Empty value matches empty struct
-				}
-				allConditionsMatch = false
-				break
-			}
-			// Update field path to point to the workflow directly
-			originalPath := condition.FieldPath
-			condition.FieldPath = strings.Replace(condition.FieldPath, "PaymentCore.ExternalTransfer.Workflow.", "Workflow.", 1)
-			if !r.evaluateWorkflowCondition(condition, &result.PaymentCore.ExternalTransfer.Workflow) {
-				allConditionsMatch = false
-				break
-			}
-			// Restore original field path
-			condition.FieldPath = originalPath
-		} else {
-			// For non-workflow conditions, use simple evaluation
-			if !r.evaluateConditionSimple(condition, result) {
-				allConditionsMatch = false
-				break
-			}
+		if !r.evaluateCondition(condition, result) {
+			return false
 		}
 	}
-
-	return allConditionsMatch
+	return true
 }
 
-// evaluateConditionSimple evaluates a single condition for non-workflow fields
-func (r *SOPRepository) evaluateConditionSimple(condition RuleCondition, result *domain.TransactionResult) bool {
-	fieldValue := r.getFieldValue(condition.FieldPath, result)
+// evaluateCondition evaluates a single condition against the transaction result.
+func (r *SOPRepository) evaluateCondition(condition RuleCondition, result *domain.TransactionResult) bool {
+	fieldValue, ok := r.getFieldValue(condition.FieldPath, result)
+
+	// Backward compatible behavior:
+	// If the path isn't reachable due to nil pointers or missing fields,
+	// treat `eq ""` as a match, otherwise fail.
+	if !ok {
+		return condition.Operator == "eq" && condition.Value == ""
+	}
 
 	switch condition.Operator {
 	case "eq":
@@ -419,10 +360,10 @@ func (r *SOPRepository) evaluateConditionSimple(condition RuleCondition, result 
 		if fieldValue == nil {
 			return false
 		}
-		// Handle string to int conversion for numeric comparisons
+
+		// Handle string-to-int conversion for numeric comparisons
 		if conditionStr, ok := condition.Value.(string); ok {
 			if fieldStr, ok := fieldValue.(string); ok {
-				// Try to convert both to int for numeric comparison
 				if conditionInt, err1 := strconv.Atoi(conditionStr); err1 == nil {
 					if fieldInt, err2 := strconv.Atoi(fieldStr); err2 == nil {
 						return conditionInt == fieldInt
@@ -431,11 +372,11 @@ func (r *SOPRepository) evaluateConditionSimple(condition RuleCondition, result 
 			}
 		}
 		return reflect.DeepEqual(fieldValue, condition.Value)
+
 	case "ne":
-		// Handle string to int conversion for numeric comparisons
+		// Handle string-to-int conversion for numeric comparisons
 		if conditionStr, ok := condition.Value.(string); ok {
 			if fieldStr, ok := fieldValue.(string); ok {
-				// Try to convert both to int for numeric comparison
 				if conditionInt, err1 := strconv.Atoi(conditionStr); err1 == nil {
 					if fieldInt, err2 := strconv.Atoi(fieldStr); err2 == nil {
 						return conditionInt != fieldInt
@@ -444,6 +385,7 @@ func (r *SOPRepository) evaluateConditionSimple(condition RuleCondition, result 
 			}
 		}
 		return !reflect.DeepEqual(fieldValue, condition.Value)
+
 	case "lt":
 		return r.compareValues(fieldValue, condition.Value) < 0
 	case "gt":
@@ -461,101 +403,48 @@ func (r *SOPRepository) evaluateConditionSimple(condition RuleCondition, result 
 	}
 }
 
-// evaluateWorkflowCondition evaluates a condition against a specific workflow
-func (r *SOPRepository) evaluateWorkflowCondition(condition RuleCondition, workflow *domain.WorkflowInfo) bool {
-	// Extract the field name from the path (last part after the dot)
-	parts := strings.Split(condition.FieldPath, ".")
-	fieldName := parts[len(parts)-1]
-
-	var fieldValue interface{}
-	switch fieldName {
-	case "WorkflowID":
-		fieldValue = workflow.WorkflowID
-	case "State":
-		fieldValue = workflow.State
-	case "Attempt":
-		fieldValue = workflow.Attempt
-	default:
-		return false
-	}
-
-	switch condition.Operator {
-	case "eq":
-		// Handle string to int conversion for numeric comparisons
-		if conditionStr, ok := condition.Value.(string); ok {
-			if fieldStr, ok := fieldValue.(string); ok {
-				// Try to convert both to int for numeric comparison
-				if conditionInt, err1 := strconv.Atoi(conditionStr); err1 == nil {
-					if fieldInt, err2 := strconv.Atoi(fieldStr); err2 == nil {
-						return conditionInt == fieldInt
-					}
-				}
-			}
-		}
-		return reflect.DeepEqual(fieldValue, condition.Value)
-	case "ne":
-		// Handle string to int conversion for numeric comparisons
-		if conditionStr, ok := condition.Value.(string); ok {
-			if fieldStr, ok := fieldValue.(string); ok {
-				// Try to convert both to int for numeric comparison
-				if conditionInt, err1 := strconv.Atoi(conditionStr); err1 == nil {
-					if fieldInt, err2 := strconv.Atoi(fieldStr); err2 == nil {
-						return conditionInt != fieldInt
-					}
-				}
-			}
-		}
-		return !reflect.DeepEqual(fieldValue, condition.Value)
-	case "lt":
-		return r.compareValues(fieldValue, condition.Value) < 0
-	case "gt":
-		return r.compareValues(fieldValue, condition.Value) > 0
-	case "in":
-		return r.isInSlice(fieldValue, condition.Value)
-	case "not_in":
-		return !r.isInSlice(fieldValue, condition.Value)
-	default:
-		return false
-	}
-}
-
-// getFieldValue retrieves field value from domain.TransactionResult using dot notation
-func (r *SOPRepository) getFieldValue(fieldPath string, result *domain.TransactionResult) interface{} {
+// getFieldValue retrieves a field value from domain.TransactionResult using dot notation.
+// It is nil-safe:
+// - If a pointer along the path is nil, it returns (nil, false)
+// - If a field name doesn't exist, it returns (nil, false)
+// - If the path is valid but the final value is a nil pointer, it returns (nil, true)
+func (r *SOPRepository) getFieldValue(fieldPath string, result *domain.TransactionResult) (interface{}, bool) {
 	parts := strings.Split(fieldPath, ".")
-	currentValue := reflect.ValueOf(result)
+	current := reflect.ValueOf(result)
 
-	for i, part := range parts {
-		if currentValue.Kind() == reflect.Ptr {
-			currentValue = currentValue.Elem()
+	for _, part := range parts {
+		// Dereference pointers safely
+		if current.Kind() == reflect.Ptr {
+			if current.IsNil() {
+				return nil, false
+			}
+			current = current.Elem()
 		}
 
-		if currentValue.Kind() == reflect.Struct {
-			field := currentValue.FieldByName(part)
-			if !field.IsValid() {
-				return nil
-			}
-			currentValue = field
-		} else if currentValue.Kind() == reflect.Slice {
-			// For slices (deprecated, kept for backward compatibility)
-			if i == len(parts)-1 {
-				// Return the whole slice when this is the final field
-				// Check if slice is empty or nil
-				if currentValue.IsNil() || currentValue.Len() == 0 {
-					return nil
-				}
-				return currentValue.Interface()
-			}
-			// If not the last part, we can't navigate further into slices
-			return nil
-		} else {
-			return nil
+		if current.Kind() != reflect.Struct {
+			return nil, false
 		}
+
+		field := current.FieldByName(part)
+		if !field.IsValid() {
+			return nil, false
+		}
+
+		current = field
 	}
 
-	return currentValue.Interface()
+	// If final value is a pointer, preserve nil vs non-nil
+	if current.Kind() == reflect.Ptr {
+		if current.IsNil() {
+			return nil, true
+		}
+		current = current.Elem()
+	}
+
+	return current.Interface(), true
 }
 
-// compareValues compares two numeric or string values
+// compareValues compares two numeric or string values.
 func (r *SOPRepository) compareValues(a, b interface{}) int {
 	aStr := fmt.Sprintf("%v", a)
 	bStr := fmt.Sprintf("%v", b)
@@ -581,7 +470,7 @@ func (r *SOPRepository) compareValues(a, b interface{}) int {
 	return 0
 }
 
-// isInSlice checks if value is in slice
+// isInSlice checks if value is in slice.
 func (r *SOPRepository) isInSlice(value, slice interface{}) bool {
 	sliceValue := reflect.ValueOf(slice)
 	if sliceValue.Kind() != reflect.Slice {
@@ -596,7 +485,7 @@ func (r *SOPRepository) isInSlice(value, slice interface{}) bool {
 	return false
 }
 
-// matchRegex checks if value matches regex pattern
+// matchRegex checks if value matches regex pattern.
 func (r *SOPRepository) matchRegex(value, pattern interface{}) bool {
 	valueStr := fmt.Sprintf("%v", value)
 	patternStr := fmt.Sprintf("%v", pattern)
@@ -608,7 +497,7 @@ func (r *SOPRepository) matchRegex(value, pattern interface{}) bool {
 	return matched
 }
 
-// containsValue checks if value contains substring
+// containsValue checks if value contains substring.
 func (r *SOPRepository) containsValue(value, substr interface{}) bool {
 	valueStr := fmt.Sprintf("%v", value)
 	substrStr := fmt.Sprintf("%v", substr)
