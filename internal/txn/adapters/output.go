@@ -107,7 +107,7 @@ func displayPaymentEngineSection(w io.Writer, pe domain.PaymentEngineInfo) error
 // Helper function to display PaymentCore section
 func displayPaymentCoreSection(w io.Writer, pc domain.PaymentCoreInfo) error {
 	// Check if we have any payment-core data
-	hasData := len(pc.InternalTxns) > 0 || len(pc.ExternalTxns) > 0 || len(pc.Workflow) > 0
+	hasData := pc.InternalCapture.TxID != "" || pc.InternalAuth.TxID != "" || pc.ExternalTransfer.RefID != ""
 
 	// Always show payment-core section if payment-engine section was shown
 	if _, err := fmt.Fprintln(w, "[payment-core]"); err != nil {
@@ -115,57 +115,102 @@ func displayPaymentCoreSection(w io.Writer, pc domain.PaymentCoreInfo) error {
 	}
 
 	if hasData {
-		// Display internal transactions
-		for _, tx := range pc.InternalTxns {
+		// Display Internal Capture transaction (AUTH)
+		if pc.InternalCapture.TxID != "" {
 			if _, err := fmt.Fprintf(w, "internal_transaction:\n"); err != nil {
 				fmt.Printf("Warning: failed to write internal transaction header: %v\n", err)
 			}
-			if _, err := fmt.Fprintf(w, "   tx_id=%s\n", tx.TxID); err != nil {
+			if _, err := fmt.Fprintf(w, "   tx_id=%s\n", pc.InternalCapture.TxID); err != nil {
 				fmt.Printf("Warning: failed to write internal tx id: %v\n", err)
 			}
-			if tx.GroupID != "" {
-				if _, err := fmt.Fprintf(w, "   group_id=%s\n", tx.GroupID); err != nil {
+			if pc.InternalCapture.GroupID != "" {
+				if _, err := fmt.Fprintf(w, "   group_id=%s\n", pc.InternalCapture.GroupID); err != nil {
 					fmt.Printf("Warning: failed to write internal tx group id: %v\n", err)
 				}
 			}
-			if tx.TxType != "" && tx.TxStatus != "" {
-				if _, err := fmt.Fprintf(w, "   type=%s status=%s\n", tx.TxType, tx.TxStatus); err != nil {
+			if pc.InternalCapture.TxType != "" && pc.InternalCapture.TxStatus != "" {
+				if _, err := fmt.Fprintf(w, "   type=%s status=%s\n", pc.InternalCapture.TxType, pc.InternalCapture.TxStatus); err != nil {
 					fmt.Printf("Warning: failed to write internal tx type and status: %v\n", err)
 				}
 			}
+			// Display workflow for this transaction
+			if pc.InternalCapture.Workflow.WorkflowID != "" {
+				if _, err := fmt.Fprintf(w, "%s:\n", pc.InternalCapture.Workflow.WorkflowID); err != nil {
+					fmt.Printf("Warning: failed to write payment core workflow header: %v\n", err)
+				}
+				line := fmt.Sprintf("   state=%s attempt=%d", domain.FormatWorkflowState(pc.InternalCapture.Workflow.WorkflowID, pc.InternalCapture.Workflow.State), pc.InternalCapture.Workflow.Attempt)
+				if _, err := fmt.Fprintf(w, "%s\n", line); err != nil {
+					fmt.Printf("Warning: failed to write payment core workflow state: %v\n", err)
+				}
+				if _, err := fmt.Fprintf(w, "   run_id=%s\n", pc.InternalCapture.Workflow.RunID); err != nil {
+					fmt.Printf("Warning: failed to write payment core workflow run id: %v\n", err)
+				}
+			}
 		}
 
-		// Display external transactions
-		for _, tx := range pc.ExternalTxns {
+		// Display Internal Auth transaction (CAPTURE)
+		if pc.InternalAuth.TxID != "" {
+			if _, err := fmt.Fprintf(w, "internal_transaction:\n"); err != nil {
+				fmt.Printf("Warning: failed to write internal transaction header: %v\n", err)
+			}
+			if _, err := fmt.Fprintf(w, "   tx_id=%s\n", pc.InternalAuth.TxID); err != nil {
+				fmt.Printf("Warning: failed to write internal tx id: %v\n", err)
+			}
+			if pc.InternalAuth.GroupID != "" {
+				if _, err := fmt.Fprintf(w, "   group_id=%s\n", pc.InternalAuth.GroupID); err != nil {
+					fmt.Printf("Warning: failed to write internal tx group id: %v\n", err)
+				}
+			}
+			if pc.InternalAuth.TxType != "" && pc.InternalAuth.TxStatus != "" {
+				if _, err := fmt.Fprintf(w, "   type=%s status=%s\n", pc.InternalAuth.TxType, pc.InternalAuth.TxStatus); err != nil {
+					fmt.Printf("Warning: failed to write internal tx type and status: %v\n", err)
+				}
+			}
+			// Display workflow for this transaction
+			if pc.InternalAuth.Workflow.WorkflowID != "" {
+				if _, err := fmt.Fprintf(w, "%s:\n", pc.InternalAuth.Workflow.WorkflowID); err != nil {
+					fmt.Printf("Warning: failed to write payment core workflow header: %v\n", err)
+				}
+				line := fmt.Sprintf("   state=%s attempt=%d", domain.FormatWorkflowState(pc.InternalAuth.Workflow.WorkflowID, pc.InternalAuth.Workflow.State), pc.InternalAuth.Workflow.Attempt)
+				if _, err := fmt.Fprintf(w, "%s\n", line); err != nil {
+					fmt.Printf("Warning: failed to write payment core workflow state: %v\n", err)
+				}
+				if _, err := fmt.Fprintf(w, "   run_id=%s\n", pc.InternalAuth.Workflow.RunID); err != nil {
+					fmt.Printf("Warning: failed to write payment core workflow run id: %v\n", err)
+				}
+			}
+		}
+
+		// Display External Transfer transaction (TRANSFER)
+		if pc.ExternalTransfer.RefID != "" {
 			if _, err := fmt.Fprintf(w, "external_transaction:\n"); err != nil {
 				fmt.Printf("Warning: failed to write external transaction header: %v\n", err)
 			}
-			if _, err := fmt.Fprintf(w, "   ref_id=%s\n", tx.RefID); err != nil {
+			if _, err := fmt.Fprintf(w, "   ref_id=%s\n", pc.ExternalTransfer.RefID); err != nil {
 				fmt.Printf("Warning: failed to write external tx ref id: %v\n", err)
 			}
-			if tx.GroupID != "" {
-				if _, err := fmt.Fprintf(w, "   group_id=%s\n", tx.GroupID); err != nil {
+			if pc.ExternalTransfer.GroupID != "" {
+				if _, err := fmt.Fprintf(w, "   group_id=%s\n", pc.ExternalTransfer.GroupID); err != nil {
 					fmt.Printf("Warning: failed to write external tx group id: %v\n", err)
 				}
 			}
-			if tx.TxType != "" && tx.TxStatus != "" {
-				if _, err := fmt.Fprintf(w, "   type=%s status=%s\n", tx.TxType, tx.TxStatus); err != nil {
+			if pc.ExternalTransfer.TxType != "" && pc.ExternalTransfer.TxStatus != "" {
+				if _, err := fmt.Fprintf(w, "   type=%s status=%s\n", pc.ExternalTransfer.TxType, pc.ExternalTransfer.TxStatus); err != nil {
 					fmt.Printf("Warning: failed to write external tx type and status: %v\n", err)
 				}
 			}
-		}
-
-		// Display workflows
-		for _, workflow := range pc.Workflow {
-			if _, err := fmt.Fprintf(w, "%s:\n", workflow.WorkflowID); err != nil {
-				fmt.Printf("Warning: failed to write payment core workflow header: %v\n", err)
-			}
-			line := fmt.Sprintf("   state=%s attempt=%d", domain.FormatWorkflowState(workflow.WorkflowID, workflow.State), workflow.Attempt)
-			if _, err := fmt.Fprintf(w, "%s\n", line); err != nil {
-				fmt.Printf("Warning: failed to write payment core workflow state: %v\n", err)
-			}
-			if _, err := fmt.Fprintf(w, "   run_id=%s\n", workflow.RunID); err != nil {
-				fmt.Printf("Warning: failed to write payment core workflow run id: %v\n", err)
+			// Display workflow for this transaction
+			if pc.ExternalTransfer.Workflow.WorkflowID != "" {
+				if _, err := fmt.Fprintf(w, "%s:\n", pc.ExternalTransfer.Workflow.WorkflowID); err != nil {
+					fmt.Printf("Warning: failed to write payment core workflow header: %v\n", err)
+				}
+				line := fmt.Sprintf("   state=%s attempt=%d", domain.FormatWorkflowState(pc.ExternalTransfer.Workflow.WorkflowID, pc.ExternalTransfer.Workflow.State), pc.ExternalTransfer.Workflow.Attempt)
+				if _, err := fmt.Fprintf(w, "%s\n", line); err != nil {
+					fmt.Printf("Warning: failed to write payment core workflow state: %v\n", err)
+				}
+				if _, err := fmt.Fprintf(w, "   run_id=%s\n", pc.ExternalTransfer.Workflow.RunID); err != nil {
+					fmt.Printf("Warning: failed to write payment core workflow run id: %v\n", err)
+				}
 			}
 		}
 	} else {

@@ -156,7 +156,7 @@ AND state = 902;`,
 				// Return nil to indicate validation failure
 				return nil
 			}
-			
+
 			return &domain.DMLTicket{
 				DeployTemplate: `-- thought_machine_false_negative
 UPDATE workflow_execution

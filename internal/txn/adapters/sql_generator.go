@@ -18,22 +18,49 @@ func appendStatements(main *domain.SQLStatements, new domain.SQLStatements) {
 
 // getPcExtPayment200_11RunID extracts the relevant run_id for Case 1
 func getPcExtPayment200_11RunID(result domain.TransactionResult) string {
-	for _, w := range result.PaymentCore.Workflow {
-		if w.WorkflowID == "external_payment_flow" && w.State == "200" && w.Attempt == 11 {
-			return w.RunID
-		}
+	// Check InternalCapture workflow
+	if result.PaymentCore != nil && result.PaymentCore.InternalCapture.Workflow.WorkflowID == "external_payment_flow" &&
+		result.PaymentCore.InternalCapture.Workflow.State == "200" && result.PaymentCore.InternalCapture.Workflow.Attempt == 11 {
+		return result.PaymentCore.InternalCapture.Workflow.RunID
 	}
+
+	// Check InternalAuth workflow
+	if result.PaymentCore != nil && result.PaymentCore.InternalAuth.Workflow.WorkflowID == "external_payment_flow" &&
+		result.PaymentCore.InternalAuth.Workflow.State == "200" && result.PaymentCore.InternalAuth.Workflow.Attempt == 11 {
+		return result.PaymentCore.InternalAuth.Workflow.RunID
+	}
+
+	// Check ExternalTransfer workflow
+	if result.PaymentCore != nil && result.PaymentCore.ExternalTransfer.Workflow.WorkflowID == "external_payment_flow" &&
+		result.PaymentCore.ExternalTransfer.Workflow.State == "200" && result.PaymentCore.ExternalTransfer.Workflow.Attempt == 11 {
+		return result.PaymentCore.ExternalTransfer.Workflow.RunID
+	}
+
 	return ""
 }
 
 // getInternalPaymentFlowRunIDs returns all internal_payment_flow run IDs for a transaction result
 func getInternalPaymentFlowRunIDs(result domain.TransactionResult) []string {
 	var runIDs []string
-	for _, w := range result.PaymentCore.Workflow {
-		if w.WorkflowID == "internal_payment_flow" && w.RunID != "" {
-			runIDs = append(runIDs, w.RunID)
-		}
+
+	// Check InternalCapture workflow
+	if result.PaymentCore != nil && result.PaymentCore.InternalCapture.Workflow.WorkflowID == "internal_payment_flow" &&
+		result.PaymentCore.InternalCapture.Workflow.RunID != "" {
+		runIDs = append(runIDs, result.PaymentCore.InternalCapture.Workflow.RunID)
 	}
+
+	// Check InternalAuth workflow
+	if result.PaymentCore != nil && result.PaymentCore.InternalAuth.Workflow.WorkflowID == "internal_payment_flow" &&
+		result.PaymentCore.InternalAuth.Workflow.RunID != "" {
+		runIDs = append(runIDs, result.PaymentCore.InternalAuth.Workflow.RunID)
+	}
+
+	// Check ExternalTransfer workflow
+	if result.PaymentCore != nil && result.PaymentCore.ExternalTransfer.Workflow.WorkflowID == "internal_payment_flow" &&
+		result.PaymentCore.ExternalTransfer.Workflow.RunID != "" {
+		runIDs = append(runIDs, result.PaymentCore.ExternalTransfer.Workflow.RunID)
+	}
+
 	return runIDs
 }
 

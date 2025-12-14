@@ -253,11 +253,7 @@ func (s *TransactionQueryService) GetAdapters() AdapterSet {
 func (s *TransactionQueryService) populatePaymentCoreInfo(result *domain.TransactionResult) {
 	// Initialize PaymentCore if nil to prevent nil pointer dereference
 	if result.PaymentCore == nil {
-		result.PaymentCore = &domain.PaymentCoreInfo{
-			InternalTxns: []domain.PCInternalTxnInfo{},
-			ExternalTxns: []domain.PCExternalTxnInfo{},
-			Workflow:     []domain.WorkflowInfo{},
-		}
+		result.PaymentCore = &domain.PaymentCoreInfo{}
 	}
 
 	// Defensive check: if PaymentEngine is nil, we can't proceed
@@ -283,13 +279,26 @@ func (s *TransactionQueryService) populatePaymentCoreInfo(result *domain.Transac
 			txType := strings.TrimSpace(strings.ToUpper(utils.GetStringValue(internalTx, "tx_type")))
 			status := strings.TrimSpace(strings.ToUpper(utils.GetStringValue(internalTx, "status")))
 
-			result.PaymentCore.InternalTxns = append(result.PaymentCore.InternalTxns, domain.PCInternalTxnInfo{
-				TxID:      utils.GetStringValue(internalTx, "tx_id"),
+			// Query workflow for this transaction
+			txID := utils.GetStringValue(internalTx, "tx_id")
+			workflowInfo := s.queryWorkflowInfo(txID)
+
+			internalInfo := domain.PCInternalInfo{
+				TxID:      txID,
 				GroupID:   transactionID,
 				TxType:    txType,
 				TxStatus:  status,
 				CreatedAt: utils.GetStringValue(internalTx, "created_at"),
-			})
+				Workflow:  workflowInfo,
+			}
+
+			// Populate based on transaction type
+			switch txType {
+			case "AUTH":
+				result.PaymentCore.InternalCapture = internalInfo
+			case "CAPTURE":
+				result.PaymentCore.InternalAuth = internalInfo
+			}
 		}
 	}
 
@@ -300,66 +309,72 @@ func (s *TransactionQueryService) populatePaymentCoreInfo(result *domain.Transac
 			txType := strings.TrimSpace(strings.ToUpper(utils.GetStringValue(externalTx, "tx_type")))
 			status := strings.TrimSpace(strings.ToUpper(utils.GetStringValue(externalTx, "status")))
 
-			result.PaymentCore.ExternalTxns = append(result.PaymentCore.ExternalTxns, domain.PCExternalTxnInfo{
-				RefID:     utils.GetStringValue(externalTx, "ref_id"),
+			// Query workflow for this transaction
+			refID := utils.GetStringValue(externalTx, "ref_id")
+			workflowInfo := s.queryWorkflowInfo(refID)
+
+			externalInfo := domain.PCExternalInfo{
+				RefID:     refID,
 				GroupID:   transactionID,
 				TxType:    txType,
 				TxStatus:  status,
 				CreatedAt: utils.GetStringValue(externalTx, "created_at"),
-			})
-		}
-	}
+				Workflow:  workflowInfo,
+			}
 
-	// Query workflows for payment-core
-	var runIDs []string
-	for _, internalTx := range result.PaymentCore.InternalTxns {
-		if internalTx.TxID != "" {
-			runIDs = append(runIDs, internalTx.TxID)
-		}
-	}
-	for _, externalTx := range result.PaymentCore.ExternalTxns {
-		if externalTx.RefID != "" {
-			runIDs = append(runIDs, externalTx.RefID)
-		}
-	}
-
-	if len(runIDs) > 0 {
-		if workflows, err := s.adapters.PaymentCore.QueryWorkflows(runIDs); err == nil {
-			for _, workflow := range workflows {
-				workflowID := utils.GetStringValue(workflow, "workflow_id")
-				runID := utils.GetStringValue(workflow, "run_id")
-				state := workflow["state"]
-
-				var stateNum int
-				if stateInt, ok := state.(float64); ok {
-					stateNum = int(stateInt)
-				}
-
-				var attempt int
-				if attemptFloat, ok := workflow["attempt"].(float64); ok {
-					attempt = int(attemptFloat)
-				}
-
-				// Ensure PaymentCore.Workflow is initialized
-				if result.PaymentCore.Workflow == nil {
-					result.PaymentCore.Workflow = []domain.WorkflowInfo{}
-				}
-
-				result.PaymentCore.Workflow = append(result.PaymentCore.Workflow, domain.WorkflowInfo{
-					WorkflowID: workflowID,
-					RunID:      runID,
-					State:      fmt.Sprintf("%d", stateNum),
-					Attempt:    attempt,
-				})
+			// Populate based on transaction type
+			if txType == "TRANSFER" {
+				result.PaymentCore.ExternalTransfer = externalInfo
 			}
 		}
 	}
+}
+
+// queryWorkflowInfo queries workflow information for a given run ID
+func (s *TransactionQueryService) queryWorkflowInfo(runID string) domain.WorkflowInfo {
+	workflowInfo := domain.WorkflowInfo{}
+
+	if runID == "" || s.adapters.PaymentCore == nil {
+		return workflowInfo
+	}
+
+	// Query workflow for this run ID
+	if workflows, err := s.adapters.PaymentCore.QueryWorkflows([]string{runID}); err == nil && len(workflows) > 0 {
+		workflow := workflows[0] // Take the first match
+		workflowID := utils.GetStringValue(workflow, "workflow_id")
+		state := workflow["state"]
+
+		var stateNum int
+		if stateInt, ok := state.(float64); ok {
+			stateNum = int(stateInt)
+		}
+
+		var attempt int
+		if attemptFloat, ok := workflow["attempt"].(float64); ok {
+			attempt = int(attemptFloat)
+		}
+
+		workflowInfo = domain.WorkflowInfo{
+			WorkflowID:  workflowID,
+			RunID:       runID,
+			State:       fmt.Sprintf("%d", stateNum),
+			Attempt:     attempt,
+			PrevTransID: utils.GetStringValue(workflow, "prev_trans_id"),
+		}
+	}
+
+	return workflowInfo
 }
 
 // QueryPaymentCoreTransactions queries Payment Core transactions for a given transaction ID within a time window
 // This method can be used by adapters to populate Payment Core data
 func (s *TransactionQueryService) QueryPaymentCoreTransactions(result *domain.TransactionResult, transactionID string, windowStart, windowEnd time.Time) {
 	client := NewDoormanClient()
+
+	// Initialize PaymentCore if nil
+	if result.PaymentCore == nil {
+		result.PaymentCore = &domain.PaymentCoreInfo{}
+	}
 
 	// Query internal transactions
 	if internalTxs, err := client.QueryPaymentCore(fmt.Sprintf(
@@ -372,13 +387,26 @@ func (s *TransactionQueryService) QueryPaymentCoreTransactions(result *domain.Tr
 			txType := strings.TrimSpace(strings.ToUpper(utils.GetStringValue(internalTx, "tx_type")))
 			status := strings.TrimSpace(strings.ToUpper(utils.GetStringValue(internalTx, "status")))
 
-			result.PaymentCore.InternalTxns = append(result.PaymentCore.InternalTxns, domain.PCInternalTxnInfo{
-				TxID:      utils.GetStringValue(internalTx, "tx_id"),
+			// Query workflow for this transaction
+			txID := utils.GetStringValue(internalTx, "tx_id")
+			workflowInfo := s.queryWorkflowInfoDirect(client, txID)
+
+			internalInfo := domain.PCInternalInfo{
+				TxID:      txID,
 				GroupID:   transactionID,
 				TxType:    txType,
 				TxStatus:  status,
 				CreatedAt: utils.GetStringValue(internalTx, "created_at"),
-			})
+				Workflow:  workflowInfo,
+			}
+
+			// Populate based on transaction type
+			switch txType {
+			case "AUTH":
+				result.PaymentCore.InternalCapture = internalInfo
+			case "CAPTURE":
+				result.PaymentCore.InternalAuth = internalInfo
+			}
 		}
 	}
 
@@ -393,66 +421,65 @@ func (s *TransactionQueryService) QueryPaymentCoreTransactions(result *domain.Tr
 			txType := strings.TrimSpace(strings.ToUpper(utils.GetStringValue(externalTx, "tx_type")))
 			status := strings.TrimSpace(strings.ToUpper(utils.GetStringValue(externalTx, "status")))
 
-			result.PaymentCore.ExternalTxns = append(result.PaymentCore.ExternalTxns, domain.PCExternalTxnInfo{
-				RefID:     utils.GetStringValue(externalTx, "ref_id"),
+			// Query workflow for this transaction
+			refID := utils.GetStringValue(externalTx, "ref_id")
+			workflowInfo := s.queryWorkflowInfoDirect(client, refID)
+
+			externalInfo := domain.PCExternalInfo{
+				RefID:     refID,
 				GroupID:   transactionID,
 				TxType:    txType,
 				TxStatus:  status,
 				CreatedAt: utils.GetStringValue(externalTx, "created_at"),
-			})
-		}
-	}
+				Workflow:  workflowInfo,
+			}
 
-	// Query PaymentCore workflows for all transactions
-	var pcRunIDs []string
-	for _, internalTx := range result.PaymentCore.InternalTxns {
-		if internalTx.TxID != "" {
-			pcRunIDs = append(pcRunIDs, internalTx.TxID)
-		}
-	}
-	for _, externalTx := range result.PaymentCore.ExternalTxns {
-		if externalTx.RefID != "" {
-			pcRunIDs = append(pcRunIDs, externalTx.RefID)
-		}
-	}
-
-	if len(pcRunIDs) > 0 {
-		// Build WHERE clause for multiple run IDs
-		var pcRunIDConditions []string
-		for _, runID := range pcRunIDs {
-			pcRunIDConditions = append(pcRunIDConditions, fmt.Sprintf("'%s'", runID))
-		}
-		pcWhereClause := strings.Join(pcRunIDConditions, ",")
-
-		pcWorkflowQuery := fmt.Sprintf(
-			"SELECT run_id, workflow_id, state, attempt, created_at FROM workflow_execution WHERE run_id IN (%s)",
-			pcWhereClause,
-		)
-		if pcWorkflows, err := client.QueryPaymentCore(pcWorkflowQuery); err == nil {
-			for _, pcWorkflow := range pcWorkflows {
-				workflowID := utils.GetStringValue(pcWorkflow, "workflow_id")
-				runID := utils.GetStringValue(pcWorkflow, "run_id")
-				state := pcWorkflow["state"]
-
-				var stateNum int
-				if stateInt, ok := state.(float64); ok {
-					stateNum = int(stateInt)
-				}
-
-				var attempt int
-				if attemptFloat, ok := pcWorkflow["attempt"].(float64); ok {
-					attempt = int(attemptFloat)
-				}
-
-				result.PaymentCore.Workflow = append(result.PaymentCore.Workflow, domain.WorkflowInfo{
-					WorkflowID: workflowID,
-					RunID:      runID,
-					State:      fmt.Sprintf("%d", stateNum),
-					Attempt:    attempt,
-				})
+			// Populate based on transaction type
+			if txType == "TRANSFER" {
+				result.PaymentCore.ExternalTransfer = externalInfo
 			}
 		}
 	}
+}
+
+// queryWorkflowInfoDirect queries workflow information using a direct client connection
+func (s *TransactionQueryService) queryWorkflowInfoDirect(client *DoormanClient, runID string) domain.WorkflowInfo {
+	workflowInfo := domain.WorkflowInfo{}
+
+	if runID == "" {
+		return workflowInfo
+	}
+
+	// Query workflow for this run ID
+	pcWorkflowQuery := fmt.Sprintf(
+		"SELECT run_id, workflow_id, state, attempt, prev_trans_id FROM workflow_execution WHERE run_id = '%s' LIMIT 1",
+		runID,
+	)
+	if pcWorkflows, err := client.QueryPaymentCore(pcWorkflowQuery); err == nil && len(pcWorkflows) > 0 {
+		pcWorkflow := pcWorkflows[0]
+		workflowID := utils.GetStringValue(pcWorkflow, "workflow_id")
+		state := pcWorkflow["state"]
+
+		var stateNum int
+		if stateInt, ok := state.(float64); ok {
+			stateNum = int(stateInt)
+		}
+
+		var attempt int
+		if attemptFloat, ok := pcWorkflow["attempt"].(float64); ok {
+			attempt = int(attemptFloat)
+		}
+
+		workflowInfo = domain.WorkflowInfo{
+			WorkflowID:  workflowID,
+			RunID:       runID,
+			State:       fmt.Sprintf("%d", stateNum),
+			Attempt:     attempt,
+			PrevTransID: utils.GetStringValue(pcWorkflow, "prev_trans_id"),
+		}
+	}
+
+	return workflowInfo
 }
 
 // populatePaymentEngineInfoFromTransfer populates payment engine transfer information from transfer map to PaymentEngineInfo

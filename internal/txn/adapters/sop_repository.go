@@ -336,50 +336,74 @@ func (r *SOPRepository) IdentifyCase(result *domain.TransactionResult, env strin
 
 // evaluateRule evaluates a single rule against a transaction result
 func (r *SOPRepository) evaluateRule(rule CaseRule, result *domain.TransactionResult) bool {
-	// Check if rule involves workflow fields
-	hasWorkflowFields := false
+	// Evaluate all conditions
+	allConditionsMatch := true
 	for _, condition := range rule.Conditions {
-		if strings.Contains(condition.FieldPath, "PaymentCore.Workflow.") {
-			hasWorkflowFields = true
-			break
-		}
-	}
-
-	if !hasWorkflowFields {
-		// Simple evaluation for rules without workflow fields
-		for _, condition := range rule.Conditions {
+		// For workflow fields, check against the relevant transaction's workflow
+		if strings.Contains(condition.FieldPath, "PaymentCore.InternalCapture.Workflow.") {
+			if result.PaymentCore == nil || result.PaymentCore.InternalCapture.Workflow.WorkflowID == "" {
+				// If the transaction doesn't exist, condition fails
+				if condition.Operator == "eq" && condition.Value == "" {
+					continue // Empty value matches empty struct
+				}
+				allConditionsMatch = false
+				break
+			}
+			// Update field path to point to the workflow directly
+			originalPath := condition.FieldPath
+			condition.FieldPath = strings.Replace(condition.FieldPath, "PaymentCore.InternalCapture.Workflow.", "Workflow.", 1)
+			if !r.evaluateWorkflowCondition(condition, &result.PaymentCore.InternalCapture.Workflow) {
+				allConditionsMatch = false
+				break
+			}
+			// Restore original field path
+			condition.FieldPath = originalPath
+		} else if strings.Contains(condition.FieldPath, "PaymentCore.InternalAuth.Workflow.") {
+			if result.PaymentCore == nil || result.PaymentCore.InternalAuth.Workflow.WorkflowID == "" {
+				// If the transaction doesn't exist, condition fails
+				if condition.Operator == "eq" && condition.Value == "" {
+					continue // Empty value matches empty struct
+				}
+				allConditionsMatch = false
+				break
+			}
+			// Update field path to point to the workflow directly
+			originalPath := condition.FieldPath
+			condition.FieldPath = strings.Replace(condition.FieldPath, "PaymentCore.InternalAuth.Workflow.", "Workflow.", 1)
+			if !r.evaluateWorkflowCondition(condition, &result.PaymentCore.InternalAuth.Workflow) {
+				allConditionsMatch = false
+				break
+			}
+			// Restore original field path
+			condition.FieldPath = originalPath
+		} else if strings.Contains(condition.FieldPath, "PaymentCore.ExternalTransfer.Workflow.") {
+			if result.PaymentCore == nil || result.PaymentCore.ExternalTransfer.Workflow.WorkflowID == "" {
+				// If the transaction doesn't exist, condition fails
+				if condition.Operator == "eq" && condition.Value == "" {
+					continue // Empty value matches empty struct
+				}
+				allConditionsMatch = false
+				break
+			}
+			// Update field path to point to the workflow directly
+			originalPath := condition.FieldPath
+			condition.FieldPath = strings.Replace(condition.FieldPath, "PaymentCore.ExternalTransfer.Workflow.", "Workflow.", 1)
+			if !r.evaluateWorkflowCondition(condition, &result.PaymentCore.ExternalTransfer.Workflow) {
+				allConditionsMatch = false
+				break
+			}
+			// Restore original field path
+			condition.FieldPath = originalPath
+		} else {
+			// For non-workflow conditions, use simple evaluation
 			if !r.evaluateConditionSimple(condition, result) {
-				return false
+				allConditionsMatch = false
+				break
 			}
-		}
-		return true
-	}
-
-	// For workflow fields, check each workflow in the slice
-	for _, workflow := range result.PaymentCore.Workflow {
-		allConditionsMatch := true
-		for _, condition := range rule.Conditions {
-			if !strings.Contains(condition.FieldPath, "PaymentCore.Workflow.") {
-				// For non-workflow conditions, use simple evaluation
-				if !r.evaluateConditionSimple(condition, result) {
-					allConditionsMatch = false
-					break
-				}
-			} else {
-				// For workflow conditions, check against this specific workflow
-				if !r.evaluateWorkflowCondition(condition, &workflow) {
-					allConditionsMatch = false
-					break
-				}
-			}
-		}
-
-		if allConditionsMatch {
-			return true
 		}
 	}
 
-	return false
+	return allConditionsMatch
 }
 
 // evaluateConditionSimple evaluates a single condition for non-workflow fields
@@ -512,7 +536,7 @@ func (r *SOPRepository) getFieldValue(fieldPath string, result *domain.Transacti
 			}
 			currentValue = field
 		} else if currentValue.Kind() == reflect.Slice {
-			// For slices (like PaymentCore.InternalTxns), check if this is the last part
+			// For slices (deprecated, kept for backward compatibility)
 			if i == len(parts)-1 {
 				// Return the whole slice when this is the final field
 				// Check if slice is empty or nil
