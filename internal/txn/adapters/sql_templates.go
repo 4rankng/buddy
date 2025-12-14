@@ -151,6 +151,12 @@ AND state = 902;`,
 	},
 	domain.CaseThoughtMachineFalseNegative: func(result domain.TransactionResult) *domain.DMLTicket {
 		if runID := result.PaymentEngine.Workflow.RunID; runID != "" {
+			// Check if prev_trans_id is available for rollback
+			if result.PaymentEngine.Workflow.PrevTransID == "" {
+				// Return nil to indicate validation failure
+				return nil
+			}
+			
 			return &domain.DMLTicket{
 				DeployTemplate: `-- thought_machine_false_negative
 UPDATE workflow_execution

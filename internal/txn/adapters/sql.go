@@ -28,6 +28,10 @@ func GenerateSQLStatements(results []domain.TransactionResult) domain.SQLStateme
 					// Create new ticket
 					caseTickets[caseType] = *newTicket
 				}
+			} else if caseType == domain.CaseThoughtMachineFalseNegative {
+				// Special handling for thought_machine_false_negative case when validation fails
+				// Store the error in the result for display
+				results[i].Error = "Cannot generate DMLs for thought_machine_false_negative case: prev_trans_id is required but not found in workflow data"
 			}
 		}
 	}

@@ -105,6 +105,21 @@ func getDefaultSOPRules() []CaseRule {
 					Operator:  "eq",
 					Value:     0,
 				},
+				{
+					FieldPath: "PaymentCore.Workflow.WorkflowID",
+					Operator:  "eq",
+					Value:     "internal_payment_flow",
+				},
+				{
+					FieldPath: "PaymentCore.Workflow.State",
+					Operator:  "eq",
+					Value:     "900",
+				},
+				{
+					FieldPath: "PaymentCore.Workflow.Attempt",
+					Operator:  "eq",
+					Value:     0,
+				},
 			},
 		},
 		{
