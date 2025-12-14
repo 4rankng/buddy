@@ -63,6 +63,15 @@ func processBatchFileWithEnv(filePath, env string) {
 		return
 	}
 
+	// Generate SQL statements
+	statements := adapters.GenerateSQLStatements(results)
+	
+	// Write SQL files
+	sqlBasePath := strings.TrimSuffix(outputPath, "-output.txt")
+	if err := adapters.WriteSQLFiles(statements, sqlBasePath); err != nil {
+		fmt.Printf("Error writing SQL files: %v\n", err)
+	}
+
 	// Generate and display summary
 	summary := generateBatchSummary(results)
 	printBatchSummary(filePath, summary, outputPath)
