@@ -331,7 +331,7 @@ func (r *SOPRepository) getFieldValue(fieldPath string, result *domain.Transacti
 	parts := strings.Split(fieldPath, ".")
 	currentValue := reflect.ValueOf(result)
 
-	for _, part := range parts {
+	for i, part := range parts {
 		if currentValue.Kind() == reflect.Ptr {
 			currentValue = currentValue.Elem()
 		}
@@ -342,6 +342,34 @@ func (r *SOPRepository) getFieldValue(fieldPath string, result *domain.Transacti
 				return nil
 			}
 			currentValue = field
+		} else if currentValue.Kind() == reflect.Slice {
+			// If we're at a slice and there are more parts to process,
+			// we need to find an element in the slice that has the requested field
+			if i < len(parts)-1 {
+				// Look for the first element in the slice that has the next field
+				nextPart := parts[i+1]
+				for j := 0; j < currentValue.Len(); j++ {
+					element := currentValue.Index(j)
+					if element.Kind() == reflect.Ptr {
+						element = element.Elem()
+					}
+					if element.Kind() == reflect.Struct {
+						field := element.FieldByName(nextPart)
+						if field.IsValid() {
+							// Found an element with the field, continue processing with this element
+							currentValue = element
+							break
+						}
+					}
+				}
+				// If we couldn't find a matching element, return nil
+				if currentValue.Kind() == reflect.Slice {
+					return nil
+				}
+			} else {
+				// This is the last part and it's a slice, return the whole slice
+				return currentValue.Interface()
+			}
 		} else {
 			return nil
 		}
