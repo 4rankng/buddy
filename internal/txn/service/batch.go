@@ -2,10 +2,20 @@ package service
 
 import (
 	"fmt"
+	"strings"
 
+	"buddy/internal/txn/adapters"
 	"buddy/internal/txn/domain"
 	"buddy/internal/txn/utils"
 )
+
+// BatchSummary holds summary statistics for batch processing
+type BatchSummary struct {
+	Total     int
+	Matched   int
+	Unmatched int
+	CaseTypes map[domain.SOPCase]int
+}
 
 // ProcessBatchFile processes a file containing multiple transaction IDs
 func ProcessBatchFile(filePath string) {
@@ -26,6 +36,15 @@ func processBatchFileWithEnv(filePath, env string) {
 		return
 	}
 
+	if len(ids) == 0 {
+		fmt.Printf("No transaction IDs found in %s\n", filePath)
+		return
+	}
+
+	fmt.Printf("[MY] Processing batch file: %s\n", filePath)
+	if env == "sg" {
+		fmt.Printf("[SG] Processing batch file: %s\n", filePath)
+	}
 	fmt.Printf("Processing %d transaction IDs from %s\n", len(ids), filePath)
 
 	// Process each transaction ID
@@ -35,11 +54,107 @@ func processBatchFileWithEnv(filePath, env string) {
 		results = append(results, *result)
 	}
 
-	// Generate SQL statements and output results
-	// For now, just output basic info without SQL generation to avoid circular dependency
-	for i, result := range results {
-		fmt.Printf("\n### [%d] transaction_id: %s\n", i+1, result.TransactionID)
-		// Note: Full output formatting and SQL generation would require the adapters
-		// This is a simplified version to avoid circular dependency
+	// Generate output path
+	outputPath := generateOutputPath(filePath)
+
+	// Write detailed results to output file
+	if err := adapters.WriteBatchResults(results, outputPath); err != nil {
+		fmt.Printf("Error writing output file: %v\n", err)
+		return
+	}
+
+	// Generate and display summary
+	summary := generateBatchSummary(results)
+	printBatchSummary(filePath, summary, outputPath)
+}
+
+// generateOutputPath creates the output file path by appending "-output.txt"
+func generateOutputPath(inputPath string) string {
+	if strings.HasSuffix(strings.ToLower(inputPath), ".txt") {
+		return inputPath + "-output.txt"
+	}
+	return inputPath + ".txt-output.txt"
+}
+
+// generateBatchSummary creates summary statistics from transaction results
+func generateBatchSummary(results []domain.TransactionResult) BatchSummary {
+	summary := BatchSummary{
+		Total:     len(results),
+		Matched:   0,
+		Unmatched: 0,
+		CaseTypes: make(map[domain.SOPCase]int),
+	}
+
+	// Initialize case type counters
+	caseTypes := []domain.SOPCase{
+		domain.SOPCasePcExternalPaymentFlow200_11,
+		domain.SOPCasePcExternalPaymentFlow201_0RPP210,
+		domain.SOPCasePcExternalPaymentFlow201_0RPP900,
+		domain.SOPCasePeTransferPayment210_0,
+		domain.SOPCasePe2200FastCashinFailed,
+		domain.SOPCaseRppCashoutReject101_19,
+		domain.SOPCaseRppQrPaymentReject210_0,
+		domain.SOPCaseRppNoResponseResume,
+	}
+
+	for _, caseType := range caseTypes {
+		summary.CaseTypes[caseType] = 0
+	}
+
+	// Count transactions
+	for _, result := range results {
+		// Check if transaction is matched or unmatched
+		notFound := result.PaymentEngine.Transfers.Status == domain.NotFoundStatus ||
+			result.Error != ""
+
+		// Also check if there's any actual data in the result
+		hasData := result.PaymentEngine.Transfers.TransactionID != "" ||
+			len(result.PaymentCore.InternalTxns) > 0 ||
+			len(result.PaymentCore.ExternalTxns) > 0 ||
+			result.FastAdapter.InstructionID != "" ||
+			result.RPPAdapter.EndToEndID != ""
+
+		if notFound || !hasData {
+			summary.Unmatched++
+		} else {
+			summary.Matched++
+		}
+
+		// Count case types
+		if result.CaseType != domain.SOPCaseNone && result.CaseType != "" {
+			summary.CaseTypes[result.CaseType]++
+		}
+	}
+
+	return summary
+}
+
+// printBatchSummary prints the summary to stdout in the exact format specified
+func printBatchSummary(filename string, summary BatchSummary, outputPath string) {
+	fmt.Printf("\n--- Generating SQL Statements ---\n")
+	fmt.Printf("Results written to %s\n", outputPath)
+	fmt.Printf("Summary: \n")
+	fmt.Printf("  Total: %d\n", summary.Total)
+	fmt.Printf("  Unmatched: %d\n", summary.Unmatched)
+	fmt.Printf("  Matched: %d\n", summary.Matched)
+	fmt.Printf("Case Type Breakdown\n")
+
+	// Print case types in the specific order from the documentation
+	caseOrder := []struct {
+		caseType domain.SOPCase
+		name     string
+	}{
+		{domain.SOPCasePcExternalPaymentFlow200_11, "pc_external_payment_flow_200_11"},
+		{domain.SOPCasePcExternalPaymentFlow201_0RPP210, "pc_external_payment_flow_201_0_RPP_210"},
+		{domain.SOPCasePcExternalPaymentFlow201_0RPP900, "pc_external_payment_flow_201_0_RPP_900"},
+		{domain.SOPCasePeTransferPayment210_0, "pe_transfer_payment_210_0"},
+		{domain.SOPCasePe2200FastCashinFailed, "pe_220_0_fast_cashin_failed"},
+		{domain.SOPCaseRppCashoutReject101_19, "rpp_cashout_reject_101_19"},
+		{domain.SOPCaseRppQrPaymentReject210_0, "rpp_qr_payment_reject_210_0"},
+		{domain.SOPCaseRppNoResponseResume, "rpp_no_response_resume"},
+	}
+
+	for _, ct := range caseOrder {
+		fmt.Printf("  %s: %d\n", ct.name, summary.CaseTypes[ct.caseType])
 	}
 }
