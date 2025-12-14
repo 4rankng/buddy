@@ -251,6 +251,25 @@ func (s *TransactionQueryService) GetAdapters() AdapterSet {
 
 // populatePaymentCoreInfo populates payment core information
 func (s *TransactionQueryService) populatePaymentCoreInfo(result *domain.TransactionResult) {
+	// Initialize PaymentCore if nil to prevent nil pointer dereference
+	if result.PaymentCore == nil {
+		result.PaymentCore = &domain.PaymentCoreInfo{
+			InternalTxns: []domain.PCInternalTxnInfo{},
+			ExternalTxns: []domain.PCExternalTxnInfo{},
+			Workflow:     []domain.WorkflowInfo{},
+		}
+	}
+
+	// Defensive check: if PaymentEngine is nil, we can't proceed
+	if result.PaymentEngine == nil {
+		return
+	}
+
+	// Defensive check: if PaymentCore adapter is nil, we can't proceed
+	if s.adapters.PaymentCore == nil {
+		return
+	}
+
 	// Use the transaction_id from payment engine if available, otherwise use InputID
 	transactionID := result.PaymentEngine.Transfers.TransactionID
 	if transactionID == "" {
@@ -319,6 +338,11 @@ func (s *TransactionQueryService) populatePaymentCoreInfo(result *domain.Transac
 				var attempt int
 				if attemptFloat, ok := workflow["attempt"].(float64); ok {
 					attempt = int(attemptFloat)
+				}
+
+				// Ensure PaymentCore.Workflow is initialized
+				if result.PaymentCore.Workflow == nil {
+					result.PaymentCore.Workflow = []domain.WorkflowInfo{}
 				}
 
 				result.PaymentCore.Workflow = append(result.PaymentCore.Workflow, domain.WorkflowInfo{
