@@ -19,7 +19,7 @@ func contains(slice []string, item string) bool {
 // getCaseTypeFromTicket determines the SOP case type based on ticket characteristics
 func getCaseTypeFromTicket(ticket DMLTicket) domain.Case {
 	// Match based on template content and other characteristics
-	if strings.Contains(ticket.DeployTemplate, "pc_external_payment_flow_200_11") {
+	if strings.Contains(ticket.DeployTemplate, string(domain.CasePcExternalPaymentFlow200_11)) {
 		return domain.CasePcExternalPaymentFlow200_11
 	}
 	if strings.Contains(ticket.DeployTemplate, "state = 222") {
@@ -31,7 +31,7 @@ func getCaseTypeFromTicket(ticket DMLTicket) domain.Case {
 	if strings.Contains(ticket.DeployTemplate, "workflow_transfer_payment") {
 		return domain.CasePeTransferPayment210_0
 	}
-	if strings.Contains(ticket.DeployTemplate, "pe_220_0_fast_cashin_failed") {
+	if strings.Contains(ticket.DeployTemplate, string(domain.CasePe2200FastCashinFailed)) {
 		return domain.CasePe2200FastCashinFailed
 	}
 	if strings.Contains(ticket.DeployTemplate, "state = 311") {

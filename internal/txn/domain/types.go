@@ -125,30 +125,19 @@ const (
 	CasePe2200FastCashinFailed           Case = "pe_220_0_fast_cashin_failed"
 )
 
-// CaseSummaryOrder defines the order in which SOP cases should be displayed in summaries
-var CaseSummaryOrder = []Case{
-	CasePcExternalPaymentFlow200_11,
-	CasePcExternalPaymentFlow201_0RPP210,
-	CasePcExternalPaymentFlow201_0RPP900,
-	CasePeTransferPayment210_0,
-	CasePeStuck230RepublishPC,
-	CasePe2200FastCashinFailed,
-	CaseRppCashoutReject101_19,
-	CaseRppQrPaymentReject210_0,
-	CaseRppNoResponseResume,
-}
-
-// CaseDisplayNames maps SOP cases to their printable names
-var CaseDisplayNames = map[Case]string{
-	CasePcExternalPaymentFlow200_11:      "pc_external_payment_flow_200_11",
-	CasePcExternalPaymentFlow201_0RPP210: "pc_external_payment_flow_201_0_RPP_210",
-	CasePcExternalPaymentFlow201_0RPP900: "pc_external_payment_flow_201_0_RPP_900",
-	CasePeTransferPayment210_0:           "pe_transfer_payment_210_0",
-	CasePeStuck230RepublishPC:            "pe_stuck_230_republish_pc",
-	CasePe2200FastCashinFailed:           "pe_220_0_fast_cashin_failed",
-	CaseRppCashoutReject101_19:           "rpp_cashout_reject_101_19",
-	CaseRppQrPaymentReject210_0:          "rpp_qr_payment_reject_210_0",
-	CaseRppNoResponseResume:              "rpp_no_response_resume",
+// GetCaseSummaryOrder returns the order in which SOP cases should be displayed in summaries
+func GetCaseSummaryOrder() []Case {
+	return []Case{
+		CasePcExternalPaymentFlow200_11,
+		CasePcExternalPaymentFlow201_0RPP210,
+		CasePcExternalPaymentFlow201_0RPP900,
+		CasePeTransferPayment210_0,
+		CasePeStuck230RepublishPC,
+		CasePe2200FastCashinFailed,
+		CaseRppCashoutReject101_19,
+		CaseRppQrPaymentReject210_0,
+		CaseRppNoResponseResume,
+	}
 }
 
 // WorkflowStateMaps contains state mappings for different workflow types

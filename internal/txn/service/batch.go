@@ -95,7 +95,7 @@ func generateBatchSummary(results []domain.TransactionResult) BatchSummary {
 	}
 
 	// Initialize case type counters
-	for _, caseType := range domain.CaseSummaryOrder {
+	for _, caseType := range domain.GetCaseSummaryOrder() {
 		summary.CaseTypes[caseType] = 0
 	}
 
@@ -135,8 +135,7 @@ func printBatchSummary(filename string, summary BatchSummary, outputPath string)
 	fmt.Printf("Case Type Breakdown\n")
 
 	// Print case types in the specific order from the documentation
-	for _, caseType := range domain.CaseSummaryOrder {
-		name := domain.CaseDisplayNames[caseType]
-		fmt.Printf("  %s: %d\n", name, summary.CaseTypes[caseType])
+	for _, caseType := range domain.GetCaseSummaryOrder() {
+		fmt.Printf("  %s: %d\n", string(caseType), summary.CaseTypes[caseType])
 	}
 }
