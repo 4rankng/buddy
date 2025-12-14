@@ -39,18 +39,20 @@ type PaymentEngineInfo struct {
 
 // PCInternalTxnInfo contains payment-core internal transaction information
 type PCInternalTxnInfo struct {
-	TxID     string // payment-core internal transaction ID
-	GroupID  string // payment-core transaction group ID
-	TxType   string // payment-core transaction type
-	TxStatus string // payment-core transaction status
+	TxID      string // payment-core internal transaction ID
+	GroupID   string // payment-core transaction group ID
+	TxType    string // payment-core transaction type
+	TxStatus  string // payment-core transaction status
+	CreatedAt string // created_at timestamp
 }
 
 // PCExternalTxnInfo contains payment-core external transaction information
 type PCExternalTxnInfo struct {
-	RefID    string // payment-core external transaction reference ID
-	GroupID  string // payment-core transaction group ID
-	TxType   string // payment-core transaction type
-	TxStatus string // payment-core transaction status
+	RefID     string // payment-core external transaction reference ID
+	GroupID   string // payment-core transaction group ID
+	TxType    string // payment-core transaction type
+	TxStatus  string // payment-core transaction status
+	CreatedAt string // created_at timestamp
 }
 
 // PaymentCoreInfo contains payment-core related information
@@ -77,6 +79,7 @@ type RPPAdapterInfo struct {
 	PartnerTxID string // RPP partner transaction ID
 	EndToEndID  string // = payment-engine.transfers.external_id
 	Status      string // RPP status
+	CreatedAt   string // created_at timestamp
 	Workflow    WorkflowInfo
 	Info        string // optional extra context (e.g. status reason description)
 }
@@ -87,6 +90,7 @@ type PPEChargeInfo struct {
 	Status                  string // partnerpay-engine charge.status
 	StatusReason            string // partnerpay-engine charge.status_reason
 	StatusReasonDescription string // partnerpay-engine charge.status_reason_description
+	CreatedAt               string // created_at timestamp
 }
 
 // PartnerpayEngineInfo contains partnerpay-engine related information
