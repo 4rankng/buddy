@@ -375,9 +375,9 @@ type SQLStatements struct {
 
 // ParamInfo represents a parameter with its value and type for SQL generation
 type ParamInfo struct {
-	Name  string      // Parameter name (e.g., "run_ids", "prev_trans_id")
+	Name  string      // Parameter name (e.g., "run_id", "prev_trans_id")
 	Value interface{} // Parameter value (use interface{} for type flexibility)
-	Type  string      // Parameter type: "string", "string_array", "int", "int_array"
+	Type  string      // Parameter type: "string", "int"
 }
 
 // DMLTicket represents a SQL generation request with templates

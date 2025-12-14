@@ -19,13 +19,13 @@ func TestBuildRunIDsOnlySQL(t *testing.T) {
 			name: "single run ID",
 			ticket: domain.DMLTicket{
 				DeployParams: []domain.ParamInfo{
-					{Name: "run_ids", Value: []string{"run-123"}, Type: "string_array"},
+					{Name: "run_id", Value: "run-123", Type: "string"},
 				},
 				RollbackParams: []domain.ParamInfo{
-					{Name: "run_ids", Value: []string{"run-123"}, Type: "string_array"},
+					{Name: "run_id", Value: "run-123", Type: "string"},
 				},
-				DeployTemplate:   "UPDATE workflow SET state = 201 WHERE run_id IN (%s);",
-				RollbackTemplate: "UPDATE workflow SET state = 200 WHERE run_id IN (%s);",
+				DeployTemplate:   "UPDATE workflow SET state = 201 WHERE run_id = '%s';",
+				RollbackTemplate: "UPDATE workflow SET state = 200 WHERE run_id = '%s';",
 			},
 			wantErr: false,
 			validate: func(t *testing.T, deploy, rollback string) {
@@ -34,34 +34,16 @@ func TestBuildRunIDsOnlySQL(t *testing.T) {
 			},
 		},
 		{
-			name: "multiple run IDs",
+			name: "missing run ID",
 			ticket: domain.DMLTicket{
-				DeployParams: []domain.ParamInfo{
-					{Name: "run_ids", Value: []string{"run-123", "run-456", "run-789"}, Type: "string_array"},
-				},
-				RollbackParams: []domain.ParamInfo{
-					{Name: "run_ids", Value: []string{"run-123", "run-456", "run-789"}, Type: "string_array"},
-				},
-				DeployTemplate:   "UPDATE workflow SET state = 201 WHERE run_id IN (%s);",
-				RollbackTemplate: "UPDATE workflow SET state = 200 WHERE run_id IN (%s);",
-			},
-			wantErr: false,
-			validate: func(t *testing.T, deploy, rollback string) {
-				assert.Contains(t, deploy, "'run-123', 'run-456', 'run-789'")
-				assert.Contains(t, rollback, "'run-123', 'run-456', 'run-789'")
-			},
-		},
-		{
-			name: "empty run IDs",
-			ticket: domain.DMLTicket{
-				DeployTemplate:   "UPDATE workflow SET state = 201 WHERE run_id IN (%s);",
-				RollbackTemplate: "UPDATE workflow SET state = 200 WHERE run_id IN (%s);",
+				DeployTemplate:   "UPDATE workflow SET state = 201 WHERE run_id = '%s';",
+				RollbackTemplate: "UPDATE workflow SET state = 200 WHERE run_id = '%s';",
 			},
 			wantErr: false, // buildSQLFromTemplate doesn't validate parameters
 			validate: func(t *testing.T, deploy, rollback string) {
-				// With empty parameters, %s will be replaced with empty string
-				assert.Contains(t, deploy, "UPDATE workflow SET state = 201 WHERE run_id IN ()")
-				assert.Contains(t, rollback, "UPDATE workflow SET state = 200 WHERE run_id IN ()")
+				// With empty parameters, %s will be replaced with !MISSING
+				assert.Contains(t, deploy, "UPDATE workflow SET state = 201 WHERE run_id = '!MISSING';")
+				assert.Contains(t, rollback, "UPDATE workflow SET state = 200 WHERE run_id = '!MISSING';")
 			},
 		},
 	}
@@ -106,15 +88,15 @@ func TestBuildRunIDsWithWorkflowIDSQL(t *testing.T) {
 			name: "valid ticket with workflow ID",
 			ticket: domain.DMLTicket{
 				DeployParams: []domain.ParamInfo{
-					{Name: "run_ids", Value: []string{"run-123"}, Type: "string_array"},
+					{Name: "run_id", Value: "run-123", Type: "string"},
 					{Name: "workflow_id", Value: "workflow-456", Type: "string"},
 				},
 				RollbackParams: []domain.ParamInfo{
-					{Name: "run_ids", Value: []string{"run-123"}, Type: "string_array"},
+					{Name: "run_id", Value: "run-123", Type: "string"},
 					{Name: "workflow_id", Value: "workflow-456", Type: "string"},
 				},
-				DeployTemplate:   "UPDATE workflow SET state = 201 WHERE run_id IN (%s) AND workflow_id = %s;",
-				RollbackTemplate: "UPDATE workflow SET state = 200 WHERE run_id IN (%s) AND workflow_id = %s;",
+				DeployTemplate:   "UPDATE workflow SET state = 201 WHERE run_id = '%s' AND workflow_id = '%s';",
+				RollbackTemplate: "UPDATE workflow SET state = 200 WHERE run_id = '%s' AND workflow_id = '%s';",
 			},
 			wantErr: false,
 			validate: func(t *testing.T, deploy, rollback string) {
@@ -128,17 +110,17 @@ func TestBuildRunIDsWithWorkflowIDSQL(t *testing.T) {
 			name: "missing workflow ID parameter",
 			ticket: domain.DMLTicket{
 				DeployParams: []domain.ParamInfo{
-					{Name: "run_ids", Value: []string{"run-123"}, Type: "string_array"},
+					{Name: "run_id", Value: "run-123", Type: "string"},
 				},
 				RollbackParams: []domain.ParamInfo{
-					{Name: "run_ids", Value: []string{"run-123"}, Type: "string_array"},
+					{Name: "run_id", Value: "run-123", Type: "string"},
 				},
-				DeployTemplate:   "UPDATE workflow SET state = 201 WHERE run_id IN (%s) AND workflow_id = %s;",
-				RollbackTemplate: "UPDATE workflow SET state = 200 WHERE run_id IN (%s) AND workflow_id = %s;",
+				DeployTemplate:   "UPDATE workflow SET state = 201 WHERE run_id = '%s' AND workflow_id = '%s';",
+				RollbackTemplate: "UPDATE workflow SET state = 200 WHERE run_id = '%s' AND workflow_id = '%s';",
 			},
 			wantErr: false, // buildSQLFromTemplate doesn't validate parameter count
 			validate: func(t *testing.T, deploy, rollback string) {
-				// With only run_ids parameter, the second %s will be replaced with !MISSING
+				// With only run_id parameter, the second %s will be replaced with !MISSING
 				assert.Contains(t, deploy, "'run-123'")
 				assert.Contains(t, deploy, "!MISSING")
 				assert.Contains(t, rollback, "'run-123'")
@@ -184,18 +166,16 @@ func TestBuildRunIDsWithWorkflowIDsSQL(t *testing.T) {
 		validate func(*testing.T, string, string)
 	}{
 		{
-			name: "valid ticket with multiple workflow IDs",
+			name: "valid ticket with workflow IDs hardcoded",
 			ticket: domain.DMLTicket{
 				DeployParams: []domain.ParamInfo{
-					{Name: "run_ids", Value: []string{"run-123"}, Type: "string_array"},
-					{Name: "workflow_ids", Value: []string{"wf-1", "wf-2", "wf-3"}, Type: "string_array"},
+					{Name: "run_id", Value: "run-123", Type: "string"},
 				},
 				RollbackParams: []domain.ParamInfo{
-					{Name: "run_ids", Value: []string{"run-123"}, Type: "string_array"},
-					{Name: "workflow_ids", Value: []string{"wf-1", "wf-2", "wf-3"}, Type: "string_array"},
+					{Name: "run_id", Value: "run-123", Type: "string"},
 				},
-				DeployTemplate:   "UPDATE workflow SET state = 201 WHERE run_id IN (%s) AND workflow_id IN (%s);",
-				RollbackTemplate: "UPDATE workflow SET state = 200 WHERE run_id IN (%s) AND workflow_id IN (%s);",
+				DeployTemplate:   "UPDATE workflow SET state = 201 WHERE run_id = '%s' AND workflow_id IN ('wf-1', 'wf-2', 'wf-3');",
+				RollbackTemplate: "UPDATE workflow SET state = 200 WHERE run_id = '%s' AND workflow_id IN ('wf-1', 'wf-2', 'wf-3');",
 			},
 			wantErr: false,
 			validate: func(t *testing.T, deploy, rollback string) {
@@ -206,23 +186,15 @@ func TestBuildRunIDsWithWorkflowIDsSQL(t *testing.T) {
 			},
 		},
 		{
-			name: "missing workflow IDs parameter",
+			name: "missing run ID parameter",
 			ticket: domain.DMLTicket{
-				DeployParams: []domain.ParamInfo{
-					{Name: "run_ids", Value: []string{"run-123"}, Type: "string_array"},
-				},
-				RollbackParams: []domain.ParamInfo{
-					{Name: "run_ids", Value: []string{"run-123"}, Type: "string_array"},
-				},
-				DeployTemplate:   "UPDATE workflow SET state = 201 WHERE run_id IN (%s) AND workflow_id IN (%s);",
-				RollbackTemplate: "UPDATE workflow SET state = 200 WHERE run_id IN (%s) AND workflow_id IN (%s);",
+				DeployTemplate:   "UPDATE workflow SET state = 201 WHERE run_id = '%s' AND workflow_id IN ('wf-1', 'wf-2');",
+				RollbackTemplate: "UPDATE workflow SET state = 200 WHERE run_id = '%s' AND workflow_id IN ('wf-1', 'wf-2');",
 			},
 			wantErr: false, // buildSQLFromTemplate doesn't validate parameter count
 			validate: func(t *testing.T, deploy, rollback string) {
-				// With only run_ids parameter, the second %s will be replaced with !MISSING
-				assert.Contains(t, deploy, "'run-123'")
+				// With missing run_id parameter, %s will be replaced with !MISSING
 				assert.Contains(t, deploy, "!MISSING")
-				assert.Contains(t, rollback, "'run-123'")
 				assert.Contains(t, rollback, "!MISSING")
 			},
 		},
@@ -268,14 +240,14 @@ func TestBuildRunIDsOnlyWithPrevTransIDSQL(t *testing.T) {
 			name: "valid ticket with prev_trans_id",
 			ticket: domain.DMLTicket{
 				DeployParams: []domain.ParamInfo{
-					{Name: "run_ids", Value: []string{"run-123"}, Type: "string_array"},
+					{Name: "run_id", Value: "run-123", Type: "string"},
 				},
 				RollbackParams: []domain.ParamInfo{
 					{Name: "prev_trans_id", Value: "prev-456", Type: "string"},
-					{Name: "run_ids", Value: []string{"run-123"}, Type: "string_array"},
+					{Name: "run_id", Value: "run-123", Type: "string"},
 				},
-				DeployTemplate:   "UPDATE workflow SET state = 201 WHERE run_id IN (%s);",
-				RollbackTemplate: "UPDATE workflow SET prev_trans_id = %s WHERE run_id IN (%s);",
+				DeployTemplate:   "UPDATE workflow SET state = 201 WHERE run_id = '%s';",
+				RollbackTemplate: "UPDATE workflow SET prev_trans_id = '%s' WHERE run_id = '%s';",
 			},
 			wantErr: false,
 			validate: func(t *testing.T, deploy, rollback string) {
@@ -283,21 +255,6 @@ func TestBuildRunIDsOnlyWithPrevTransIDSQL(t *testing.T) {
 				assert.Contains(t, rollback, "'prev-456'")
 				assert.Contains(t, rollback, "'run-123'")
 			},
-		},
-		{
-			name: "multiple run IDs (should fail for prev_trans_id)",
-			ticket: domain.DMLTicket{
-				DeployParams: []domain.ParamInfo{
-					{Name: "run_ids", Value: []string{"run-123", "run-456"}, Type: "string_array"},
-				},
-				RollbackParams: []domain.ParamInfo{
-					{Name: "prev_trans_id", Value: "prev-789", Type: "string"},
-					{Name: "run_ids", Value: []string{"run-123", "run-456"}, Type: "string_array"},
-				},
-				DeployTemplate:   "UPDATE workflow SET state = 201 WHERE run_id IN (%s);",
-				RollbackTemplate: "UPDATE workflow SET prev_trans_id = %s WHERE run_id IN (%s);",
-			},
-			wantErr: false, // This doesn't fail at the template level, it fails at the individual statement level
 		},
 	}
 
@@ -344,13 +301,13 @@ func TestGenerateSQLFromTicket(t *testing.T) {
 			name: "PC case with single run ID",
 			ticket: domain.DMLTicket{
 				DeployParams: []domain.ParamInfo{
-					{Name: "run_ids", Value: []string{"run-123"}, Type: "string_array"},
+					{Name: "run_id", Value: "run-123", Type: "string"},
 				},
 				RollbackParams: []domain.ParamInfo{
-					{Name: "run_ids", Value: []string{"run-123"}, Type: "string_array"},
+					{Name: "run_id", Value: "run-123", Type: "string"},
 				},
-				DeployTemplate:   "UPDATE pc_workflow SET state = 201 WHERE run_id IN (%s);",
-				RollbackTemplate: "UPDATE pc_workflow SET state = 200 WHERE run_id IN (%s);",
+				DeployTemplate:   "UPDATE pc_workflow SET state = 201 WHERE run_id = '%s';",
+				RollbackTemplate: "UPDATE pc_workflow SET state = 200 WHERE run_id = '%s';",
 				TargetDB:         "PC",
 				CaseType:         domain.CasePcExternalPaymentFlow200_11,
 			},
@@ -361,13 +318,13 @@ func TestGenerateSQLFromTicket(t *testing.T) {
 			name: "PE case with workflow ID",
 			ticket: domain.DMLTicket{
 				DeployParams: []domain.ParamInfo{
-					{Name: "run_ids", Value: []string{"run-123", "run-456"}, Type: "string_array"},
+					{Name: "run_id", Value: "run-123", Type: "string"},
 				},
 				RollbackParams: []domain.ParamInfo{
-					{Name: "run_ids", Value: []string{"run-123", "run-456"}, Type: "string_array"},
+					{Name: "run_id", Value: "run-123", Type: "string"},
 				},
-				DeployTemplate:   "UPDATE pe_workflow SET state = 221 WHERE run_id IN (%s) AND workflow_id = '%s';",
-				RollbackTemplate: "UPDATE pe_workflow SET state = 210 WHERE run_id IN (%s) AND workflow_id = '%s';",
+				DeployTemplate:   "UPDATE pe_workflow SET state = 221 WHERE run_id = '%s' AND workflow_id = 'transfer_payment';",
+				RollbackTemplate: "UPDATE pe_workflow SET state = 210 WHERE run_id = '%s' AND workflow_id = 'transfer_payment';",
 				TargetDB:         "PE",
 				CaseType:         domain.CasePeTransferPayment210_0,
 			},
@@ -375,18 +332,16 @@ func TestGenerateSQLFromTicket(t *testing.T) {
 			expectPE: true,
 		},
 		{
-			name: "RPP case with workflow IDs",
+			name: "RPP case with workflow IDs hardcoded",
 			ticket: domain.DMLTicket{
 				DeployParams: []domain.ParamInfo{
-					{Name: "run_ids", Value: []string{"run-123"}, Type: "string_array"},
-					{Name: "workflow_ids", Value: []string{"rpp-wf-1", "rpp-wf-2"}, Type: "string_array"},
+					{Name: "run_id", Value: "run-123", Type: "string"},
 				},
 				RollbackParams: []domain.ParamInfo{
-					{Name: "run_ids", Value: []string{"run-123"}, Type: "string_array"},
-					{Name: "workflow_ids", Value: []string{"rpp-wf-1", "rpp-wf-2"}, Type: "string_array"},
+					{Name: "run_id", Value: "run-123", Type: "string"},
 				},
-				DeployTemplate:   "UPDATE rpp_workflow SET state = 210 WHERE run_id IN (%s) AND workflow_id IN (%s);",
-				RollbackTemplate: "UPDATE rpp_workflow SET state = 200 WHERE run_id IN (%s) AND workflow_id IN (%s);",
+				DeployTemplate:   "UPDATE rpp_workflow SET state = 210 WHERE run_id = '%s' AND workflow_id IN ('wf-1', 'wf-2');",
+				RollbackTemplate: "UPDATE rpp_workflow SET state = 200 WHERE run_id = '%s' AND workflow_id IN ('wf-1', 'wf-2');",
 				TargetDB:         "RPP",
 				CaseType:         domain.CaseRppNoResponseResume,
 			},
@@ -394,17 +349,17 @@ func TestGenerateSQLFromTicket(t *testing.T) {
 			expectRPP: true,
 		},
 		{
-			name: "Thought Machine False Negative case (individual statements)",
+			name: "Thought Machine False Negative case",
 			ticket: domain.DMLTicket{
 				DeployParams: []domain.ParamInfo{
-					{Name: "run_ids", Value: []string{"run-123", "run-456"}, Type: "string_array"},
+					{Name: "run_id", Value: "run-123", Type: "string"},
 				},
 				RollbackParams: []domain.ParamInfo{
 					{Name: "prev_trans_id", Value: "original-prev-trans", Type: "string"},
-					{Name: "run_ids", Value: []string{"run-123", "run-456"}, Type: "string_array"},
+					{Name: "run_id", Value: "run-123", Type: "string"},
 				},
-				DeployTemplate:   "UPDATE workflow SET state = 201 WHERE run_id = %s;",
-				RollbackTemplate: "UPDATE workflow SET prev_trans_id = '%s' WHERE run_id = %s;",
+				DeployTemplate:   "UPDATE workflow SET state = 201 WHERE run_id = '%s';",
+				RollbackTemplate: "UPDATE workflow SET prev_trans_id = '%s' WHERE run_id = '%s';",
 				TargetDB:         "PC",
 				CaseType:         domain.CaseThoughtMachineFalseNegative,
 			},
@@ -423,10 +378,10 @@ func TestGenerateSQLFromTicket(t *testing.T) {
 			name: "invalid target DB",
 			ticket: domain.DMLTicket{
 				DeployParams: []domain.ParamInfo{
-					{Name: "run_ids", Value: []string{"run-123"}, Type: "string_array"},
+					{Name: "run_id", Value: "run-123", Type: "string"},
 				},
 				RollbackParams: []domain.ParamInfo{
-					{Name: "run_ids", Value: []string{"run-123"}, Type: "string_array"},
+					{Name: "run_id", Value: "run-123", Type: "string"},
 				},
 				TargetDB: "INVALID",
 			},
@@ -491,24 +446,6 @@ func TestFormatParameter(t *testing.T) {
 			expected: "'test-123'",
 		},
 		{
-			name: "multiple string IDs",
-			info: domain.ParamInfo{
-				Name:  "run_ids",
-				Value: []string{"test-1", "test-2", "test-3"},
-				Type:  "string_array",
-			},
-			expected: "'test-1', 'test-2', 'test-3'",
-		},
-		{
-			name: "empty string array",
-			info: domain.ParamInfo{
-				Name:  "run_ids",
-				Value: []string{},
-				Type:  "string_array",
-			},
-			expected: "",
-		},
-		{
 			name: "int value",
 			info: domain.ParamInfo{
 				Name:  "count",
@@ -516,15 +453,6 @@ func TestFormatParameter(t *testing.T) {
 				Type:  "int",
 			},
 			expected: "42",
-		},
-		{
-			name: "int array",
-			info: domain.ParamInfo{
-				Name:  "counts",
-				Value: []int{1, 2, 3},
-				Type:  "int_array",
-			},
-			expected: "1, 2, 3",
 		},
 	}
 

@@ -8,7 +8,8 @@ var sqlTemplates = map[domain.Case]func(domain.TransactionResult) *domain.DMLTic
 	// Payment Core (PC) Templates
 	// ========================================
 	domain.CasePcExternalPaymentFlow200_11: func(result domain.TransactionResult) *domain.DMLTicket {
-		if runID := getPcExtPayment200_11RunID(result); runID != "" {
+		// Since the case was identified, we know ExternalTransfer workflow matches
+		if result.PaymentCore != nil && result.PaymentCore.ExternalTransfer.Workflow.RunID != "" {
 			return &domain.DMLTicket{
 				DeployTemplate: `-- pc_external_payment_flow_200_11
 UPDATE workflow_execution
@@ -23,20 +24,20 @@ SET state = 202,
         'ExternalID', '',
         'ErrorMessage', 'Reject from adapter'),
       '$.State', 202)
-WHERE run_id IN (%s)
+WHERE run_id = '%s'
 AND state = 200
 AND attempt = 11;`,
 				RollbackTemplate: `UPDATE workflow_execution
 SET state = 200,
     attempt = 11,
     ` + "`data`" + ` = JSON_SET(` + "`data`" + `, '$.State', 200)
-WHERE run_id IN (%s);`,
+WHERE run_id = '%s';`,
 				TargetDB: "PC",
 				DeployParams: []domain.ParamInfo{
-					{Name: "run_ids", Value: []string{runID}, Type: "string_array"},
+					{Name: "run_id", Value: result.PaymentCore.ExternalTransfer.Workflow.RunID, Type: "string"},
 				},
 				RollbackParams: []domain.ParamInfo{
-					{Name: "run_ids", Value: []string{runID}, Type: "string_array"},
+					{Name: "run_id", Value: result.PaymentCore.ExternalTransfer.Workflow.RunID, Type: "string"},
 				},
 				CaseType: domain.CasePcExternalPaymentFlow200_11,
 			}
@@ -60,7 +61,7 @@ SET state = 221,
         'ErrorCode', 'ADAPTER_ERROR',
         'ErrorMessage', 'Manual Rejected'),
       '$.State', 221)
-WHERE run_id IN (%s)
+WHERE run_id = '%s'
 AND workflow_id = 'workflow_transfer_payment'
 AND state = 210;`,
 			RollbackTemplate: `UPDATE workflow_execution
@@ -70,14 +71,14 @@ SET state = 210,
       ` + "`data`" + `,
       '$.StreamMessage', NULL,
       '$.State', 210)
-WHERE run_id IN (%s)
+WHERE run_id = '%s'
 AND workflow_id = 'workflow_transfer_payment';`,
 			TargetDB: "PE",
 			DeployParams: []domain.ParamInfo{
-				{Name: "run_ids", Value: []string{result.PaymentEngine.Workflow.RunID}, Type: "string_array"},
+				{Name: "run_id", Value: result.PaymentEngine.Workflow.RunID, Type: "string"},
 			},
 			RollbackParams: []domain.ParamInfo{
-				{Name: "run_ids", Value: []string{result.PaymentEngine.Workflow.RunID}, Type: "string_array"},
+				{Name: "run_id", Value: result.PaymentEngine.Workflow.RunID, Type: "string"},
 			},
 			CaseType: domain.CasePeTransferPayment210_0,
 		}
@@ -94,7 +95,7 @@ SET attempt = 1,
       '$.State', 221,
       '$.StreamMessage.Status', 'FAILED',
       '$.StreamMessage.ErrorMessage', 'MANUAL REJECT')
-WHERE run_id IN (%s)
+WHERE run_id = '%s'
 AND workflow_id = 'workflow_transfer_collection'
 AND state = 220
 AND attempt = 0;`,
@@ -105,14 +106,14 @@ SET attempt = 0,
       ` + "`data`" + `,
       '$.State', 220,
       '$.StreamMessage', JSON_OBJECT())
-WHERE run_id IN (%s)
+WHERE run_id = '%s'
 AND workflow_id = 'workflow_transfer_collection';`,
 				TargetDB: "PE",
 				DeployParams: []domain.ParamInfo{
-					{Name: "run_ids", Value: []string{runID}, Type: "string_array"},
+					{Name: "run_id", Value: runID, Type: "string"},
 				},
 				RollbackParams: []domain.ParamInfo{
-					{Name: "run_ids", Value: []string{runID}, Type: "string_array"},
+					{Name: "run_id", Value: runID, Type: "string"},
 				},
 				CaseType: domain.CasePe2200FastCashinFailed,
 			}
@@ -120,29 +121,29 @@ AND workflow_id = 'workflow_transfer_collection';`,
 		return nil
 	},
 	domain.CasePeStuck230RepublishPC: func(result domain.TransactionResult) *domain.DMLTicket {
-		if runIDs := getInternalPaymentFlowRunIDs(result); len(runIDs) > 0 {
+		if runID := getInternalPaymentFlowRunID(result); runID != "" {
 			return &domain.DMLTicket{
 				DeployTemplate: `-- pe_stuck_230_republish_pc
 UPDATE workflow_execution
 SET state = 902,
     attempt = 1,
     ` + "`data`" + ` = JSON_SET(` + "`data`" + `, '$.State', 902)
-WHERE run_id IN (%s)
+WHERE run_id = '%s'
 AND workflow_id = 'internal_payment_flow'
 AND state = 900;`,
 				RollbackTemplate: `UPDATE workflow_execution
 SET state = 900,
     attempt = 1,
     ` + "`data`" + ` = JSON_SET(` + "`data`" + `, '$.State', 900)
-WHERE run_id IN (%s)
+WHERE run_id = '%s'
 AND workflow_id = 'internal_payment_flow'
 AND state = 902;`,
 				TargetDB: "PC",
 				DeployParams: []domain.ParamInfo{
-					{Name: "run_ids", Value: runIDs, Type: "string_array"},
+					{Name: "run_id", Value: runID, Type: "string"},
 				},
 				RollbackParams: []domain.ParamInfo{
-					{Name: "run_ids", Value: runIDs, Type: "string_array"},
+					{Name: "run_id", Value: runID, Type: "string"},
 				},
 				CaseType: domain.CasePeStuck230RepublishPC,
 			}
@@ -163,7 +164,7 @@ UPDATE workflow_execution
 SET state = 230,
 	 prev_trans_id = JSON_EXTRACT(data, '$.StreamMessage.ReferenceID'),
 	 ` + "`data`" + ` = JSON_SET(` + "`data`" + `, '$.State', 230)
-WHERE run_id IN (%s)
+WHERE run_id = '%s'
 AND state = 701;`,
 				RollbackTemplate: `UPDATE workflow_execution
 SET
@@ -171,15 +172,15 @@ SET
 	 attempt = 0,
 	 prev_trans_id = '%s',
 	 ` + "`data`" + ` = JSON_SET(` + "`data`" + `, '$.State', 701)
-WHERE run_id IN (%s)
+WHERE run_id = '%s'
 AND state = 230;`,
 				TargetDB: "PE",
 				DeployParams: []domain.ParamInfo{
-					{Name: "run_ids", Value: []string{runID}, Type: "string_array"},
+					{Name: "run_id", Value: runID, Type: "string"},
 				},
 				RollbackParams: []domain.ParamInfo{
 					{Name: "prev_trans_id", Value: result.PaymentEngine.Workflow.PrevTransID, Type: "string"},
-					{Name: "run_ids", Value: []string{runID}, Type: "string_array"},
+					{Name: "run_id", Value: runID, Type: "string"},
 				},
 				CaseType: domain.CaseThoughtMachineFalseNegative,
 			}
@@ -197,19 +198,19 @@ UPDATE workflow_execution
 SET state = 222,
     attempt = 1,
     ` + "`data`" + ` = JSON_SET(` + "`data`" + `, '$.State', 222)
-WHERE run_id IN (%s)
+WHERE run_id = '%s'
 AND state = 210;`,
 			RollbackTemplate: `UPDATE workflow_execution
 SET state = 201,
     attempt = 0,
     ` + "`data`" + ` = JSON_SET(` + "`data`" + `, '$.State', 201)
-WHERE run_id IN (%s);`,
+WHERE run_id = '%s';`,
 			TargetDB: "RPP",
 			DeployParams: []domain.ParamInfo{
-				{Name: "run_ids", Value: []string{result.RPPAdapter.Workflow.RunID}, Type: "string_array"},
+				{Name: "run_id", Value: result.RPPAdapter.Workflow.RunID, Type: "string"},
 			},
 			RollbackParams: []domain.ParamInfo{
-				{Name: "run_ids", Value: []string{result.RPPAdapter.Workflow.RunID}, Type: "string_array"},
+				{Name: "run_id", Value: result.RPPAdapter.Workflow.RunID, Type: "string"},
 			},
 			CaseType: domain.CasePcExternalPaymentFlow201_0RPP210,
 		}
@@ -222,19 +223,19 @@ UPDATE workflow_execution
 SET state = 301,
     attempt = 1,
     ` + "`data`" + ` = JSON_SET(` + "`data`" + `, '$.State', 301)
-WHERE run_id IN (%s)
+WHERE run_id = '%s'
 AND state = 900;`,
 			RollbackTemplate: `UPDATE workflow_execution
 SET state = 900,
     attempt = 0,
     ` + "`data`" + ` = JSON_SET(` + "`data`" + `, '$.State', 900)
-WHERE run_id IN (%s);`,
+WHERE run_id = '%s';`,
 			TargetDB: "RPP",
 			DeployParams: []domain.ParamInfo{
-				{Name: "run_ids", Value: []string{result.RPPAdapter.Workflow.RunID}, Type: "string_array"},
+				{Name: "run_id", Value: result.RPPAdapter.Workflow.RunID, Type: "string"},
 			},
 			RollbackParams: []domain.ParamInfo{
-				{Name: "run_ids", Value: []string{result.RPPAdapter.Workflow.RunID}, Type: "string_array"},
+				{Name: "run_id", Value: result.RPPAdapter.Workflow.RunID, Type: "string"},
 			},
 			CaseType: domain.CasePcExternalPaymentFlow201_0RPP900,
 		}
@@ -247,7 +248,7 @@ UPDATE workflow_execution
 SET state = 221,
     attempt = 1,
     data = JSON_SET(data, '$.State', 221)
-WHERE run_id IN (%s)
+WHERE run_id = '%s'
 AND state = 101
 AND workflow_id = 'wf_ct_cashout';`,
 			RollbackTemplate: `-- RPP Rollback: Move workflows back to state 101
@@ -255,14 +256,14 @@ UPDATE workflow_execution
 SET state = 101,
     attempt = 0,
     data = JSON_SET(data, '$.State', 101)
-WHERE run_id IN (%s)
+WHERE run_id = '%s'
 AND workflow_id = 'wf_ct_cashout';`,
 			TargetDB: "RPP",
 			DeployParams: []domain.ParamInfo{
-				{Name: "run_ids", Value: []string{result.RPPAdapter.Workflow.RunID}, Type: "string_array"},
+				{Name: "run_id", Value: result.RPPAdapter.Workflow.RunID, Type: "string"},
 			},
 			RollbackParams: []domain.ParamInfo{
-				{Name: "run_ids", Value: []string{result.RPPAdapter.Workflow.RunID}, Type: "string_array"},
+				{Name: "run_id", Value: result.RPPAdapter.Workflow.RunID, Type: "string"},
 			},
 			CaseType: domain.CaseRppCashoutReject101_19,
 		}
@@ -275,7 +276,7 @@ UPDATE workflow_execution
 SET state = 221,
     attempt = 1,
     data = JSON_SET(data, '$.State', 221)
-WHERE run_id IN (%s)
+WHERE run_id = '%s'
 AND state = 210
 AND workflow_id = 'wf_ct_qr_payment';`,
 			RollbackTemplate: `-- RPP Rollback: Move qr_payment workflows back to state 210
@@ -283,14 +284,14 @@ UPDATE workflow_execution
 SET state = 210,
     attempt = 0,
     data = JSON_SET(data, '$.State', 210)
-WHERE run_id IN (%s)
+WHERE run_id = '%s'
 AND workflow_id = 'wf_ct_qr_payment';`,
 			TargetDB: "RPP",
 			DeployParams: []domain.ParamInfo{
-				{Name: "run_ids", Value: []string{result.RPPAdapter.Workflow.RunID}, Type: "string_array"},
+				{Name: "run_id", Value: result.RPPAdapter.Workflow.RunID, Type: "string"},
 			},
 			RollbackParams: []domain.ParamInfo{
-				{Name: "run_ids", Value: []string{result.RPPAdapter.Workflow.RunID}, Type: "string_array"},
+				{Name: "run_id", Value: result.RPPAdapter.Workflow.RunID, Type: "string"},
 			},
 			CaseType: domain.CaseRppQrPaymentReject210_0,
 		}
@@ -304,24 +305,22 @@ UPDATE workflow_execution
 SET state = 222,
     attempt = 1,
     ` + "`data`" + ` = JSON_SET(` + "`data`" + `, '$.State', 222)
-WHERE run_id IN (%s)
+WHERE run_id = '%s'
 AND state = 210
-AND workflow_id IN (%s);`,
+AND workflow_id IN ('wf_ct_cashout', 'wf_ct_qr_payment');`,
 			RollbackTemplate: `-- RPP Rollback: Move workflows back to state 210
 UPDATE workflow_execution
 SET state = 210,
     attempt = 0,
     ` + "`data`" + ` = JSON_SET(` + "`data`" + `, '$.State', 210)
-WHERE run_id IN (%s)
-AND workflow_id IN (%s);`,
+WHERE run_id = '%s'
+AND workflow_id IN ('wf_ct_cashout', 'wf_ct_qr_payment');`,
 			TargetDB: "RPP",
 			DeployParams: []domain.ParamInfo{
-				{Name: "run_ids", Value: []string{result.RPPAdapter.Workflow.RunID}, Type: "string_array"},
-				{Name: "workflow_ids", Value: []string{"'wf_ct_cashout'", "'wf_ct_qr_payment'"}, Type: "string_array"},
+				{Name: "run_id", Value: result.RPPAdapter.Workflow.RunID, Type: "string"},
 			},
 			RollbackParams: []domain.ParamInfo{
-				{Name: "run_ids", Value: []string{result.RPPAdapter.Workflow.RunID}, Type: "string_array"},
-				{Name: "workflow_ids", Value: []string{"'wf_ct_cashout'", "'wf_ct_qr_payment'"}, Type: "string_array"},
+				{Name: "run_id", Value: result.RPPAdapter.Workflow.RunID, Type: "string"},
 			},
 			CaseType: domain.CaseRppNoResponseResume,
 		}
