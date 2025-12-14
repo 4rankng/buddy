@@ -282,6 +282,27 @@ func getDefaultSOPRules() []CaseRule {
 					Value:     "900",
 				},
 			},
+		},
+		{
+			CaseType:    domain.CaseThoughtMachineFalseNegative,
+			Description: "Thought Machine false negative - PE state 701 (stCaptureFailed) but RPP indicates success",
+			Conditions: []RuleCondition{
+				{
+					FieldPath: "PaymentEngine.Workflow.State",
+					Operator:  "eq",
+					Value:     "701",
+				},
+				{
+					FieldPath: "PaymentEngine.Workflow.WorkflowID",
+					Operator:  "eq",
+					Value:     "workflow_transfer_payment",
+				},
+				{
+					FieldPath: "RPPAdapter.Info",
+					Operator:  "contains",
+					Value:     "PROCESSING",
+				},
+			},
 		}}
 }
 

@@ -4,17 +4,17 @@ import "buddy/internal/txn/domain"
 
 // DMLTicket represents a SQL generation request with templates
 type DMLTicket struct {
-	RunIDs           []string // run_ids to update
-	ReqBizMsgIDs     []string // optional req_biz_msg_ids for RPP cases
-	PartnerTxIDs     []string // optional partner_tx_ids for RPP cases
-	DeployTemplate   string   // SQL template for deploy
-	RollbackTemplate string   // SQL template for rollback
-	TargetDB         string   // "PC", "PE", or "RPP"
-	WorkflowID       string   // optional workflow_id filter
-	TargetState      int      // target state to check in WHERE clause
-	TargetAttempt    int      // target attempt to check in WHERE clause
-	StateField       string   // field name for state in WHERE clause (usually "state")
-	WorkflowIDs      []string // multiple workflow_ids for IN clause
+	RunIDs           []string    // run_ids to update
+	ReqBizMsgIDs     []string    // optional req_biz_msg_ids for RPP cases
+	PartnerTxIDs     []string    // optional partner_tx_ids for RPP cases
+	DeployTemplate   string      // SQL template for deploy
+	RollbackTemplate string      // SQL template for rollback
+	TargetDB         string      // "PC", "PE", or "RPP"
+	WorkflowID       string      // optional workflow_id filter
+	TargetState      int         // target state to check in WHERE clause
+	TargetAttempt    int         // target attempt to check in WHERE clause
+	StateField       string      // field name for state in WHERE clause (usually "state")
+	WorkflowIDs      []string    // multiple workflow_ids for IN clause
 	CaseType         domain.Case // SOP case type for this ticket
 
 	// Consolidation metadata
@@ -34,6 +34,7 @@ var templateConfigs = map[domain.Case]TemplateConfig{
 	domain.CasePeTransferPayment210_0:           {Parameters: []string{"run_ids"}},
 	domain.CasePeStuck230RepublishPC:            {Parameters: []string{"run_ids"}},
 	domain.CasePe2200FastCashinFailed:           {Parameters: []string{"run_ids"}},
+	domain.CaseThoughtMachineFalseNegative:      {Parameters: []string{"run_ids"}},
 	domain.CaseRppCashoutReject101_19:           {Parameters: []string{"run_ids"}},
 	domain.CaseRppQrPaymentReject210_0:          {Parameters: []string{"run_ids"}},
 	domain.CaseRppNoResponseResume:              {Parameters: []string{"run_ids", "workflow_ids"}},
@@ -172,7 +173,37 @@ AND state = 902;`,
 				TargetDB:    "PC",
 				WorkflowID:  "internal_payment_flow",
 				TargetState: 900,
-				CaseType:     domain.CasePeStuck230RepublishPC,
+				CaseType:    domain.CasePeStuck230RepublishPC,
+			}
+		}
+		return nil
+	},
+	domain.CaseThoughtMachineFalseNegative: func(result domain.TransactionResult) *DMLTicket {
+		if runID := result.PaymentEngine.Workflow.RunID; runID != "" {
+			return &DMLTicket{
+				RunIDs: []string{runID},
+				DeployTemplate: `-- thought_machine_false_negative
+UPDATE workflow_execution
+SET state = 230,
+    ` + "`data`" + ` = JSON_SET(
+      ` + "`data`" + `,
+      '$.State', 230,
+      '$.prev_trans_id', ` + "`data`" + ` ->> '$.trans_id')
+WHERE run_id IN (%s)
+AND workflow_id = 'workflow_transfer_payment'
+AND state = 701;`,
+				RollbackTemplate: `UPDATE workflow_execution
+SET state = 701,
+    ` + "`data`" + ` = JSON_SET(
+      ` + "`data`" + `,
+      '$.State', 701,
+      '$.prev_trans_id', NULL)
+WHERE run_id IN (%s)
+AND workflow_id = 'workflow_transfer_payment';`,
+				TargetDB:    "PE",
+				WorkflowID:  "workflow_transfer_payment",
+				TargetState: 701,
+				CaseType:    domain.CaseThoughtMachineFalseNegative,
 			}
 		}
 		return nil

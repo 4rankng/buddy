@@ -123,6 +123,7 @@ const (
 	CaseRppQrPaymentReject210_0          Case = "rpp_qr_payment_reject_210_0"
 	CaseRppNoResponseResume              Case = "rpp_no_response_resume"
 	CasePe2200FastCashinFailed           Case = "pe_220_0_fast_cashin_failed"
+	CaseThoughtMachineFalseNegative      Case = "thought_machine_false_negative"
 )
 
 // GetCaseSummaryOrder returns the order in which SOP cases should be displayed in summaries
@@ -133,6 +134,7 @@ func GetCaseSummaryOrder() []Case {
 		CasePcExternalPaymentFlow201_0RPP900,
 		CasePeTransferPayment210_0,
 		CasePeStuck230RepublishPC,
+		CaseThoughtMachineFalseNegative,
 		CasePe2200FastCashinFailed,
 		CaseRppCashoutReject101_19,
 		CaseRppQrPaymentReject210_0,
