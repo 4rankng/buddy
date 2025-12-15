@@ -117,7 +117,8 @@ func displayPaymentCoreSection(w io.Writer, pc domain.PaymentCoreInfo) error {
 	if hasData {
 		// Display Internal CAPTURE transaction
 		if pc.InternalCapture.TxID != "" {
-			if _, err := fmt.Fprintf(w, "internal_capture:\n"); err != nil {
+			// Show status on the same line as transaction type
+			if _, err := fmt.Fprintf(w, "internal_capture: %s\n", pc.InternalCapture.TxStatus); err != nil {
 				fmt.Printf("Warning: failed to write internal transaction header: %v\n", err)
 			}
 			if _, err := fmt.Fprintf(w, "   tx_id=%s\n", pc.InternalCapture.TxID); err != nil {
@@ -128,20 +129,14 @@ func displayPaymentCoreSection(w io.Writer, pc domain.PaymentCoreInfo) error {
 					fmt.Printf("Warning: failed to write internal tx group id: %v\n", err)
 				}
 			}
-			if pc.InternalCapture.TxType != "" && pc.InternalCapture.TxStatus != "" {
-				if _, err := fmt.Fprintf(w, "   type=%s status=%s\n", pc.InternalCapture.TxType, pc.InternalCapture.TxStatus); err != nil {
-					fmt.Printf("Warning: failed to write internal tx type and status: %v\n", err)
+			if pc.InternalCapture.TxType != "" {
+				if _, err := fmt.Fprintf(w, "   type=%s\n", pc.InternalCapture.TxType); err != nil {
+					fmt.Printf("Warning: failed to write internal tx type: %v\n", err)
 				}
 			}
-			if pc.InternalCapture.ErrorCode != "" {
-				if _, err := fmt.Fprintf(w, "   error_code=%s\n", pc.InternalCapture.ErrorCode); err != nil {
-					fmt.Printf("Warning: failed to write internal tx error code: %v\n", err)
-				}
-			}
-			if pc.InternalCapture.ErrorMsg != "" {
-				if _, err := fmt.Fprintf(w, "   error_msg=%s\n", pc.InternalCapture.ErrorMsg); err != nil {
-					fmt.Printf("Warning: failed to write internal tx error message: %v\n", err)
-				}
+			// Always display error fields
+			if _, err := fmt.Fprintf(w, "   error_code='%s' error_msg='%s'\n", pc.InternalCapture.ErrorCode, pc.InternalCapture.ErrorMsg); err != nil {
+				fmt.Printf("Warning: failed to write internal tx error fields: %v\n", err)
 			}
 			// Display workflow for this transaction
 			if pc.InternalCapture.Workflow.WorkflowID != "" {
@@ -163,7 +158,8 @@ func displayPaymentCoreSection(w io.Writer, pc domain.PaymentCoreInfo) error {
 
 		// Display Internal AUTH transaction
 		if pc.InternalAuth.TxID != "" {
-			if _, err := fmt.Fprintf(w, "internal_auth:\n"); err != nil {
+			// Show status on the same line as transaction type
+			if _, err := fmt.Fprintf(w, "internal_auth: %s\n", pc.InternalAuth.TxStatus); err != nil {
 				fmt.Printf("Warning: failed to write internal transaction header: %v\n", err)
 			}
 			if _, err := fmt.Fprintf(w, "   tx_id=%s\n", pc.InternalAuth.TxID); err != nil {
@@ -174,20 +170,14 @@ func displayPaymentCoreSection(w io.Writer, pc domain.PaymentCoreInfo) error {
 					fmt.Printf("Warning: failed to write internal tx group id: %v\n", err)
 				}
 			}
-			if pc.InternalAuth.TxType != "" && pc.InternalAuth.TxStatus != "" {
-				if _, err := fmt.Fprintf(w, "   type=%s status=%s\n", pc.InternalAuth.TxType, pc.InternalAuth.TxStatus); err != nil {
-					fmt.Printf("Warning: failed to write internal tx type and status: %v\n", err)
+			if pc.InternalAuth.TxType != "" {
+				if _, err := fmt.Fprintf(w, "   type=%s\n", pc.InternalAuth.TxType); err != nil {
+					fmt.Printf("Warning: failed to write internal tx type: %v\n", err)
 				}
 			}
-			if pc.InternalAuth.ErrorCode != "" {
-				if _, err := fmt.Fprintf(w, "   error_code=%s\n", pc.InternalAuth.ErrorCode); err != nil {
-					fmt.Printf("Warning: failed to write internal tx error code: %v\n", err)
-				}
-			}
-			if pc.InternalAuth.ErrorMsg != "" {
-				if _, err := fmt.Fprintf(w, "   error_msg=%s\n", pc.InternalAuth.ErrorMsg); err != nil {
-					fmt.Printf("Warning: failed to write internal tx error message: %v\n", err)
-				}
+			// Always display error fields
+			if _, err := fmt.Fprintf(w, "   error_code='%s' error_msg='%s'\n", pc.InternalAuth.ErrorCode, pc.InternalAuth.ErrorMsg); err != nil {
+				fmt.Printf("Warning: failed to write internal tx error fields: %v\n", err)
 			}
 			// Display workflow for this transaction
 			if pc.InternalAuth.Workflow.WorkflowID != "" {
