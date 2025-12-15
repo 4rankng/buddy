@@ -47,8 +47,8 @@ func processEcoTransaction(appCtx *common.Context, runID string) {
 	// Display the result in the required format
 	adapters.WriteEcoTransactionInfo(os.Stdout, *result, runID, 1)
 
-	// Generate and write DML files if case is identified
-	if result.CaseType != "" && result.CaseType != "CaseNone" {
+	// Generate and write DML files if case is identified and not NOT_FOUND
+	if result.CaseType != "" && result.CaseType != domain.CaseNone {
 		// Generate SQL statements based on the identified case
 		statements := adapters.GenerateSQLStatements([]domain.TransactionResult{*result})
 
@@ -59,5 +59,7 @@ func processEcoTransaction(appCtx *common.Context, runID string) {
 		} else {
 			fmt.Printf("\nDML files written successfully for case: %s\n", result.CaseType)
 		}
+	} else if result.CaseType == domain.CaseNone {
+		fmt.Printf("\nSkipping DML generation for NOT_FOUND case\n")
 	}
 }
