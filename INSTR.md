@@ -1,105 +1,41 @@
-frank.nguyen@DBSG-H4M0DVF2C7 buddy % mybuddy  ecotxn fd230a01dcd04282851b7b9dd6260c93
-Initialize Doorman client for [my]...
-Initialize Jira client for [my]...
-### [1] transaction_id: fd230a01dcd04282851b7b9dd6260c93
+we should have case type classification for ecotxn 
+
+case 'ecotxn_ChargeFailed_CaptureFailed_TMError
+
+when
 [partnerpay-engine]
-charge.status: FAILED SYSTEM_ERROR error occurred in Thought Machine.
-workflow_charge: stFailureNotified(502) Attempt=0 run_id=fd230a01dcd04282851b7b9dd6260c93
+workflow_charge state=502 attempt=0
+charge error code = 'SYSTEM_ERROR' error msg 'error occurred in Thought Machine.'
 
-
-should also fill the payment-core with
-
-SELECT * FROM internal_transaction
-where group_id='fd230a01dcd04282851b7b9dd6260c93'
-and created_at >= '2025-08-09T14:14:03.379002Z' // created_at - 30min
-and created_at <= '2025-08-09T16:14:03.379002Z' // created_at + 30min
-
-SELECT * FROM external_transaction
-where group_id='fd230a01dcd04282851b7b9dd6260c93'
-and created_at >= '2025-08-09T14:14:03.379002Z' // created_at - 30min
-and created_at <= '2025-08-09T16:14:03.379002Z' // created_at + 30min
-
-remember to display all these field in stdout and output text file if applicable
-// PCExternalTxnInfo contains payment-core external transaction information
-type PCExternalInfo struct {
-	RefID     string // payment-core external transaction reference ID
-	GroupID   string // payment-core transaction group ID
-	TxType    string // payment-core transaction type
-	TxStatus  string // payment-core transaction status
-	CreatedAt string // created_at timestamp
-	Workflow  WorkflowInfo
-}
-
-// PaymentCoreInfo contains payment-core related information
-type PaymentCoreInfo struct {
-	InternalCapture  PCInternalInfo // when TxType is AUTH
-	InternalAuth     PCInternalInfo // when TxType is CAPTURE
-	ExternalTransfer PCExternalInfo // when TxType is TRANSFER
-}
-
-regardless of single txn or multiple txn, the output / deploy / rollback dml should be file not stdout . stdout is for summary only
-
-WriteEcoTransactionInfo
-should provide all available information from TransactionResult similar to the output of mybuddy txn abc
-
-
-
-
-
-
-
-
-
-
-
-
-
-currently the output is
-frank.nguyen@DBSG-H4M0DVF2C7 buddy % mybuddy ecotxn 
-### [1] transaction_id: fd230a01dcd04282851b7b9dd6260c93
-[partnerpay-engine]
-charge.status: FAILED SYSTEM_ERROR error occurred in Thought Machine.
-workflow_charge: stFailureNotified(502) Attempt=0 run_id=fd230a01dcd04282851b7b9dd6260c93
 
 [payment-core]
-internal_auth:
-   tx_id=ce8c05866d134bb488038644c708740e
-   type=AUTH status=SUCCESS
-   workflow:
       workflow_id=internal_payment_flow
-      state=stSuccess(900) attempt=0
-      run_id=ce8c05866d134bb488038644c708740e
+      state=stFailed(500) attempt=0
 
-DML files written:
-  Deploy:   output/deploy_fd230a01dcd04282851b7b9dd6260c93_20251215_214431.sql
-  Rollback: output/rollback_fd230a01dcd04282851b7b9dd6260c93_20251215_214431.sql
-frank.nguyen@DBSG-H4M0DVF2C7 buddy % 
+then we need to generate
 
-I should have both Capture and Auth
-and with error code and error message, 
+PPE_Deploy.sql
 
+update charge set
+status = 'PROCESSING',
+updated_at = {the original updated_at from charge record}
+where transaction_id = {transaction_id}
 
-for example
+update workflow_execution
+set state=300, data=JSON_SET(data, '$.State', 300,
+'$.ChargeStorage.Status', 'PROCESSING'
+)
+WHERE run_id = {transaction_id} AND workflow_id='workflow_charge' AND state=502 AND attempt=0;
 
-### [1] transaction_id: fd230a01dcd04282851b7b9dd6260c93
-[partnerpay-engine]
-charge.status: FAILED SYSTEM_ERROR error occurred in Thought Machine.
-workflow_charge: stFailureNotified(502) Attempt=0 run_id=fd230a01dcd04282851b7b9dd6260c93
+PPE_Rollback.sql
 
-[payment-core]
-internal_auth: SUCCESS
-   tx_id=ce8c05866d134bb488038644c708740e
-   error_code='', error_msg=''
-   workflow:
-      workflow_id=internal_payment_flow
-      state=stSuccess(900) attempt=0
-      run_id=ce8c05866d134bb488038644c708740e
-internal_auth: FAILED
-   tx_id=ce8c05866d134bb488038644c708740e
-   error_code='SYSTEM_ERROR', error_msg='Thought machine error'
-   workflow:
-      workflow_id=internal_payment_flow
-      state=stSuccess(900) attempt=0
-      run_id=ce8c05866d134bb488038644c708740e
-external_transfer: NOT FOUND	  
+update charge set
+status = 'FAILED',
+updated_at = {the original updated_at from charge record}
+where transaction_id = {transaction_id}
 
+update workflow_execution
+set state=502, data=JSON_SET(data, '$.State', 502,
+'$.ChargeStorage.Status', 'FAILED'
+)
+WHERE run_id = {transaction_id} AND workflow_id='workflow_charge';
