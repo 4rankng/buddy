@@ -510,7 +510,8 @@ AND workflow_id = 'internal_payment_flow';`,
 				Deploy: []domain.TemplateInfo{
 					{
 						TargetDB: "PPE",
-						SQLTemplate: `-- ecotxn_ChargeFailed_CaptureFailed_TMError Deploy
+						SQLTemplate: `-- ecotxn_ChargeFailed_CaptureFailed_TMError 
+-- Move to AuthCompleted and wait for cron to cancel the transaction						
 UPDATE charge SET
 status = 'PROCESSING',
 updated_at = %s
