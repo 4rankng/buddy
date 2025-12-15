@@ -20,6 +20,9 @@ func NewRPPAdapter(client ports.ClientPort) *RPPAdapter {
 }
 
 func (r *RPPAdapter) QueryByE2EID(externalID string) (*domain.RPPAdapterInfo, error) {
+	if r.client == nil {
+		return nil, fmt.Errorf("database client is not initialized")
+	}
 	query := fmt.Sprintf("SELECT req_biz_msg_id, partner_tx_id, partner_tx_sts AS status, created_at FROM credit_transfer WHERE end_to_end_id = '%s'", externalID)
 	rppResults, err := r.client.ExecuteQuery("prd-payments-rpp-adapter-rds-mysql", "prd-payments-rpp-adapter-rds-mysql", "rpp_adapter", query)
 	if err != nil || len(rppResults) == 0 {

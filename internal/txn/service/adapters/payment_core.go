@@ -20,6 +20,9 @@ func NewPaymentCoreAdapter(client ports.ClientPort) *PaymentCoreAdapter {
 }
 
 func (p *PaymentCoreAdapter) QueryInternalTransactions(transactionID string, createdAt string) ([]map[string]interface{}, error) {
+	if p.client == nil {
+		return nil, fmt.Errorf("database client is not initialized")
+	}
 	if createdAt == "" {
 		return nil, nil
 	}
@@ -33,6 +36,9 @@ func (p *PaymentCoreAdapter) QueryInternalTransactions(transactionID string, cre
 }
 
 func (p *PaymentCoreAdapter) QueryExternalTransactions(transactionID string, createdAt string) ([]map[string]interface{}, error) {
+	if p.client == nil {
+		return nil, fmt.Errorf("database client is not initialized")
+	}
 	if createdAt == "" {
 		return nil, nil
 	}
@@ -46,6 +52,9 @@ func (p *PaymentCoreAdapter) QueryExternalTransactions(transactionID string, cre
 }
 
 func (p *PaymentCoreAdapter) QueryWorkflows(runIDs []string) ([]map[string]interface{}, error) {
+	if p.client == nil {
+		return nil, fmt.Errorf("database client is not initialized")
+	}
 	if len(runIDs) == 0 {
 		return nil, nil
 	}
@@ -60,5 +69,8 @@ func (p *PaymentCoreAdapter) QueryWorkflows(runIDs []string) ([]map[string]inter
 
 // QueryPaymentCore executes a custom query against Payment Core
 func (p *PaymentCoreAdapter) QueryPaymentCore(query string) ([]map[string]interface{}, error) {
+	if p.client == nil {
+		return nil, fmt.Errorf("database client is not initialized")
+	}
 	return p.client.QueryPaymentCore(query)
 }

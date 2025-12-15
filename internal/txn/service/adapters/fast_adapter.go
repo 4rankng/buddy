@@ -22,6 +22,9 @@ func NewFastAdapter(client ports.ClientPort) *FastAdapter {
 }
 
 func (f *FastAdapter) QueryByInstructionID(instructionID, createdAt string) (*domain.FastAdapterInfo, error) {
+	if f.client == nil {
+		return nil, fmt.Errorf("database client is not initialized")
+	}
 	if instructionID == "" {
 		return nil, nil
 	}

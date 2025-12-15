@@ -19,6 +19,9 @@ func NewPartnerpayEngineAdapter(client ports.ClientPort) *PartnerpayEngineAdapte
 }
 
 func (p *PartnerpayEngineAdapter) QueryCharge(transactionID string) (domain.PartnerpayEngineInfo, error) {
+	if p.client == nil {
+		return domain.PartnerpayEngineInfo{}, fmt.Errorf("database client is not initialized")
+	}
 	query := fmt.Sprintf("SELECT status, status_reason, status_reason_description, transaction_id FROM charge WHERE transaction_id='%s'", transactionID)
 	charges, err := p.client.QueryPartnerpayEngine(query)
 	if err != nil {
