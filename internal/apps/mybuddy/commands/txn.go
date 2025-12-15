@@ -1,11 +1,8 @@
 package mybuddy
 
 import (
-	"bufio"
 	"fmt"
 	"os"
-	"strconv"
-	"strings"
 
 	"buddy/internal/apps/common"
 	"buddy/internal/txn/adapters"
@@ -16,77 +13,20 @@ import (
 )
 
 func NewTxnCmd(appCtx *common.Context) *cobra.Command {
-	var (
-		interactiveFlag bool
-		caseFlag        int
-	)
-
 	cmd := &cobra.Command{
 		Use:   "txn [transaction-id-or-e2e-id-or-file]",
 		Short: "Query transaction status and generate remediation SQL",
 		Long: `Query the status of a transaction by its ID from the payment engine database.
 Supports regular transaction IDs, RPP E2E IDs (format: YYYYMMDDGXSPMYXXXXXXXXXXXXXXXX),
-and file paths containing multiple transaction IDs.
-
-Remediation SQL is automatically generated based on the detected SOP case:
-1. pc_external_payment_flow_200_11 - Force workflows stuck at state 200 attempt 11 to fail cleanly
-2. pc_external_payment_flow_201_0_RPP_210 - Resume workflows that never received RPP response
-3. pc_external_payment_flow_201_0_RPP_900 - Republish from RPP to resume
-4. pe_transfer_payment_210_0 - Reject PE workflows stuck at state 210 before Paynet
-5. rpp_cashout_reject_101_19 - Force fail RPP cashout/QR payment workflows stuck at state 101 attempt 19`,
+and file paths containing multiple transaction IDs.`,
 		Args: cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			input := args[0]
-
-			if interactiveFlag {
-				processInteractiveSOP(appCtx, input)
-				return
-			}
-
-			if caseFlag > 0 {
-				processCase(appCtx, caseFlag, input)
-				return
-			}
-
-			// Default processing
 			processInput(appCtx, input)
 		},
 	}
 
-	// Add flags for SOP processing
-	cmd.Flags().BoolVarP(&interactiveFlag, "interactive", "i", false, "Interactive SOP case selection")
-	cmd.Flags().IntVarP(&caseFlag, "case", "c", 0, "Specify SOP case number (1-5)")
-
 	return cmd
-}
-
-func processInteractiveSOP(appCtx *common.Context, input string) {
-	fmt.Printf("%sSOP Case Selection (Verification only - logic is auto-detected):\n", appCtx.GetPrefix())
-	fmt.Println("1. pc_external_payment_flow_200_11 - Force workflows stuck at state 200 attempt 11 to fail cleanly")
-	fmt.Println("2. pc_external_payment_flow_201_0_RPP_210 - Resume workflows that never received RPP response")
-	fmt.Println("3. pc_external_payment_flow_201_0_RPP_900 - Republish from RPP to resume")
-	fmt.Println("4. pe_transfer_payment_210_0 - Reject PE workflows stuck at state 210 before Paynet")
-	fmt.Println("5. rpp_cashout_reject_101_19 - Force fail RPP cashout/QR payment workflows stuck at state 101 attempt 19")
-	fmt.Print("Select case (1-5): ")
-
-	reader := bufio.NewReader(os.Stdin)
-	caseInput, _ := reader.ReadString('\n')
-	caseInput = strings.TrimSpace(caseInput)
-
-	caseNum, err := strconv.Atoi(caseInput)
-	if err != nil || caseNum < 1 || caseNum > 5 {
-		fmt.Printf("Invalid case selection: %s\n", caseInput)
-		return
-	}
-
-	processCase(appCtx, caseNum, input)
-}
-
-func processCase(appCtx *common.Context, caseNum int, input string) {
-	// Since detection is automatic in the txn package, the case flag is primarily
-	// for user intent verification. We proceed with standard processing.
-	fmt.Printf("%sProcessing %s expecting Case %d...\n", appCtx.GetPrefix(), input, caseNum)
-	processInput(appCtx, input)
 }
 
 func processInput(appCtx *common.Context, input string) {
@@ -111,12 +51,17 @@ func processSingleTransaction(appCtx *common.Context, transactionID string) {
 	// We query again here to get the struct needed for SQL generation.
 	// (Efficiency note: In a larger app, PrintTransactionStatus might return the result to avoid re-query)
 	result := service.QueryTransactionStatus(transactionID)
+	if result == nil {
+		fmt.Printf("%sError retrieving transaction details for ID: %s\n", appCtx.GetPrefix(), transactionID)
+		return
+	}
 
 	// Check if PaymentEngine or PartnerpayEngine have NotFoundStatus
 	paymentEngineNotFound := result.PaymentEngine != nil && result.PaymentEngine.Transfers.Status == domain.NotFoundStatus
 	partnerpayEngineNotFound := result.PartnerpayEngine != nil && result.PartnerpayEngine.Transfers.Status == domain.NotFoundStatus
 
 	if paymentEngineNotFound || partnerpayEngineNotFound || result.Error != "" {
+		fmt.Printf("Failed to retrieve complete transaction details: %+v\n", *result)
 		return
 	}
 
