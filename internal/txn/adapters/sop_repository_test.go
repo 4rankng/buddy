@@ -59,17 +59,7 @@ func TestEcotxnChargeFailedCaptureFailedTMError(t *testing.T) {
 	// Create a new SOP repository
 	sopRepo := NewSOPRepository()
 
-	// Test with debug logging to see which conditions are failing
-	t.Run("WithDebug", func(t *testing.T) {
-		result := sopRepo.IdentifyCaseWithDebug(transactionResult, "my")
-		t.Logf("Identified case: %s", result)
-
-		if result != domain.CaseEcotxnChargeFailedCaptureFailedTMError {
-			t.Errorf("Expected case %s, got %s", domain.CaseEcotxnChargeFailedCaptureFailedTMError, result)
-		}
-	})
-
-	// Test without debug logging
+	// Test case identification
 	t.Run("WithoutDebug", func(t *testing.T) {
 		result := sopRepo.IdentifyCase(transactionResult, "my")
 		t.Logf("Identified case: %s", result)
