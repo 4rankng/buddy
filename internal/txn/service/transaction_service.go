@@ -151,7 +151,7 @@ func (s *TransactionQueryService) QueryEcoTransactionWithEnv(runID string, env s
 
 	// Step 2: If we have partnerpay-engine data, query payment-core
 	if result.PartnerpayEngine != nil {
-		s.populatePaymentCoreFromPartnerpayEngine(result)
+		s.populatePaymentCoreEcoTxn(result)
 	}
 
 	// Step 3: Identify SOP case
@@ -282,8 +282,8 @@ func (s *TransactionQueryService) fillPartnerpayEngineFromRunID(result *domain.T
 	}
 }
 
-// populatePaymentCoreFromPartnerpayEngine queries payment-core using partnerpay-engine transaction info
-func (s *TransactionQueryService) populatePaymentCoreFromPartnerpayEngine(result *domain.TransactionResult) {
+// populatePaymentCoreEcoTxn queries payment-core using partnerpay-engine transaction info for ecological transactions
+func (s *TransactionQueryService) populatePaymentCoreEcoTxn(result *domain.TransactionResult) {
 	if result.PartnerpayEngine == nil || s.adapters.PaymentCore == nil {
 		return
 	}
