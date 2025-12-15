@@ -12,6 +12,27 @@ import (
 	"buddy/internal/txn/utils"
 )
 
+// formatTimestampWithTwoDecimals formats an RFC3339 timestamp to have exactly 2 decimal places
+func formatTimestampWithTwoDecimals(timestamp string) string {
+	// Parse the timestamp
+	t, err := time.Parse(time.RFC3339, timestamp)
+	if err != nil {
+		// If parsing fails, return the original timestamp
+		return timestamp
+	}
+	
+	// Format with nanoseconds, then truncate to 2 decimal places
+	nanoStr := fmt.Sprintf("%09d", t.Nanosecond())
+	// Take first 2 digits for hundredths of a second
+	hundredths := nanoStr[:2]
+	
+	// Build the new timestamp with exactly 2 decimal places
+	return fmt.Sprintf("%04d-%02d-%02dT%02d:%02d:%02d.%sZ",
+		t.Year(), t.Month(), t.Day(),
+		t.Hour(), t.Minute(), t.Second(),
+		hundredths)
+}
+
 // ChargeRecord represents a record from the charge table
 type ChargeRecord struct {
 	ID                      int     `json:"id"`
@@ -304,12 +325,18 @@ func (p *EcoTxnPublisher) queryWorkflowExecution(txID string) (string, error) {
 
 	// Remove quotes if present
 	valueTimestamp = strings.Trim(valueTimestamp, `"`)
+	
+	// Format timestamp with exactly 2 decimal places
+	valueTimestamp = formatTimestampWithTwoDecimals(valueTimestamp)
 
 	return valueTimestamp, nil
 }
 
 // generateChargeUpdateSQL generates UPDATE SQL for charge table
 func (p *EcoTxnPublisher) generateChargeUpdateSQL(transactionID, originalStatus, valueAt string) {
+	// Format timestamp with exactly 2 decimal places
+	formattedValueAt := formatTimestampWithTwoDecimals(valueAt)
+	
 	p.DeploySQL.WriteString(fmt.Sprintf(`-- Update charge table for transaction_id: %s
 UPDATE charge
 SET status = 'COMPLETED', valued_at = '%s'
@@ -317,7 +344,7 @@ WHERE transaction_id = '%s';
 
 `,
 		transactionID,
-		strings.ReplaceAll(valueAt, "'", "''"),
+		strings.ReplaceAll(formattedValueAt, "'", "''"),
 		strings.ReplaceAll(transactionID, "'", "''")))
 
 	// Generate corresponding rollback
@@ -334,6 +361,9 @@ WHERE transaction_id = '%s';
 
 // generateWorkflowUpdateSQL generates UPDATE SQL for workflow_execution table
 func (p *EcoTxnPublisher) generateWorkflowUpdateSQL(transactionID string, chargeRecord *ChargeRecord, valueAt string) {
+	// Format timestamp with exactly 2 decimal places
+	formattedValueAt := formatTimestampWithTwoDecimals(valueAt)
+	
 	// Create updated ChargeStorage with the new ValuedAt
 	chargeStorage := ChargeStorage{
 		ID:                      chargeRecord.ID,
@@ -343,7 +373,7 @@ func (p *EcoTxnPublisher) generateWorkflowUpdateSQL(transactionID string, charge
 		TxnType:                 chargeRecord.TxnType,
 		Currency:                chargeRecord.Currency,
 		Metadata:                stringPtr(chargeRecord.Metadata),
-		ValuedAt:                valueAt,
+		ValuedAt:                formattedValueAt,
 		CreatedAt:               chargeRecord.CreatedAt,
 		PartnerID:               chargeRecord.PartnerID,
 		TxnDomain:               chargeRecord.TxnDomain,
