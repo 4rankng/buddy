@@ -4,12 +4,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"sort"
 	"strings"
 	"time"
 
 	"buddy/internal/clients/doorman"
 	"buddy/internal/txn/utils"
+	internalutils "buddy/internal/utils"
 )
 
 // formatTimestampWithTwoDecimals formats an RFC3339 timestamp to have exactly 2 decimal places
@@ -20,12 +20,12 @@ func formatTimestampWithTwoDecimals(timestamp string) string {
 		// If parsing fails, return the original timestamp
 		return timestamp
 	}
-	
+
 	// Format with nanoseconds, then truncate to 2 decimal places
 	nanoStr := fmt.Sprintf("%09d", t.Nanosecond())
 	// Take first 2 digits for hundredths of a second
 	hundredths := nanoStr[:2]
-	
+
 	// Build the new timestamp with exactly 2 decimal places
 	return fmt.Sprintf("%04d-%02d-%02dT%02d:%02d:%02d.%sZ",
 		t.Year(), t.Month(), t.Day(),
@@ -325,18 +325,46 @@ func (p *EcoTxnPublisher) queryWorkflowExecution(txID string) (string, error) {
 
 	// Remove quotes if present
 	valueTimestamp = strings.Trim(valueTimestamp, `"`)
-	
+
 	// Format timestamp with exactly 2 decimal places
 	valueTimestamp = formatTimestampWithTwoDecimals(valueTimestamp)
 
 	return valueTimestamp, nil
 }
 
+// queryOriginalChargeStorage queries the original ChargeStorage JSON from workflow_execution
+func (p *EcoTxnPublisher) queryOriginalChargeStorage(txID string) (string, error) {
+	query := fmt.Sprintf(`
+		SELECT JSON_EXTRACT(data, '$.ChargeStorage') as ChargeStorage
+		FROM workflow_execution
+		WHERE run_id = '%s'`,
+		strings.ReplaceAll(txID, "'", "''"))
+
+	rows, err := p.client.QueryPaymentCore(query)
+	if err != nil {
+		return "", fmt.Errorf("failed to execute query: %w", err)
+	}
+
+	if len(rows) == 0 {
+		return "", fmt.Errorf("no workflow execution found for run_id: %s", txID)
+	}
+
+	chargeStorageJSON := toString(rows[0]["ChargeStorage"])
+	if chargeStorageJSON == "" || chargeStorageJSON == "null" {
+		return "", fmt.Errorf("no ChargeStorage found for run_id: %s", txID)
+	}
+
+	// Remove quotes if present
+	chargeStorageJSON = strings.Trim(chargeStorageJSON, `"`)
+
+	return chargeStorageJSON, nil
+}
+
 // generateChargeUpdateSQL generates UPDATE SQL for charge table
 func (p *EcoTxnPublisher) generateChargeUpdateSQL(transactionID, originalStatus, valueAt string) {
 	// Format timestamp with exactly 2 decimal places
 	formattedValueAt := formatTimestampWithTwoDecimals(valueAt)
-	
+
 	p.DeploySQL.WriteString(fmt.Sprintf(`-- Update charge table for transaction_id: %s
 UPDATE charge
 SET status = 'COMPLETED', valued_at = '%s'
@@ -363,7 +391,14 @@ WHERE transaction_id = '%s';
 func (p *EcoTxnPublisher) generateWorkflowUpdateSQL(transactionID string, chargeRecord *ChargeRecord, valueAt string) {
 	// Format timestamp with exactly 2 decimal places
 	formattedValueAt := formatTimestampWithTwoDecimals(valueAt)
-	
+
+	// Query original ChargeStorage from workflow_execution BEFORE making any changes
+	originalChargeStorageJSON, err := p.queryOriginalChargeStorage(transactionID)
+	if err != nil {
+		// Log error but continue - we'll still generate the update SQL
+		fmt.Printf("Warning: Could not query original ChargeStorage for rollback: %v\n", err)
+	}
+
 	// Create updated ChargeStorage with the new ValuedAt
 	chargeStorage := ChargeStorage{
 		ID:                      chargeRecord.ID,
@@ -414,39 +449,17 @@ WHERE
 		chargeStorageSQL,
 		strings.ReplaceAll(transactionID, "'", "''")))
 
-	// Generate corresponding rollback (restore original ChargeStorage)
-	originalChargeStorage := ChargeStorage{
-		ID:                      chargeRecord.ID,
-		Amount:                  chargeRecord.Amount,
-		Status:                  chargeRecord.Status,
-		Remarks:                 chargeRecord.Remarks,
-		TxnType:                 chargeRecord.TxnType,
-		Currency:                chargeRecord.Currency,
-		Metadata:                stringPtr(chargeRecord.Metadata),
-		ValuedAt:                chargeRecord.ValuedAt,
-		CreatedAt:               chargeRecord.CreatedAt,
-		PartnerID:               chargeRecord.PartnerID,
-		TxnDomain:               chargeRecord.TxnDomain,
-		UpdatedAt:               chargeRecord.UpdatedAt,
-		CustomerID:              chargeRecord.CustomerID,
-		ExternalID:              chargeRecord.ExternalID,
-		Properties:              stringPtr(chargeRecord.Properties),
-		TxnSubtype:              chargeRecord.TxnSubtype,
-		ReferenceID:             chargeRecord.ReferenceID,
-		BillingToken:            chargeRecord.BillingToken,
-		StatusReason:            chargeRecord.StatusReason,
-		CaptureMethod:           chargeRecord.CaptureMethod,
-		SourceAccount:           stringPtr(chargeRecord.SourceAccount),
-		TransactionID:           chargeRecord.TransactionID,
-		CapturedAmount:          chargeRecord.CapturedAmount,
-		DestinationAccount:      stringPtr(chargeRecord.DestinationAccount),
-		TransactionPayLoad:      stringPtr(chargeRecord.TransactionPayLoad),
-		StatusReasonDescription: chargeRecord.StatusReasonDescription,
-	}
+	// Generate corresponding rollback using ORIGINAL ChargeStorage JSON
+	if originalChargeStorageJSON != "" {
+		// Convert the JSON string to MySQL JSON_OBJECT format using mysqljson package
+		originalChargeStorageSQL, err := internalutils.ToMySQLJSONObjectExpr(originalChargeStorageJSON)
+		if err != nil {
+			fmt.Printf("Warning: Could not convert original ChargeStorage to JSON_OBJECT: %v\n", err)
+			// Fallback: use raw JSON (though this might not be ideal)
+			originalChargeStorageSQL = fmt.Sprintf("'%s'", escapeSQL(originalChargeStorageJSON))
+		}
 
-	originalChargeStorageSQL := buildChargeStorageJSONObject(originalChargeStorage)
-
-	p.RollbackSQL.WriteString(fmt.Sprintf(`-- Rollback workflow_execution for transaction_id: %s
+		p.RollbackSQL.WriteString(fmt.Sprintf(`-- Rollback workflow_execution for transaction_id: %s
 UPDATE workflow_execution
 SET
     data = JSON_SET(data,
@@ -455,9 +468,23 @@ WHERE
     run_id = '%s';
 
 `,
-		transactionID,
-		originalChargeStorageSQL,
-		strings.ReplaceAll(transactionID, "'", "''")))
+			transactionID,
+			originalChargeStorageSQL,
+			strings.ReplaceAll(transactionID, "'", "''")))
+	} else {
+		// Fallback: only restore state if original ChargeStorage not available
+		p.RollbackSQL.WriteString(fmt.Sprintf(`-- Rollback workflow_execution state for transaction_id: %s
+UPDATE workflow_execution
+SET
+    state = JSON_EXTRACT(data, '$.State'),
+    attempt = JSON_EXTRACT(data, '$.Attempt')
+WHERE
+    run_id = '%s';
+
+`,
+			transactionID,
+			strings.ReplaceAll(transactionID, "'", "''")))
+	}
 }
 
 // buildChargeStorageJSONObject constructs a MySQL JSON_OBJECT string for the ChargeStorage struct
@@ -527,79 +554,40 @@ func parseAndBuildNestedJSON(jsonStrPtr *string) string {
 		return "NULL"
 	}
 
+	// Try to use the mysqljson package first
+	if expr, err := internalutils.ToMySQLJSONObjectExpr(jsonStr); err == nil {
+		return expr
+	}
+
+	// If it's not a JSON object (e.g., it's a primitive value), fall back to simple escaping
 	var data interface{}
-	err := json.Unmarshal([]byte(jsonStr), &data)
-	if err != nil {
+	if err := json.Unmarshal([]byte(jsonStr), &data); err != nil {
 		// If it's not valid JSON, return it as a string
 		return fmt.Sprintf("'%s'", escapeSQL(jsonStr))
 	}
 
-	return buildRecursiveJSONObject(data)
-}
-
-// buildRecursiveJSONObject recursively converts Go types to MySQL JSON construction strings
-func buildRecursiveJSONObject(data interface{}) string {
+	// For non-object values, we need to handle them differently
 	switch v := data.(type) {
-	case map[string]interface{}:
-		if len(v) == 0 {
-			return "JSON_OBJECT()"
-		}
-		var sb strings.Builder
-		sb.WriteString("JSON_OBJECT(")
-
-		// Sort keys for deterministic output
-		keys := make([]string, 0, len(v))
-		for k := range v {
-			keys = append(keys, k)
-		}
-		sort.Strings(keys)
-
-		for i, k := range keys {
-			valStr := buildRecursiveJSONObject(v[k])
-			sb.WriteString(fmt.Sprintf("'%s', %s", escapeSQL(k), valStr))
-			if i < len(keys)-1 {
-				sb.WriteString(", ")
-			}
-		}
-		sb.WriteString(")")
-		return sb.String()
-
-	case []interface{}:
-		if len(v) == 0 {
-			return "JSON_ARRAY()"
-		}
-		var sb strings.Builder
-		sb.WriteString("JSON_ARRAY(")
-		for i, item := range v {
-			sb.WriteString(buildRecursiveJSONObject(item))
-			if i < len(v)-1 {
-				sb.WriteString(", ")
-			}
-		}
-		sb.WriteString(")")
-		return sb.String()
-
 	case string:
 		return fmt.Sprintf("'%s'", escapeSQL(v))
-
 	case float64:
-		// JSON numbers are float64 in Go. Check if it's actually an integer to print cleanly
 		if v == float64(int64(v)) {
 			return fmt.Sprintf("%d", int64(v))
 		}
 		return fmt.Sprintf("%f", v)
-
 	case bool:
 		if v {
 			return "TRUE"
 		}
 		return "FALSE"
-
 	case nil:
 		return "NULL"
-
 	default:
-		return fmt.Sprintf("'%v'", v)
+		// For other types, try to convert back to JSON and use as string
+		if jsonBytes, err := json.Marshal(data); err == nil {
+			return fmt.Sprintf("'%s'", escapeSQL(string(jsonBytes)))
+		}
+		return "NULL"
 	}
 }
 
