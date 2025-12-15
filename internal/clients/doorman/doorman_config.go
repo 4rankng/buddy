@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/cookiejar"
@@ -126,7 +127,7 @@ func NewDoormanClient(env string) error {
 
 	cfg, exists := configs[env]
 	if !exists {
-		cfg = configs["my"] // Default to Malaysia
+		panic(fmt.Sprintf("country %s is not supported", env))
 	}
 
 	Doorman = &DoormanClient{
@@ -143,7 +144,7 @@ func NewDoormanClient(env string) error {
 // Deprecated: Use clients.Doorman directly after initialization
 func GetDoormanClient(env string) (DoormanInterface, error) {
 	if Doorman == nil {
-		return nil, errors.New("doorman client not initialized. Call NewDoormanClient first")
+		panic("Doorman client is not initialized")
 	}
 	return Doorman, nil
 }
@@ -152,13 +153,6 @@ func GetDoormanClient(env string) (DoormanInterface, error) {
 func (c *DoormanClient) GetConfig() DoormanConfig {
 	return c.config
 }
-
-// ResetSingleton resets the singleton instance (useful for testing)
-// Note: This function is temporarily disabled due to refactoring
-// func ResetSingleton() {
-// 	once = sync.Once{}
-// 	singleton = nil
-// }
 
 // Authenticate performs authentication with doorman service
 func (c *DoormanClient) Authenticate() error {

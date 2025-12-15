@@ -2,6 +2,7 @@ package jira
 
 import (
 	"buddy/internal/config"
+	"fmt"
 )
 
 // JiraConfig holds environment-specific JIRA configuration
@@ -18,7 +19,7 @@ func GetJiraConfig(env string) JiraConfig {
 	switch env {
 	case "sg":
 		return JiraConfig{
-			Domain: config.Get("JIRA_DOMAIN", "https://gxsbank.atlassian.net"),
+			Domain: "https://gxsbank.atlassian.net",
 			Auth: JiraAuthInfo{
 				Username: config.Get("JIRA_USERNAME", ""),
 				APIKey:   config.Get("JIRA_API_KEY", ""),
@@ -29,7 +30,7 @@ func GetJiraConfig(env string) JiraConfig {
 		}
 	case "my":
 		return JiraConfig{
-			Domain: config.Get("JIRA_DOMAIN", "https://gxbank.atlassian.net"),
+			Domain: "https://gxbank.atlassian.net",
 			Auth: JiraAuthInfo{
 				Username: config.Get("JIRA_USERNAME", ""),
 				APIKey:   config.Get("JIRA_API_KEY", ""),
@@ -39,16 +40,6 @@ func GetJiraConfig(env string) JiraConfig {
 			MaxItems: 50,
 		}
 	default:
-		// Default to Malaysia if environment not found
-		return JiraConfig{
-			Domain: config.Get("JIRA_DOMAIN", "https://gxbank.atlassian.net"),
-			Auth: JiraAuthInfo{
-				Username: config.Get("JIRA_USERNAME", ""),
-				APIKey:   config.Get("JIRA_API_KEY", ""),
-			},
-			Project:  "TS",
-			Timeout:  30,
-			MaxItems: 50,
-		}
+		panic(fmt.Sprintf("country %s is not supported", env))
 	}
 }
