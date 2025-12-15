@@ -581,4 +581,13 @@ func WriteEcoTransactionInfo(w io.Writer, result domain.TransactionResult, trans
 			fmt.Printf("Warning: failed to write newline: %v\n", err)
 		}
 	}
+
+	// Write classification section
+	if err := displayClassificationSection(w, result); err != nil {
+		fmt.Printf("Warning: failed to display classification section: %v\n", err)
+	}
+
+	if _, err := fmt.Fprintln(w); err != nil {
+		fmt.Printf("Warning: failed to write final newline: %v\n", err)
+	}
 }
