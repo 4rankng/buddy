@@ -49,28 +49,37 @@ func GetDMLTicketForRppResume(result domain.TransactionResult) *domain.DMLTicket
 	}
 
 	return &domain.DMLTicket{
-		DeployTemplate: `-- rpp_no_response_resume_acsp
+		Deploy: []domain.TemplateInfo{
+			{
+				TargetDB: "RPP",
+				SQLTemplate: `-- rpp_no_response_resume_acsp
 -- RPP did not respond in time, but status at Paynet is ACSP (Accepted Settlement in Process) or ACTC (Accepted Technical Validation)
 UPDATE workflow_execution
 SET state = 222,
     attempt = 1,
     ` + "`data`" + ` = JSON_SET(` + "`data`" + `, '$.State', 222)
-WHERE run_id = '%s'
+WHERE run_id = %s
 AND state = 210
 AND workflow_id IN ('wf_ct_cashout', 'wf_ct_qr_payment');`,
-		RollbackTemplate: `-- RPP Rollback: Move workflows back to state 210
+				Params: []domain.ParamInfo{
+					{Name: "run_id", Value: result.RPPAdapter.Workflow.RunID, Type: "string"},
+				},
+			},
+		},
+		Rollback: []domain.TemplateInfo{
+			{
+				TargetDB: "RPP",
+				SQLTemplate: `-- RPP Rollback: Move workflows back to state 210
 UPDATE workflow_execution
 SET state = 210,
     attempt = 0,
     ` + "`data`" + ` = JSON_SET(` + "`data`" + `, '$.State', 210)
-WHERE run_id = '%s'
+WHERE run_id = %s
 AND workflow_id IN ('wf_ct_cashout', 'wf_ct_qr_payment');`,
-		TargetDB: "RPP",
-		DeployParams: []domain.ParamInfo{
-			{Name: "run_id", Value: result.RPPAdapter.Workflow.RunID, Type: "string"},
-		},
-		RollbackParams: []domain.ParamInfo{
-			{Name: "run_id", Value: result.RPPAdapter.Workflow.RunID, Type: "string"},
+				Params: []domain.ParamInfo{
+					{Name: "run_id", Value: result.RPPAdapter.Workflow.RunID, Type: "string"},
+				},
+			},
 		},
 		CaseType: domain.CaseRppNoResponseResume,
 	}

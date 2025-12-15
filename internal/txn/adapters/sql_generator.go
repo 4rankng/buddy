@@ -123,49 +123,62 @@ func validateSQL(sql, template string) error {
 	return nil
 }
 
-// generateSQLFromTicket generates SQL statements from a DML ticket using parameter-based logic
+// generateSQLFromTicket generates SQL statements from a DML ticket using TemplateInfo arrays
 func generateSQLFromTicket(ticket domain.DMLTicket) (domain.SQLStatements, error) {
 	// Validate input
-	if len(ticket.DeployParams) == 0 && len(ticket.RollbackParams) == 0 {
-		return domain.SQLStatements{}, fmt.Errorf("ticket contains no parameters")
-	}
-
-	// Validate target DB
-	if ticket.TargetDB != "PC" && ticket.TargetDB != "PE" && ticket.TargetDB != "RPP" {
-		return domain.SQLStatements{}, fmt.Errorf("unknown target database: %s", ticket.TargetDB)
+	if len(ticket.Deploy) == 0 && len(ticket.Rollback) == 0 {
+		return domain.SQLStatements{}, fmt.Errorf("ticket contains no templates")
 	}
 
 	statements := domain.SQLStatements{}
 
-	// DEPLOY: Generate single statement
-	deployPlaceholders := countPlaceholders(ticket.DeployTemplate)
-	if len(ticket.DeployParams) != deployPlaceholders {
-		return domain.SQLStatements{}, fmt.Errorf("deploy parameters count mismatch: need %d, got %d", deployPlaceholders, len(ticket.DeployParams))
+	// Process all deploy templates
+	for _, deploy := range ticket.Deploy {
+		// Validate target DB
+		if deploy.TargetDB != "PC" && deploy.TargetDB != "PE" && deploy.TargetDB != "RPP" {
+			return domain.SQLStatements{}, fmt.Errorf("unknown target database: %s", deploy.TargetDB)
+		}
+
+		// Count placeholders and validate parameters
+		deployPlaceholders := countPlaceholders(deploy.SQLTemplate)
+		if len(deploy.Params) != deployPlaceholders {
+			return domain.SQLStatements{}, fmt.Errorf("deploy parameters count mismatch: need %d, got %d", deployPlaceholders, len(deploy.Params))
+		}
+
+		// Generate SQL for deploy template
+		deploySQL, err := buildSQLFromTemplate(deploy.SQLTemplate, deploy.Params)
+		if err != nil {
+			return domain.SQLStatements{}, fmt.Errorf("failed to generate deploy SQL for case %s: %w", ticket.CaseType, err)
+		}
+		if err := validateSQL(deploySQL, deploy.SQLTemplate); err != nil {
+			return domain.SQLStatements{}, fmt.Errorf("deploy SQL validation failed: %w", err)
+		}
+		addStatementToDatabase(&statements, deploy.TargetDB, deploySQL, "")
 	}
 
-	deploySQL, err := buildSQLFromTemplate(ticket.DeployTemplate, ticket.DeployParams)
-	if err != nil {
-		return domain.SQLStatements{}, fmt.Errorf("failed to generate deploy SQL for case %s: %w", ticket.CaseType, err)
-	}
-	if err := validateSQL(deploySQL, ticket.DeployTemplate); err != nil {
-		return domain.SQLStatements{}, fmt.Errorf("deploy SQL validation failed: %w", err)
-	}
-	addStatementToDatabase(&statements, ticket.TargetDB, deploySQL, "")
+	// Process all rollback templates
+	for _, rollback := range ticket.Rollback {
+		// Validate target DB
+		if rollback.TargetDB != "PC" && rollback.TargetDB != "PE" && rollback.TargetDB != "RPP" {
+			return domain.SQLStatements{}, fmt.Errorf("unknown target database: %s", rollback.TargetDB)
+		}
 
-	// ROLLBACK: Generate single statement
-	rollbackPlaceholders := countPlaceholders(ticket.RollbackTemplate)
-	if len(ticket.RollbackParams) != rollbackPlaceholders {
-		return domain.SQLStatements{}, fmt.Errorf("rollback parameters count mismatch: need %d, got %d", rollbackPlaceholders, len(ticket.RollbackParams))
-	}
+		// Count placeholders and validate parameters
+		rollbackPlaceholders := countPlaceholders(rollback.SQLTemplate)
+		if len(rollback.Params) != rollbackPlaceholders {
+			return domain.SQLStatements{}, fmt.Errorf("rollback parameters count mismatch: need %d, got %d", rollbackPlaceholders, len(rollback.Params))
+		}
 
-	rollbackSQL, err := buildSQLFromTemplate(ticket.RollbackTemplate, ticket.RollbackParams)
-	if err != nil {
-		return domain.SQLStatements{}, fmt.Errorf("failed to generate rollback SQL for case %s: %w", ticket.CaseType, err)
+		// Generate SQL for rollback template
+		rollbackSQL, err := buildSQLFromTemplate(rollback.SQLTemplate, rollback.Params)
+		if err != nil {
+			return domain.SQLStatements{}, fmt.Errorf("failed to generate rollback SQL for case %s: %w", ticket.CaseType, err)
+		}
+		if err := validateSQL(rollbackSQL, rollback.SQLTemplate); err != nil {
+			return domain.SQLStatements{}, fmt.Errorf("rollback SQL validation failed: %w", err)
+		}
+		addStatementToDatabase(&statements, rollback.TargetDB, "", rollbackSQL)
 	}
-	if err := validateSQL(rollbackSQL, ticket.RollbackTemplate); err != nil {
-		return domain.SQLStatements{}, fmt.Errorf("rollback SQL validation failed: %w", err)
-	}
-	addStatementToDatabase(&statements, ticket.TargetDB, "", rollbackSQL)
 
 	return statements, nil
 }
