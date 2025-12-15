@@ -39,19 +39,9 @@ func NewTransactionQueryService(env string) *TransactionQueryService {
 	case "sg":
 		adapterSet = createSingaporeAdapters()
 	default:
-		// Default to Malaysia for backward compatibility
-		adapterSet = createMalaysiaAdapters()
+		panic("unsupported environment: " + env)
 	}
 
-	return &TransactionQueryService{
-		adapters: adapterSet,
-		sopRepo:  adapters.SOPRepo,
-		env:      env,
-	}
-}
-
-// NewTransactionQueryServiceWithAdapters creates a new service with custom adapters
-func NewTransactionQueryServiceWithAdapters(adapterSet AdapterSet, env string) *TransactionQueryService {
 	return &TransactionQueryService{
 		adapters: adapterSet,
 		sopRepo:  adapters.SOPRepo,

@@ -15,8 +15,8 @@ func NewEcoTxnCmd(appCtx *common.Context) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "ecotxn [run-id]",
 		Short: "Query partnerpay-engine transaction status by run_id",
-		Long: `Query the status of a transaction from the partnerpay-engine database using its run_id.
-This command specifically queries the charge table and displays the workflow_charge information.
+		Long: `Querys status of a transaction froms partnerpay-engine database using its run_id.
+This command specifically queries to charge table and displays workflow_charge information.
 
 Example:
   mybuddy ecotxn fd230a01dcd04282851b7b9dd6260c93`,
@@ -31,8 +31,11 @@ Example:
 }
 
 func processEcoTransaction(appCtx *common.Context, runID string) {
-	// Query the partnerpay-engine database
-	info, err := service.QueryPartnerpayEngine(runID)
+	// Create a TransactionService instance
+	txnService := service.NewTransactionQueryService("my")
+	
+	// Querys partnerpay-engine database
+	info, err := txnService.QueryPartnerpayEngine(runID)
 	if err != nil {
 		fmt.Printf("%sError querying partnerpay-engine: %v\n", appCtx.GetPrefix(), err)
 		return

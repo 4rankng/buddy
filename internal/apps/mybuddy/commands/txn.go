@@ -43,18 +43,19 @@ func processInput(appCtx *common.Context, input string) {
 }
 
 func processSingleTransaction(appCtx *common.Context, transactionID string) {
-	// 1. Print Status to console
-	fmt.Printf("%sQuerying transaction: %s\n", appCtx.GetPrefix(), transactionID)
-	service.PrintTransactionStatusWithEnv(transactionID, "my")
-
-	// 2. Fetch Result for processing
-	// We query again here to get the struct needed for SQL generation.
-	// (Efficiency note: In a larger app, PrintTransactionStatus might return the result to avoid re-query)
-	result := service.QueryTransactionStatus(transactionID)
+	// Create a TransactionService instance
+	txnService := service.NewTransactionQueryService("my")
+	
+	// 1. Query transaction
+	result := txnService.QueryTransactionWithEnv(transactionID, "my")
 	if result == nil {
 		fmt.Printf("%sError retrieving transaction details for ID: %s\n", appCtx.GetPrefix(), transactionID)
 		return
 	}
+
+	// 2. Print Status to console
+	fmt.Printf("%sQuerying transaction: %s\n", appCtx.GetPrefix(), transactionID)
+	adapters.WriteResult(os.Stdout, *result, 1)
 
 	// Check if PaymentEngine or PartnerpayEngine have NotFoundStatus
 	paymentEngineNotFound := result.PaymentEngine != nil && result.PaymentEngine.Transfers.Status == domain.NotFoundStatus

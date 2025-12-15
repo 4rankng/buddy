@@ -55,3 +55,13 @@ func IsSimpleFilePath(input string) bool {
 
 	return false
 }
+
+// Helper function to safely extract string values
+func GetStringValue(row map[string]interface{}, key string) string {
+	if val, ok := row[key]; ok {
+		if str, ok := val.(string); ok {
+			return str
+		}
+	}
+	return ""
+}

@@ -4,6 +4,7 @@ import (
 	"os"
 
 	"buddy/internal/apps/common"
+	"buddy/internal/txn/adapters"
 	"buddy/internal/txn/service"
 	"buddy/internal/txn/utils"
 
@@ -33,13 +34,16 @@ Each line in the file should contain a single transaction ID.`,
 				service.ProcessBatchFileWithEnv(input, "sg")
 			} else {
 				// Process single transaction with Singapore environment
-				service.PrintTransactionStatusWithEnv(input, "sg")
+				txnService := service.NewTransactionQueryService("sg")
+				result := txnService.QueryTransactionWithEnv(input, "sg")
 
-				// Query again to check for errors
-				result := service.QueryTransactionStatusWithEnv(input, "sg")
+				// Check for errors
 				if result.Error != "" {
 					os.Exit(1)
 				}
+
+				// Print the result
+				adapters.WriteResult(os.Stdout, *result, 1)
 			}
 		},
 	}
