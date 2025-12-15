@@ -101,11 +101,21 @@ type ProcessResult struct {
 	Error         error
 }
 
+// WorkflowExecution represents a record from the workflow_execution table
+type WorkflowExecution struct {
+	RunID   string `json:"run_id"`
+	State   int    `json:"state"`
+	Attempt int    `json:"attempt"`
+	Data    string `json:"data"`
+}
+
 // EcoTxnPublisher handles SQL generation for ecosystem transactions
 type EcoTxnPublisher struct {
-	client      doorman.DoormanInterface
-	DeploySQL   strings.Builder
-	RollbackSQL strings.Builder
+	client           doorman.DoormanInterface
+	DeploySQL        strings.Builder
+	RollbackSQL      strings.Builder
+	OriginalWorkflow *WorkflowExecution // Stores the original workflow execution record for rollback
+	OriginalCharge   *ChargeRecord      // Stores the original charge record for rollback
 }
 
 // NewEcoTxnPublisher creates a new publisher instance
@@ -118,8 +128,19 @@ func NewEcoTxnPublisher() *EcoTxnPublisher {
 // ProcessEcoTxnPublish processes a single transaction for publishing
 func ProcessEcoTxnPublish(transactionID, env string) error {
 	publisher := NewEcoTxnPublisher()
+
+	// Add headers for single transaction
+	publisher.DeploySQL.WriteString("-- PPE_Deploy.sql\n")
+	publisher.DeploySQL.WriteString(fmt.Sprintf("-- Generated on: %s\n\n", time.Now().Format(time.RFC3339)))
+	publisher.RollbackSQL.WriteString("-- PPE_Rollback.sql\n")
+	publisher.RollbackSQL.WriteString(fmt.Sprintf("-- Generated on: %s\n\n", time.Now().Format(time.RFC3339)))
+
 	result := publisher.processSingleTransaction(transactionID)
 	if result.Success {
+		// Write output files for single transaction
+		if err := WriteEcoTxnSQLFiles(publisher.DeploySQL.String(), publisher.RollbackSQL.String(), transactionID); err != nil {
+			return fmt.Errorf("failed to write SQL files: %v", err)
+		}
 		return nil
 	}
 	return result.Error
@@ -136,7 +157,7 @@ func ProcessEcoTxnPublishBatch(filePath, env string) {
 
 	publisher := NewEcoTxnPublisher()
 
-	// Add headers
+	// Add headers for batch processing
 	publisher.DeploySQL.WriteString("-- PPE_Deploy.sql\n")
 	publisher.DeploySQL.WriteString(fmt.Sprintf("-- Generated on: %s\n\n", time.Now().Format(time.RFC3339)))
 	publisher.RollbackSQL.WriteString("-- PPE_Rollback.sql\n")
@@ -179,6 +200,9 @@ func (p *EcoTxnPublisher) processSingleTransaction(transactionID string) Process
 		return result
 	}
 
+	// Store original charge record for rollback
+	p.OriginalCharge = chargeRecord
+
 	// Step 2: Query sg-prd-m-payment-core internal_transaction table
 	txID, err := p.queryInternalTransaction(transactionID, chargeRecord.CreatedAt)
 	if err != nil {
@@ -186,15 +210,16 @@ func (p *EcoTxnPublisher) processSingleTransaction(transactionID string) Process
 		return result
 	}
 
-	// Step 3: Query workflow_execution table for ValueTimestamp
-	valueTimestamp, err := p.queryWorkflowExecution(txID)
+	// Step 3: Query original workflow execution record and ValueTimestamp in one query
+	originalWorkflow, valueTimestamp, err := p.queryOriginalWorkflow(txID)
 	if err != nil {
-		result.Error = fmt.Errorf("failed to query workflow execution: %w", err)
+		result.Error = fmt.Errorf("failed to query original workflow execution: %w", err)
 		return result
 	}
+	p.OriginalWorkflow = originalWorkflow
 
 	// Step 4: Generate UPDATE SQL for charge table
-	p.generateChargeUpdateSQL(transactionID, chargeRecord.Status, chargeRecord.ValuedAt, valueTimestamp)
+	p.generateChargeUpdateSQL(transactionID, valueTimestamp)
 
 	// Step 5: Generate UPDATE SQL for workflow_execution table
 	p.generateWorkflowUpdateSQL(transactionID, chargeRecord, valueTimestamp)
@@ -301,70 +326,50 @@ func (p *EcoTxnPublisher) queryInternalTransaction(transactionID, chargeCreatedA
 	return txID, nil
 }
 
-// queryWorkflowExecution queries workflow_execution table for ValueTimestamp
-func (p *EcoTxnPublisher) queryWorkflowExecution(txID string) (string, error) {
+// queryOriginalWorkflow queries the original workflow execution record and extracts ValueTimestamp
+func (p *EcoTxnPublisher) queryOriginalWorkflow(txID string) (*WorkflowExecution, string, error) {
 	query := fmt.Sprintf(`
-		SELECT JSON_EXTRACT(data, '$.NotifyParams.ValueTimestamp') as ValuedAt
+		SELECT run_id, state, attempt, data,
+		       JSON_EXTRACT(data, '$.NotifyParams.ValueTimestamp') as ValuedAt
 		FROM workflow_execution
 		WHERE run_id = '%s'`,
 		strings.ReplaceAll(txID, "'", "''"))
 
 	rows, err := p.client.QueryPaymentCore(query)
 	if err != nil {
-		return "", fmt.Errorf("failed to execute query: %w", err)
+		return nil, "", fmt.Errorf("failed to execute query: %w", err)
 	}
 
 	if len(rows) == 0 {
-		return "", fmt.Errorf("no workflow execution found for run_id: %s", txID)
+		return nil, "", fmt.Errorf("no workflow execution found for run_id: %s", txID)
 	}
 
-	valueTimestamp := toString(rows[0]["ValuedAt"])
+	row := rows[0]
+	workflow := &WorkflowExecution{
+		RunID:   toString(row["run_id"]),
+		State:   toInt(row["state"]),
+		Attempt: toInt(row["attempt"]),
+		Data:    toString(row["data"]),
+	}
+
+	valueTimestamp := toString(row["ValuedAt"])
 	if valueTimestamp == "" {
-		return "", fmt.Errorf("no ValueTimestamp found for run_id: %s", txID)
+		return nil, "", fmt.Errorf("no ValueTimestamp found for run_id: %s", txID)
 	}
 
-	// Remove quotes if present
+	// Remove quotes if present and format
 	valueTimestamp = strings.Trim(valueTimestamp, `"`)
-
-	// Format timestamp with exactly 2 decimal places
 	valueTimestamp = formatTimestampWithTwoDecimals(valueTimestamp)
 
-	return valueTimestamp, nil
-}
-
-// queryOriginalChargeStorage queries the original ChargeStorage JSON from workflow_execution
-func (p *EcoTxnPublisher) queryOriginalChargeStorage(txID string) (string, error) {
-	query := fmt.Sprintf(`
-		SELECT JSON_EXTRACT(data, '$.ChargeStorage') as ChargeStorage
-		FROM workflow_execution
-		WHERE run_id = '%s'`,
-		strings.ReplaceAll(txID, "'", "''"))
-
-	rows, err := p.client.QueryPaymentCore(query)
-	if err != nil {
-		return "", fmt.Errorf("failed to execute query: %w", err)
-	}
-
-	if len(rows) == 0 {
-		return "", fmt.Errorf("no workflow execution found for run_id: %s", txID)
-	}
-
-	chargeStorageJSON := toString(rows[0]["ChargeStorage"])
-	if chargeStorageJSON == "" || chargeStorageJSON == "null" {
-		return "", fmt.Errorf("no ChargeStorage found for run_id: %s", txID)
-	}
-
-	// Remove quotes if present
-	chargeStorageJSON = strings.Trim(chargeStorageJSON, `"`)
-
-	return chargeStorageJSON, nil
+	return workflow, valueTimestamp, nil
 }
 
 // generateChargeUpdateSQL generates UPDATE SQL for charge table
-func (p *EcoTxnPublisher) generateChargeUpdateSQL(transactionID, originalStatus, originalValuedAt, valueAt string) {
+func (p *EcoTxnPublisher) generateChargeUpdateSQL(transactionID, valueAt string) {
 	// Format timestamp with exactly 2 decimal places
 	formattedValueAt := formatTimestampWithTwoDecimals(valueAt)
 
+	// Generate deploy SQL - update charge to COMPLETED status
 	p.DeploySQL.WriteString(fmt.Sprintf(`-- Update charge table for transaction_id: %s
 UPDATE charge
 SET status = 'COMPLETED', valued_at = '%s'
@@ -375,17 +380,25 @@ WHERE transaction_id = '%s';
 		strings.ReplaceAll(formattedValueAt, "'", "''"),
 		strings.ReplaceAll(transactionID, "'", "''")))
 
-	// Generate corresponding rollback
-	p.RollbackSQL.WriteString(fmt.Sprintf(`-- Rollback charge table for transaction_id: %s
+	// Generate rollback SQL - restore original status and valued_at
+	if p.OriginalCharge != nil {
+		// For rollback, set valued_at to default timestamp as per GrabTxn.md
+		rollbackValuedAt := "0000-00-00T00:00:00.00Z"
+		if p.OriginalCharge.ValuedAt != "" && p.OriginalCharge.ValuedAt != "0000-00-00 00:00:00" {
+			rollbackValuedAt = p.OriginalCharge.ValuedAt
+		}
+
+		p.RollbackSQL.WriteString(fmt.Sprintf(`-- Rollback charge table for transaction_id: %s
 UPDATE charge
 SET status = '%s', valued_at = '%s'
 WHERE transaction_id = '%s';
 
 `,
-		transactionID,
-		strings.ReplaceAll(originalStatus, "'", "''"),
-		strings.ReplaceAll(originalValuedAt, "'", "''"),
-		strings.ReplaceAll(transactionID, "'", "''")))
+			transactionID,
+			strings.ReplaceAll(p.OriginalCharge.Status, "'", "''"),
+			strings.ReplaceAll(rollbackValuedAt, "'", "''"),
+			strings.ReplaceAll(transactionID, "'", "''")))
+	}
 }
 
 // generateWorkflowUpdateSQL generates UPDATE SQL for workflow_execution table
@@ -393,11 +406,18 @@ func (p *EcoTxnPublisher) generateWorkflowUpdateSQL(transactionID string, charge
 	// Format timestamp with exactly 2 decimal places
 	formattedValueAt := formatTimestampWithTwoDecimals(valueAt)
 
-	// Query original ChargeStorage from workflow_execution BEFORE making any changes
-	originalChargeStorageJSON, err := p.queryOriginalChargeStorage(transactionID)
-	if err != nil {
-		// Log error but continue - we'll still generate the update SQL
-		fmt.Printf("Warning: Could not query original ChargeStorage for rollback: %v\n", err)
+	// Extract original ChargeStorage from the stored workflow record
+	var originalChargeStorageJSON string
+	if p.OriginalWorkflow != nil {
+		// Parse the data JSON to extract ChargeStorage
+		var data map[string]interface{}
+		if err := json.Unmarshal([]byte(p.OriginalWorkflow.Data), &data); err == nil {
+			if chargeStorage, exists := data["ChargeStorage"]; exists {
+				if csBytes, err := json.Marshal(chargeStorage); err == nil {
+					originalChargeStorageJSON = string(csBytes)
+				}
+			}
+		}
 	}
 
 	// Create updated ChargeStorage with the new ValuedAt
@@ -434,6 +454,11 @@ func (p *EcoTxnPublisher) generateWorkflowUpdateSQL(transactionID string, charge
 	chargeStorageSQL := buildChargeStorageJSONObject(chargeStorage)
 
 	// Generate UPDATE statement for workflow_execution
+	originalState := 0
+	if p.OriginalWorkflow != nil {
+		originalState = p.OriginalWorkflow.State
+	}
+
 	p.DeploySQL.WriteString(fmt.Sprintf(`-- Update workflow_execution for transaction_id: %s
 UPDATE workflow_execution
 SET
@@ -443,48 +468,64 @@ SET
             '$.State', 800,
             '$.ChargeStorage', %s)
 WHERE
-    run_id = '%s';
+    run_id = '%s'
+    and state = %d;
 
 `,
 		transactionID,
 		chargeStorageSQL,
-		strings.ReplaceAll(transactionID, "'", "''")))
+		strings.ReplaceAll(transactionID, "'", "''"),
+		originalState))
 
-	// Generate corresponding rollback using ORIGINAL ChargeStorage JSON
-	if originalChargeStorageJSON != "" {
-		// Convert the JSON string to MySQL JSON_OBJECT format using mysqljson package
-		originalChargeStorageSQL, err := internalutils.ToMySQLJSONObjectExpr(originalChargeStorageJSON)
-		if err != nil {
-			fmt.Printf("Warning: Could not convert original ChargeStorage to JSON_OBJECT: %v\n", err)
-			// Fallback: use raw JSON (though this might not be ideal)
-			originalChargeStorageSQL = fmt.Sprintf("'%s'", escapeSQL(originalChargeStorageJSON))
-		}
+	// Generate corresponding rollback using ORIGINAL values
+	if p.OriginalWorkflow != nil {
+		// Get original state and attempt
+		originalState := p.OriginalWorkflow.State
+		originalAttempt := p.OriginalWorkflow.Attempt
 
-		p.RollbackSQL.WriteString(fmt.Sprintf(`-- Rollback workflow_execution for transaction_id: %s
+		if originalChargeStorageJSON != "" {
+			// Convert the JSON string to MySQL JSON_OBJECT format using mysqljson package
+			originalChargeStorageSQL, err := internalutils.ToMySQLJSONObjectExpr(originalChargeStorageJSON)
+			if err != nil {
+				fmt.Printf("Warning: Could not convert original ChargeStorage to JSON_OBJECT: %v\n", err)
+				// Fallback: use raw JSON (though this might not be ideal)
+				originalChargeStorageSQL = fmt.Sprintf("'%s'", escapeSQL(originalChargeStorageJSON))
+			}
+
+			p.RollbackSQL.WriteString(fmt.Sprintf(`-- Rollback workflow_execution for transaction_id: %s
 UPDATE workflow_execution
 SET
+	state = %d,
+	attempt = %d,
     data = JSON_SET(data,
-            '$.ChargeStorage', %s)
+		'$.State', %d,
+		'$.ChargeStorage', %s)
 WHERE
     run_id = '%s';
 
 `,
-			transactionID,
-			originalChargeStorageSQL,
-			strings.ReplaceAll(transactionID, "'", "''")))
-	} else {
-		// Fallback: only restore state if original ChargeStorage not available
-		p.RollbackSQL.WriteString(fmt.Sprintf(`-- Rollback workflow_execution state for transaction_id: %s
+				transactionID,
+				originalState,
+				originalAttempt,
+				originalState,
+				originalChargeStorageSQL,
+				strings.ReplaceAll(transactionID, "'", "''")))
+		} else {
+			// Fallback: restore only state and attempt if original ChargeStorage not available
+			p.RollbackSQL.WriteString(fmt.Sprintf(`-- Rollback workflow_execution for transaction_id: %s
 UPDATE workflow_execution
 SET
-    state = JSON_EXTRACT(data, '$.State'),
-    attempt = JSON_EXTRACT(data, '$.Attempt')
+	state = %d,
+	attempt = %d
 WHERE
     run_id = '%s';
 
 `,
-			transactionID,
-			strings.ReplaceAll(transactionID, "'", "''")))
+				transactionID,
+				originalState,
+				originalAttempt,
+				strings.ReplaceAll(transactionID, "'", "''")))
+		}
 	}
 }
 
@@ -651,17 +692,17 @@ func toInt(v interface{}) int {
 
 // WriteEcoTxnSQLFiles writes the generated SQL to files
 func WriteEcoTxnSQLFiles(deploySQL, rollbackSQL, basePath string) error {
-	// Write Deploy.sql
-	deployPath := strings.TrimSuffix(basePath, ".txt") + "_Deploy.sql"
+	// Write PPE_Deploy.sql
+	deployPath := "PPE_Deploy.sql"
 	if err := os.WriteFile(deployPath, []byte(deploySQL), 0644); err != nil {
-		return fmt.Errorf("failed to write Deploy.sql: %v", err)
+		return fmt.Errorf("failed to write PPE_Deploy.sql: %v", err)
 	}
 	fmt.Printf("Deploy statements written to %s\n", deployPath)
 
-	// Write Rollback.sql
-	rollbackPath := strings.TrimSuffix(basePath, ".txt") + "_Rollback.sql"
+	// Write PPE_Rollback.sql
+	rollbackPath := "PPE_Rollback.sql"
 	if err := os.WriteFile(rollbackPath, []byte(rollbackSQL), 0644); err != nil {
-		return fmt.Errorf("failed to write Rollback.sql: %v", err)
+		return fmt.Errorf("failed to write PPE_Rollback.sql: %v", err)
 	}
 	fmt.Printf("Rollback statements written to %s\n", rollbackPath)
 
