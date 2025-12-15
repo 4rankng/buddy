@@ -42,10 +42,51 @@ Based on the discussion log provided, here are the extracted case studies of stu
 
 ### thought_machine_false_negative
 - **Case**: Thought Machine returning errors/false negatives, but transaction was successful. PE stuck or PC stuck 200
+
+payment engine workflow state = 701
+payment core  internal_payment_flow state 500
+
 - **Fix**: Patch data to retry flow; Move PE to 230 and retry PC capture
 - **References**: 
   - [DML 42991](https://doorman.infra.prd.g-bank.app/rds/dml/42991)
   - [DML 42927](https://doorman.infra.prd.g-bank.app/rds/dml/42927)
+
+PE_Deploy.sql
+# 20251202GXSPMYKL010ORB62198922
+UPDATE workflow_execution SET state = 230,
+  prev_trans_id = '6e0daa5cfcc24478a2c55097fe2d7cf8',
+  `data` = JSON_SET(`data`, '$.State', 230)
+WHERE run_id in (
+  'DE9FD4A8-F738-407A-9E15-D0439CF87DAE'
+) AND state = 701;
+
+PE_Rollback.sql
+UPDATE workflow_execution SET  state = 701,
+  prev_trans_id = '24c37293816942c6bfcab8205ec81604',
+  `data` = JSON_SET(`data`, '$.State', 701)
+WHERE run_id in (
+  'DE9FD4A8-F738-407A-9E15-D0439CF87DAE'
+) AND state = 230;
+
+PC_Deploy.sql
+UPDATE workflow_execution SET state = 0, attempt = 1,
+  `data` = JSON_SET(
+	  `data`, 
+		'$.State', 0
+	)
+WHERE run_id in (
+	'403b0708001a42868649a22ffbc4d7ae'
+) AND workflow_id = 'internal_payment_flow' and state = 500;
+
+PC_Rollback.sql
+UPDATE workflow_execution SET state = 500, attempt = 0,
+  `data` = JSON_SET(
+	  `data`, 
+		'$.State', 500
+	)
+WHERE run_id in (
+	'403b0708001a42868649a22ffbc4d7ae'
+) AND workflow_id = 'internal_payment_flow';
 
 ### rpp_adapter_publish_failure_311`
 - **Case**: Cash out RPP adapter stuck at 301 or 311 (stSuccessPublish/stPrepareFailurePublish) but failed to publish to Kafka
