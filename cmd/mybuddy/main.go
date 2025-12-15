@@ -24,7 +24,7 @@ func main() {
 	}
 
 	// Initialize Jira client
-	if err := clients.NewJiraClientSingleton(appCtx.Environment); err != nil {
+	if err := clients.NewJiraClient(appCtx.Environment); err != nil {
 		log.Fatalf("Failed to initialize Jira client: %v", err)
 	}
 
