@@ -1,94 +1,36 @@
-the case below should be detected as
+Add Case_PeCaptureProcessing_PcCaptureFailed_RppSuccess
 
-{
-			CaseType:    domain.CaseThoughtMachineFalseNegative,
-			Description: "Thought Machine returning errors/false negatives, but transaction was successful",
-			Country:     "my",
-			Conditions: []RuleCondition{
-				{
-					FieldPath: "PaymentEngine.Workflow.WorkflowID",
-					Operator:  "eq",
-					Value:     "workflow_transfer_payment",
-				},
-				{
-					FieldPath: "PaymentEngine.Workflow.State",
-					Operator:  "eq",
-					Value:     "701", // stCaptureFailed
-				},
-				{
-					FieldPath: "PaymentEngine.Workflow.Attempt",
-					Operator:  "eq",
-					Value:     0,
-				},
-				{
-					FieldPath: "PaymentCore.InternalCapture.Workflow.WorkflowID",
-					Operator:  "eq",
-					Value:     "internal_payment_flow",
-				},
-				{
-					FieldPath: "PaymentCore.InternalCapture.Workflow.State",
-					Operator:  "eq",
-					Value:     "500", // stFailed
-				},
-				{
-					FieldPath: "PaymentCore.InternalCapture.Workflow.Attempt",
-					Operator:  "eq",
-					Value:     0,
-				},
-			},
+check
 
-nitialize Jira client for [my]...
-[MY] Querying transaction: 20251213GXSPMYKL010ORB33800412
-### [1] e2e_id: 20251213GXSPMYKL010ORB33800412
-[payment-engine]
-type: PAYMENT
-subtype: RPP_NETWORK
-domain: DEPOSITS
-status: FAILED
-created_at: 2025-12-12T16:06:09.75018Z
-reference_id: 37032302-27F5-4F60-95A4-D0100BA7775B
-external_id: 20251213GXSPMYKL010ORB33800412
-workflow_transfer_payment:
-   state=stCaptureFailed(701) attempt=0
-   run_id=37032302-27F5-4F60-95A4-D0100BA7775B
+payment engine workflow_transfer_payment:
 
-[payment-core]
-internal_transaction:
-   tx_id=3cebe07d53874174874fe97f61c5e80f
-   group_id=721a751f39b64baf9fb1ef98525cf40a
-   type=AUTH status=SUCCESS
+   state=stCaptureProcessing(230) attempt=0
+
+
+
+payment core    type=CAPTURE status=FAILED
+
    workflow:
+
       workflow_id=internal_payment_flow
-      state=stSuccess(900) attempt=0
-      run_id=3cebe07d53874174874fe97f61c5e80f
-internal_transaction:
-   tx_id=05749b4159464bbd882a728785ab68f5
-   group_id=721a751f39b64baf9fb1ef98525cf40a
-   type=CAPTURE status=FAILED
-   workflow:
-      workflow_id=internal_payment_flow
+
       state=stFailed(500) attempt=0
-      run_id=05749b4159464bbd882a728785ab68f5
-external_transaction:
-   ref_id=08419e9921b94fec9b6e140bbb6c5b4d
-   group_id=721a751f39b64baf9fb1ef98525cf40a
-   type=TRANSFER status=SUCCESS
-   workflow:
-      workflow_id=external_payment_flow
-      state=stPrepareSuccessPublish(900) attempt=0
-      run_id=08419e9921b94fec9b6e140bbb6c5b4d
 
-[rpp-adapter]
-req_biz_msg_id: 20251213GXSPMYKL010ORB33800412
-partner_tx_id: 721a751f39b64baf9fb1ef98525cf40a
-wf_ct_cashout:
+
+
+Rpp-adapter
+
+wf_ct_qr_payment or wf_ct_cashout
+
    state=stSuccess(900) attempt=0
-   run_id=721a751f39b64baf9fb1ef98525cf40a
-info: RPP Status: PROCESSING
 
-[Classification]
-NOT_FOUND
+Based on the "DML SOP: Payment Transaction Fix Protocols" provided, here are the classifications for the identified cases.
 
+[2] e2e_id: 20251212GXSPMYKL040OQR32194316
+Classification: thought_machine_false_negative Reasoning:
 
-[MY] No SQL statements generated. Transaction may not require remediation or case conditions were not met.
-frank.nguyen@DBSG-H4M0DVF2C7 buddy %
+Payment Core (PC) State: The internal_payment_flow (CAPTURE) is at state 500 (stFailed). This matches the specific state criteria listed under the thought_machine_false_negative case in the SOP (payment core internal_payment_flow state 500).
+
+RPP Adapter State: The RPP state is 900 (Success), indicating the transaction was successful externally, but the internal core failed/returned a false negative.
+
+Fix Protocol: The required fix is to patch the data to retry the flow (reset PC from 500 to 0) as detailed in PC_Deploy.sql.   
