@@ -407,17 +407,17 @@ func getDefaultSOPRules() []CaseRule {
 					Value:     "error occurred in Thought Machine.",
 				},
 				{
-					FieldPath: "PaymentCore.Workflow.WorkflowID",
+					FieldPath: "PaymentCore.InternalCapture.Workflow.WorkflowID",
 					Operator:  "eq",
 					Value:     "internal_payment_flow",
 				},
 				{
-					FieldPath: "PaymentCore.Workflow.State",
+					FieldPath: "PaymentCore.InternalCapture.Workflow.State",
 					Operator:  "eq",
 					Value:     "500",
 				},
 				{
-					FieldPath: "PaymentCore.Workflow.Attempt",
+					FieldPath: "PaymentCore.InternalCapture.Workflow.Attempt",
 					Operator:  "eq",
 					Value:     0,
 				},
