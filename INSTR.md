@@ -41,3 +41,66 @@ regardless of single txn or multiple txn, the output / deploy / rollback dml sho
 
 WriteEcoTransactionInfo
 should provide all available information from TransactionResult similar to the output of mybuddy txn abc
+
+
+
+
+
+
+
+
+
+
+
+
+
+currently the output is
+frank.nguyen@DBSG-H4M0DVF2C7 buddy % mybuddy ecotxn fd230a01dcd04282851b7b9dd6260c93
+Initialize Doorman client for [my]...
+Initialize Jira client for [my]...
+### [1] transaction_id: fd230a01dcd04282851b7b9dd6260c93
+[partnerpay-engine]
+charge.status: FAILED SYSTEM_ERROR error occurred in Thought Machine.
+workflow_charge: stFailureNotified(502) Attempt=0 run_id=fd230a01dcd04282851b7b9dd6260c93
+
+[payment-core]
+internal_transaction:
+   tx_id=ce8c05866d134bb488038644c708740e
+   type=AUTH status=SUCCESS
+   workflow:
+      workflow_id=internal_payment_flow
+      state=stSuccess(900) attempt=0
+      run_id=ce8c05866d134bb488038644c708740e
+
+I should have both Capture and Auth
+and with error code and error message, you can see from
+
+SELECT * FROM internal_transaction 
+where group_id='fd230a01dcd04282851b7b9dd6260c93'
+and created_at >= '2025-08-09T14:14:03.379002Z'
+and created_at <= '2025-08-09T16:14:03.379002Z'
+
+please update func (p *PaymentCoreAdapter) QueryInternalTransactions(transactionID string, createdAt string) ([]map[string]interface{}, error) {
+
+
+// PCInternalTxnInfo contains payment-core internal transaction information
+type PCInternalInfo struct {
+	TxID      string // payment-core internal transaction ID
+	GroupID   string // payment-core transaction group ID
+	TxType    string // payment-core transaction type
+	TxStatus  string // payment-core transaction status
+	ErrorCode string // payment-core internal transaction error_code
+	ErrorMsg  string // payment-core internal transaction error_msg
+	CreatedAt string // created_at timestamp
+	Workflow  WorkflowInfo
+}
+
+// PCExternalTxnInfo contains payment-core external transaction information
+type PCExternalInfo struct {
+	RefID     string // payment-core external transaction reference ID
+	GroupID   string // payment-core transaction group ID
+	TxType    string // payment-core transaction type
+	TxStatus  string // payment-core transaction status
+	CreatedAt string // created_at timestamp
+	Workflow  WorkflowInfo
+}
