@@ -308,9 +308,9 @@ func (s *TransactionQueryService) populatePaymentCoreInfo(result *domain.Transac
 			// Populate based on transaction type
 			switch txType {
 			case "AUTH":
-				result.PaymentCore.InternalCapture = internalInfo
-			case "CAPTURE":
 				result.PaymentCore.InternalAuth = internalInfo
+			case "CAPTURE":
+				result.PaymentCore.InternalCapture = internalInfo
 			}
 		}
 	}
@@ -416,9 +416,9 @@ func (s *TransactionQueryService) QueryPaymentCoreTransactions(result *domain.Tr
 			// Populate based on transaction type
 			switch txType {
 			case "AUTH":
-				result.PaymentCore.InternalCapture = internalInfo
-			case "CAPTURE":
 				result.PaymentCore.InternalAuth = internalInfo
+			case "CAPTURE":
+				result.PaymentCore.InternalCapture = internalInfo
 			}
 		}
 	}
