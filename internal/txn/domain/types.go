@@ -120,17 +120,18 @@ const NotFoundStatus = "NOT_FOUND"
 type Case string
 
 const (
-	CaseNone                             Case = NotFoundStatus
-	CasePcExternalPaymentFlow200_11      Case = "pc_external_payment_flow_200_11"
-	CasePcExternalPaymentFlow201_0RPP210 Case = "pc_external_payment_flow_201_0_RPP_210"
-	CasePcExternalPaymentFlow201_0RPP900 Case = "pc_external_payment_flow_201_0_RPP_900"
-	CasePeTransferPayment210_0           Case = "pe_transfer_payment_210_0"
-	CasePeStuck230RepublishPC            Case = "pe_stuck_230_republish_pc"
-	CaseRppCashoutReject101_19           Case = "rpp_cashout_reject_101_19"
-	CaseRppQrPaymentReject210_0          Case = "rpp_qr_payment_reject_210_0"
-	CaseRppNoResponseResume              Case = "rpp_no_response_resume"
-	CasePe2200FastCashinFailed           Case = "pe_220_0_fast_cashin_failed"
-	CaseThoughtMachineFalseNegative      Case = "thought_machine_false_negative"
+	CaseNone                                         Case = NotFoundStatus
+	CasePcExternalPaymentFlow200_11                  Case = "pc_external_payment_flow_200_11"
+	CasePcExternalPaymentFlow201_0RPP210             Case = "pc_external_payment_flow_201_0_RPP_210"
+	CasePcExternalPaymentFlow201_0RPP900             Case = "pc_external_payment_flow_201_0_RPP_900"
+	CasePeTransferPayment210_0                       Case = "pe_transfer_payment_210_0"
+	CasePeStuck230RepublishPC                        Case = "pe_stuck_230_republish_pc"
+	CaseRppCashoutReject101_19                       Case = "rpp_cashout_reject_101_19"
+	CaseRppQrPaymentReject210_0                      Case = "rpp_qr_payment_reject_210_0"
+	CaseRppNoResponseResume                          Case = "rpp_no_response_resume"
+	CasePe2200FastCashinFailed                       Case = "pe_220_0_fast_cashin_failed"
+	CaseThoughtMachineFalseNegative                  Case = "thought_machine_false_negative"
+	CasePeCaptureProcessingPcCaptureFailedRppSuccess Case = "pe_capture_processing_pc_capture_failed_rpp_success"
 )
 
 // GetCaseSummaryOrder returns the order in which SOP cases should be displayed in summaries
@@ -142,6 +143,7 @@ func GetCaseSummaryOrder() []Case {
 		CasePeTransferPayment210_0,
 		CasePeStuck230RepublishPC,
 		CaseThoughtMachineFalseNegative,
+		CasePeCaptureProcessingPcCaptureFailedRppSuccess,
 		CasePe2200FastCashinFailed,
 		CaseRppCashoutReject101_19,
 		CaseRppQrPaymentReject210_0,

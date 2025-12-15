@@ -452,4 +452,53 @@ AND workflow_id = 'internal_payment_flow';`,
 			CaseType: domain.CaseThoughtMachineFalseNegative,
 		}
 	},
+
+	domain.CasePeCaptureProcessingPcCaptureFailedRppSuccess: func(result domain.TransactionResult) *domain.DMLTicket {
+		// Get PC run ID
+		var pcRunID string
+
+		if result.PaymentCore != nil && result.PaymentCore.InternalCapture.Workflow.RunID != "" {
+			pcRunID = result.PaymentCore.InternalCapture.Workflow.RunID
+		}
+
+		// Validate that we have PC data
+		if pcRunID == "" {
+			return nil // Missing required data
+		}
+
+		return &domain.DMLTicket{
+			Deploy: []domain.TemplateInfo{
+				{
+					TargetDB: "PC",
+					SQLTemplate: `-- pe_capture_processing_pc_capture_failed_rpp_success - PC Deploy
+UPDATE workflow_execution
+SET state = 0,
+    attempt = 1,
+    ` + "`data`" + ` = JSON_SET(` + "`data`" + `, '$.State', 0)
+WHERE run_id = %s
+AND workflow_id = 'internal_payment_flow'
+AND state = 500;`,
+					Params: []domain.ParamInfo{
+						{Name: "run_id", Value: pcRunID, Type: "string"},
+					},
+				},
+			},
+			Rollback: []domain.TemplateInfo{
+				{
+					TargetDB: "PC",
+					SQLTemplate: `-- pe_capture_processing_pc_capture_failed_rpp_success - PC Rollback
+UPDATE workflow_execution
+SET state = 500,
+    attempt = 0,
+    ` + "`data`" + ` = JSON_SET(` + "`data`" + `, '$.State', 500)
+WHERE run_id = %s
+AND workflow_id = 'internal_payment_flow';`,
+					Params: []domain.ParamInfo{
+						{Name: "run_id", Value: pcRunID, Type: "string"},
+					},
+				},
+			},
+			CaseType: domain.CasePeCaptureProcessingPcCaptureFailedRppSuccess,
+		}
+	},
 }

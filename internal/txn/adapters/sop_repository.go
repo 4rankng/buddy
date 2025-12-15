@@ -315,6 +315,68 @@ func getDefaultSOPRules() []CaseRule {
 				},
 			},
 		},
+		{
+			CaseType:    domain.CasePeCaptureProcessingPcCaptureFailedRppSuccess,
+			Description: "PE capture processing, PC capture failed, but RPP succeeded",
+			Country:     "my",
+			Conditions: []RuleCondition{
+				{
+					FieldPath: "PaymentEngine.Workflow.WorkflowID",
+					Operator:  "eq",
+					Value:     "workflow_transfer_payment",
+				},
+				{
+					FieldPath: "PaymentEngine.Workflow.State",
+					Operator:  "eq",
+					Value:     "230", // stCaptureProcessing
+				},
+				{
+					FieldPath: "PaymentEngine.Workflow.Attempt",
+					Operator:  "eq",
+					Value:     0,
+				},
+				{
+					FieldPath: "PaymentCore.InternalCapture.Workflow.WorkflowID",
+					Operator:  "eq",
+					Value:     "internal_payment_flow",
+				},
+				{
+					FieldPath: "PaymentCore.InternalCapture.Workflow.State",
+					Operator:  "eq",
+					Value:     "500", // stFailed
+				},
+				{
+					FieldPath: "PaymentCore.InternalCapture.Workflow.Attempt",
+					Operator:  "eq",
+					Value:     0,
+				},
+				{
+					FieldPath: "PaymentCore.InternalCapture.Type",
+					Operator:  "eq",
+					Value:     "CAPTURE",
+				},
+				{
+					FieldPath: "PaymentCore.InternalCapture.TxStatus",
+					Operator:  "eq",
+					Value:     "FAILED",
+				},
+				{
+					FieldPath: "RPPAdapter.Workflow.WorkflowID",
+					Operator:  "in",
+					Value:     []string{"wf_ct_qr_payment", "wf_ct_cashout"},
+				},
+				{
+					FieldPath: "RPPAdapter.Workflow.State",
+					Operator:  "eq",
+					Value:     "900", // stSuccess
+				},
+				{
+					FieldPath: "RPPAdapter.Workflow.Attempt",
+					Operator:  "eq",
+					Value:     0,
+				},
+			},
+		},
 	}
 }
 
