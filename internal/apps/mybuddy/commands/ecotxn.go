@@ -6,6 +6,7 @@ import (
 
 	"buddy/internal/apps/common"
 	"buddy/internal/txn/adapters"
+	"buddy/internal/txn/domain"
 	"buddy/internal/txn/service"
 
 	"github.com/spf13/cobra"
@@ -46,10 +47,17 @@ func processEcoTransaction(appCtx *common.Context, runID string) {
 	// Display the result in the required format
 	adapters.WriteEcoTransactionInfo(os.Stdout, *result, runID, 1)
 
-	// Write DML files if payment-core data is available
-	if result.PaymentCore != nil {
-		if err := adapters.WriteDMLFiles(*result, ""); err != nil {
+	// Generate and write DML files if case is identified
+	if result.CaseType != "" && result.CaseType != "CaseNone" {
+		// Generate SQL statements based on the identified case
+		statements := adapters.GenerateSQLStatements([]domain.TransactionResult{*result})
+
+		// Write SQL files to current directory
+		basePath := fmt.Sprintf("ecotxn_%s", runID)
+		if err := adapters.WriteSQLFiles(statements, basePath); err != nil {
 			fmt.Printf("\nWarning: Failed to write DML files: %v\n", err)
+		} else {
+			fmt.Printf("\nDML files written successfully for case: %s\n", result.CaseType)
 		}
 	}
 }
