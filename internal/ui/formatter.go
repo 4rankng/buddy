@@ -5,7 +5,6 @@ import (
 	"os"
 	"strconv"
 	"strings"
-	"unicode/utf8"
 )
 
 // GetDescriptionLength returns the configured description truncate length
@@ -34,16 +33,15 @@ func TruncateText(text string, maxLen int) string {
 	text = strings.ReplaceAll(text, "\r", " ")
 	text = strings.Join(strings.Fields(text), " ")
 
-	if utf8.RuneCountInString(text) <= maxLen {
+	if len(text) <= maxLen {
 		return text
 	}
 
-	runes := []rune(text)
 	if maxLen <= 3 {
-		return string(runes[:maxLen])
+		return text[:maxLen]
 	}
 
-	return string(runes[:maxLen-3]) + "..."
+	return text[:maxLen-3] + "..."
 }
 
 // WordWrap wraps text to the specified width, preserving word boundaries
@@ -59,7 +57,7 @@ func WordWrap(text string, width int) []string {
 	currentLength := 0
 
 	for _, word := range words {
-		wordLength := utf8.RuneCountInString(word)
+		wordLength := len(word)
 
 		if currentLength == 0 {
 			currentLine = word
