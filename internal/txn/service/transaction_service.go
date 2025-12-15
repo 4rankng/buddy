@@ -293,8 +293,9 @@ func (s *TransactionQueryService) populatePaymentCoreEcoTxn(result *domain.Trans
 		result.PaymentCore = &domain.PaymentCoreInfo{}
 	}
 
-	// Use transaction_id as group_id to query payment-core
-	groupID := result.PartnerpayEngine.Transfers.TransactionID
+	// Use the original run_id (InputID) as group_id to query payment-core
+	// This is because payment-core transactions are linked to the partnerpay-engine run_id
+	groupID := result.InputID
 	createdAt := result.PartnerpayEngine.Transfers.CreatedAt
 
 	if groupID != "" && createdAt != "" {
