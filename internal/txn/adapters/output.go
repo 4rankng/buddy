@@ -133,6 +133,16 @@ func displayPaymentCoreSection(w io.Writer, pc domain.PaymentCoreInfo) error {
 					fmt.Printf("Warning: failed to write internal tx type and status: %v\n", err)
 				}
 			}
+			if pc.InternalCapture.ErrorCode != "" {
+				if _, err := fmt.Fprintf(w, "   error_code=%s\n", pc.InternalCapture.ErrorCode); err != nil {
+					fmt.Printf("Warning: failed to write internal tx error code: %v\n", err)
+				}
+			}
+			if pc.InternalCapture.ErrorMsg != "" {
+				if _, err := fmt.Fprintf(w, "   error_msg=%s\n", pc.InternalCapture.ErrorMsg); err != nil {
+					fmt.Printf("Warning: failed to write internal tx error message: %v\n", err)
+				}
+			}
 			// Display workflow for this transaction
 			if pc.InternalCapture.Workflow.WorkflowID != "" {
 				if _, err := fmt.Fprintf(w, "   workflow:\n"); err != nil {
@@ -167,6 +177,16 @@ func displayPaymentCoreSection(w io.Writer, pc domain.PaymentCoreInfo) error {
 			if pc.InternalAuth.TxType != "" && pc.InternalAuth.TxStatus != "" {
 				if _, err := fmt.Fprintf(w, "   type=%s status=%s\n", pc.InternalAuth.TxType, pc.InternalAuth.TxStatus); err != nil {
 					fmt.Printf("Warning: failed to write internal tx type and status: %v\n", err)
+				}
+			}
+			if pc.InternalAuth.ErrorCode != "" {
+				if _, err := fmt.Fprintf(w, "   error_code=%s\n", pc.InternalAuth.ErrorCode); err != nil {
+					fmt.Printf("Warning: failed to write internal tx error code: %v\n", err)
+				}
+			}
+			if pc.InternalAuth.ErrorMsg != "" {
+				if _, err := fmt.Fprintf(w, "   error_msg=%s\n", pc.InternalAuth.ErrorMsg); err != nil {
+					fmt.Printf("Warning: failed to write internal tx error message: %v\n", err)
 				}
 			}
 			// Display workflow for this transaction

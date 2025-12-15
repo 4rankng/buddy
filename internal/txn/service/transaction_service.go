@@ -306,6 +306,8 @@ func (s *TransactionQueryService) populatePaymentCoreFromPartnerpayEngine(result
 				txID := ""
 				groupIDValue := ""
 				createdAtValue := ""
+				errorCode := ""
+				errorMsg := ""
 
 				if val, ok := internalTx["tx_type"].(string); ok {
 					txType = val
@@ -322,6 +324,12 @@ func (s *TransactionQueryService) populatePaymentCoreFromPartnerpayEngine(result
 				if val, ok := internalTx["created_at"].(string); ok {
 					createdAtValue = val
 				}
+				if val, ok := internalTx["error_code"].(string); ok {
+					errorCode = val
+				}
+				if val, ok := internalTx["error_msg"].(string); ok {
+					errorMsg = val
+				}
 
 				// Query workflow for this transaction
 				workflowInfo := s.queryWorkflowInfo(txID)
@@ -331,6 +339,8 @@ func (s *TransactionQueryService) populatePaymentCoreFromPartnerpayEngine(result
 					GroupID:   groupIDValue,
 					TxType:    txType,
 					TxStatus:  txStatus,
+					ErrorCode: errorCode,
+					ErrorMsg:  errorMsg,
 					CreatedAt: createdAtValue,
 					Workflow:  workflowInfo,
 				}
@@ -338,9 +348,9 @@ func (s *TransactionQueryService) populatePaymentCoreFromPartnerpayEngine(result
 				// Populate based on transaction type
 				switch txType {
 				case "AUTH":
-					result.PaymentCore.InternalCapture = internalInfo
-				case "CAPTURE":
 					result.PaymentCore.InternalAuth = internalInfo
+				case "CAPTURE":
+					result.PaymentCore.InternalCapture = internalInfo
 				}
 			}
 		}
@@ -437,6 +447,8 @@ func (s *TransactionQueryService) populatePaymentCoreInfo(result *domain.Transac
 				GroupID:   transactionID,
 				TxType:    txType,
 				TxStatus:  status,
+				ErrorCode: utils.GetStringValue(internalTx, "error_code"),
+				ErrorMsg:  utils.GetStringValue(internalTx, "error_msg"),
 				CreatedAt: utils.GetStringValue(internalTx, "created_at"),
 				Workflow:  workflowInfo,
 			}
@@ -527,7 +539,7 @@ func (s *TransactionQueryService) QueryPaymentCoreTransactions(result *domain.Tr
 
 	// Query internal transactions
 	if internalTxs, err := client.QueryPaymentCore(fmt.Sprintf(
-		"SELECT tx_id, tx_type, status, created_at FROM internal_transaction WHERE tx_id = '%s' AND created_at >= '%s' AND created_at <= '%s'",
+		"SELECT tx_id, tx_type, status, error_code, error_msg, created_at FROM internal_transaction WHERE tx_id = '%s' AND created_at >= '%s' AND created_at <= '%s'",
 		transactionID,
 		windowStart.Format(time.RFC3339),
 		windowEnd.Format(time.RFC3339),
@@ -545,6 +557,8 @@ func (s *TransactionQueryService) QueryPaymentCoreTransactions(result *domain.Tr
 				GroupID:   transactionID,
 				TxType:    txType,
 				TxStatus:  status,
+				ErrorCode: utils.GetStringValue(internalTx, "error_code"),
+				ErrorMsg:  utils.GetStringValue(internalTx, "error_msg"),
 				CreatedAt: utils.GetStringValue(internalTx, "created_at"),
 				Workflow:  workflowInfo,
 			}

@@ -61,8 +61,8 @@ type PCExternalInfo struct {
 
 // PaymentCoreInfo contains payment-core related information
 type PaymentCoreInfo struct {
-	InternalCapture  PCInternalInfo // when TxType is AUTH
-	InternalAuth     PCInternalInfo // when TxType is CAPTURE
+	InternalAuth     PCInternalInfo // when TxType is AUTH
+	InternalCapture  PCInternalInfo // when TxType is CAPTURE
 	ExternalTransfer PCExternalInfo // when TxType is TRANSFER
 }
 

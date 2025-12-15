@@ -33,7 +33,7 @@ func (p *PaymentCoreAdapter) QueryInternalTransactions(transactionID string, cre
 	// Use 30-minute window on both sides as specified in INSTR.md
 	queryStartTime := startTime.Add(-30 * time.Minute)
 	queryEndTime := startTime.Add(30 * time.Minute)
-	query := fmt.Sprintf("SELECT tx_id, tx_type, status, created_at FROM internal_transaction WHERE group_id='%s' AND created_at >= '%s' AND created_at <= '%s'", transactionID, queryStartTime.Format(time.RFC3339), queryEndTime.Format(time.RFC3339))
+	query := fmt.Sprintf("SELECT tx_id, tx_type, status, error_code, error_msg, created_at FROM internal_transaction WHERE group_id='%s' AND created_at >= '%s' AND created_at <= '%s'", transactionID, queryStartTime.Format(time.RFC3339), queryEndTime.Format(time.RFC3339))
 	return p.client.QueryPaymentCore(query)
 }
 
