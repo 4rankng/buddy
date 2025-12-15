@@ -351,7 +351,7 @@ func getDefaultSOPRules() []CaseRule {
 					Value:     0,
 				},
 				{
-					FieldPath: "PaymentCore.InternalCapture.Type",
+					FieldPath: "PaymentCore.InternalCapture.TxType",
 					Operator:  "eq",
 					Value:     "CAPTURE",
 				},
@@ -404,6 +404,30 @@ func (r *SOPRepository) IdentifyCase(result *domain.TransactionResult, env strin
 	return result.CaseType
 }
 
+// IdentifyCaseWithDebug identifies the SOP case with debug logging
+func (r *SOPRepository) IdentifyCaseWithDebug(result *domain.TransactionResult, env string) domain.Case {
+	// Check if we've already identified the case
+	if result.CaseType != domain.CaseNone {
+		return result.CaseType
+	}
+
+	// Check each rule in order
+	for _, rule := range r.rules {
+		// Skip country-specific rules if not matching
+		if rule.Country != "" && rule.Country != env {
+			continue
+		}
+
+		if r.evaluateRuleWithDebug(rule, result) {
+			result.CaseType = rule.CaseType
+			return result.CaseType
+		}
+	}
+
+	result.CaseType = domain.CaseNone
+	return result.CaseType
+}
+
 // evaluateRule evaluates a single rule against a transaction result.
 //
 // This implementation is fully driven by FieldPath traversal. It does NOT special-case
@@ -414,6 +438,27 @@ func (r *SOPRepository) evaluateRule(rule CaseRule, result *domain.TransactionRe
 			return false
 		}
 	}
+	return true
+}
+
+// evaluateRuleWithDebug evaluates a single rule against a transaction result with debug logging.
+func (r *SOPRepository) evaluateRuleWithDebug(rule CaseRule, result *domain.TransactionResult) bool {
+	fmt.Printf("Evaluating rule: %s (%s)\n", rule.CaseType, rule.Description)
+	for _, condition := range rule.Conditions {
+		fieldValue, ok := r.getFieldValue(condition.FieldPath, result)
+		fmt.Printf("  Condition: %s %s %v", condition.FieldPath, condition.Operator, condition.Value)
+		if !ok {
+			fmt.Printf(" -> FAILED (field not found)\n")
+			return false
+		}
+		fmt.Printf(" (actual: %v)", fieldValue)
+		if !r.evaluateCondition(condition, result) {
+			fmt.Printf(" -> FAILED\n")
+			return false
+		}
+		fmt.Printf(" -> PASSED\n")
+	}
+	fmt.Printf("Rule PASSED: %s\n", rule.CaseType)
 	return true
 }
 
