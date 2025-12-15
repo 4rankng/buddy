@@ -380,15 +380,15 @@ type ParamInfo struct {
 	Type  string      // Parameter type: "string", "int"
 }
 
+type TemplateInfo struct {
+	TargetDB string // "PC", "PE", or "RPP"
+	SQLTemplate string
+	Params []ParamInfo
+}
+
 // DMLTicket represents a SQL generation request with templates
 type DMLTicket struct {
-	DeployTemplate   string      // SQL template with %s placeholders
-	RollbackTemplate string      // SQL template with %s placeholders
-	TargetDB         string      // "PC", "PE", or "RPP"
-	DeployParams     []ParamInfo // Ordered parameters for deploy template
-	RollbackParams   []ParamInfo // Ordered parameters for rollback template
+	Deploy   []TemplateInfo      // SQL template with %s placeholders
+	Rollback []TemplateInfo      // SQL template with %s placeholders
 	CaseType         Case        // SOP case type for this ticket
-
-	// Consolidation metadata
-	TransactionCount int // Number of transactions consolidated
 }
