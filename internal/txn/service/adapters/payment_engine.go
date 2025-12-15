@@ -20,7 +20,7 @@ func NewPaymentEngineAdapter(client ports.ClientPort) *PaymentEngineAdapter {
 
 func (p *PaymentEngineAdapter) QueryTransfer(transactionID string) (map[string]interface{}, error) {
 	if p.client == nil {
-		return nil, fmt.Errorf("database client is not initialized")
+		return nil, fmt.Errorf("QueryTransfer: database client is not initialized")
 	}
 	query := fmt.Sprintf("SELECT transaction_id, status, reference_id, created_at, updated_at, type, txn_subtype, txn_domain, external_id FROM transfer WHERE transaction_id='%s'", transactionID)
 	if p.client == nil {
@@ -35,7 +35,7 @@ func (p *PaymentEngineAdapter) QueryTransfer(transactionID string) (map[string]i
 
 func (p *PaymentEngineAdapter) QueryWorkflow(referenceID string) (map[string]interface{}, error) {
 	if p.client == nil {
-		return nil, fmt.Errorf("database client is not initialized")
+		return nil, fmt.Errorf("QueryWorkflow: database client is not initialized")
 	}
 	query := fmt.Sprintf("SELECT run_id, workflow_id, prev_trans_id, state, attempt, created_at, updated_at FROM workflow_execution WHERE run_id='%s'", referenceID)
 	workflows, err := p.client.QueryPaymentEngine(query)
