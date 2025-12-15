@@ -226,6 +226,7 @@ AND workflow_id IN ('wf_ct_cashout', 'wf_ct_qr_payment');`, strings.Join(runIDs,
 }
 
 func queryRPPAdapterForE2E(e2eID string) *domain.TransactionResult {
-	// Use the existing query logic from the txn package
-	return service.QueryTransactionStatus(e2eID)
+	// Create a new transaction query service for Malaysia environment
+	queryService := service.NewTransactionQueryService("my")
+	return queryService.QueryTransaction(e2eID)
 }

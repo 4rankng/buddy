@@ -29,8 +29,13 @@ type TransactionQueryService struct {
 	env      string
 }
 
+var TxnSvc *TransactionQueryService
+
 // NewTransactionQueryService creates a new transaction query service
 func NewTransactionQueryService(env string) *TransactionQueryService {
+	if TxnSvc != nil {
+		return TxnSvc
+	}
 	var adapterSet AdapterSet
 
 	switch env {
@@ -42,11 +47,12 @@ func NewTransactionQueryService(env string) *TransactionQueryService {
 		panic("unsupported environment: " + env)
 	}
 
-	return &TransactionQueryService{
+	TxnSvc = &TransactionQueryService{
 		adapters: adapterSet,
 		sopRepo:  adapters.SOPRepo,
 		env:      env,
 	}
+	return TxnSvc
 }
 
 // createMalaysiaAdapters creates adapters for Malaysia environment
