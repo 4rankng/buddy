@@ -37,6 +37,20 @@ func WriteSQLFiles(statements domain.SQLStatements, basePath string) error {
 		}
 	}
 
+	// Write PPE files
+	if len(statements.PPEDeployStatements) > 0 {
+		deployPath := basePath + "_PPE_Deploy.sql"
+		if err := WriteSQLFile(deployPath, statements.PPEDeployStatements); err != nil {
+			return err
+		}
+	}
+	if len(statements.PPERollbackStatements) > 0 {
+		rollbackPath := basePath + "_PPE_Rollback.sql"
+		if err := WriteSQLFile(rollbackPath, statements.PPERollbackStatements); err != nil {
+			return err
+		}
+	}
+
 	// Write RPP files
 	if len(statements.RPPDeployStatements) > 0 {
 		deployPath := basePath + "_RPP_Deploy.sql"

@@ -378,6 +378,8 @@ type SQLStatements struct {
 	PCRollbackStatements  []string
 	PEDeployStatements    []string
 	PERollbackStatements  []string
+	PPEDeployStatements   []string
+	PPERollbackStatements []string
 	RPPDeployStatements   []string
 	RPPRollbackStatements []string
 }

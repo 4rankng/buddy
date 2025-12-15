@@ -12,6 +12,8 @@ func appendStatements(main *domain.SQLStatements, new domain.SQLStatements) {
 	main.PCRollbackStatements = append(main.PCRollbackStatements, new.PCRollbackStatements...)
 	main.PEDeployStatements = append(main.PEDeployStatements, new.PEDeployStatements...)
 	main.PERollbackStatements = append(main.PERollbackStatements, new.PERollbackStatements...)
+	main.PPEDeployStatements = append(main.PPEDeployStatements, new.PPEDeployStatements...)
+	main.PPERollbackStatements = append(main.PPERollbackStatements, new.PPERollbackStatements...)
 	main.RPPDeployStatements = append(main.RPPDeployStatements, new.RPPDeployStatements...)
 	main.RPPRollbackStatements = append(main.RPPRollbackStatements, new.RPPRollbackStatements...)
 }
@@ -199,6 +201,13 @@ func addStatementToDatabase(statements *domain.SQLStatements, targetDB string, d
 		}
 		if rollbackSQL != "" {
 			statements.PERollbackStatements = append(statements.PERollbackStatements, rollbackSQL)
+		}
+	case "PPE":
+		if deploySQL != "" {
+			statements.PPEDeployStatements = append(statements.PPEDeployStatements, deploySQL)
+		}
+		if rollbackSQL != "" {
+			statements.PPERollbackStatements = append(statements.PPERollbackStatements, rollbackSQL)
 		}
 	case "RPP":
 		if deploySQL != "" {
