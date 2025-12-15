@@ -8,6 +8,7 @@ import (
 	"buddy/internal/txn/utils"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"buddy/internal/txn/adapters"
@@ -29,13 +30,29 @@ type TransactionQueryService struct {
 	env      string
 }
 
-var TxnSvc *TransactionQueryService
+var (
+	txnSvc *TransactionQueryService
+	once   sync.Once
+)
 
-// NewTransactionQueryService creates a new transaction query service
+// NewTransactionQueryService creates a new transaction query service singleton
 func NewTransactionQueryService(env string) *TransactionQueryService {
-	if TxnSvc != nil {
-		return TxnSvc
+	once.Do(func() {
+		txnSvc = createTransactionService(env)
+	})
+	return txnSvc
+}
+
+// GetTransactionQueryService returns the singleton instance
+func GetTransactionQueryService() *TransactionQueryService {
+	if txnSvc == nil {
+		panic("TransactionQueryService not initialized. Call NewTransactionQueryService(env) first.")
 	}
+	return txnSvc
+}
+
+// createTransactionService creates a new transaction query service for the given environment
+func createTransactionService(env string) *TransactionQueryService {
 	var adapterSet AdapterSet
 
 	switch env {
@@ -47,12 +64,11 @@ func NewTransactionQueryService(env string) *TransactionQueryService {
 		panic("unsupported environment: " + env)
 	}
 
-	TxnSvc = &TransactionQueryService{
+	return &TransactionQueryService{
 		adapters: adapterSet,
 		sopRepo:  adapters.SOPRepo,
 		env:      env,
 	}
-	return TxnSvc
 }
 
 // createMalaysiaAdapters creates adapters for Malaysia environment

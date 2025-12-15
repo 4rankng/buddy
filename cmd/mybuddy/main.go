@@ -9,6 +9,7 @@ import (
 	mybuddyCmd "buddy/internal/apps/mybuddy/commands"
 	"buddy/internal/clients/doorman"
 	clients "buddy/internal/clients/jira"
+	"buddy/internal/txn/service"
 )
 
 func main() {
@@ -26,6 +27,11 @@ func main() {
 	// Initialize Jira client
 	if clients.NewJiraClient(appCtx.Environment) == nil {
 		log.Fatalf("Failed to initialize Jira client")
+	}
+
+	// Initialize TransactionService
+	if service.NewTransactionQueryService(appCtx.Environment) == nil {
+		log.Fatalf("Failed to initialize TransactionService")
 	}
 
 	// 1. Get the base command

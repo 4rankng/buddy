@@ -34,7 +34,7 @@ Each line in the file should contain a single transaction ID.`,
 				service.ProcessBatchFileWithEnv(input, "sg")
 			} else {
 				// Process single transaction with Singapore environment
-				txnService := service.NewTransactionQueryService("sg")
+				txnService := service.GetTransactionQueryService()
 				result := txnService.QueryTransactionWithEnv(input, "sg")
 
 				// Check for errors

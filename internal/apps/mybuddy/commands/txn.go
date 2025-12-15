@@ -43,8 +43,8 @@ func processInput(appCtx *common.Context, input string) {
 }
 
 func processSingleTransaction(appCtx *common.Context, transactionID string) {
-	// Create a TransactionService instance
-	txnService := service.NewTransactionQueryService("my")
+	// Get the TransactionService singleton
+	txnService := service.GetTransactionQueryService()
 
 	// 1. Query transaction
 	result := txnService.QueryTransactionWithEnv(transactionID, "my")

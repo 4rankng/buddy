@@ -31,8 +31,8 @@ Example:
 }
 
 func processEcoTransaction(appCtx *common.Context, runID string) {
-	// Create a TransactionService instance
-	txnService := service.NewTransactionQueryService("my")
+	// Get the TransactionService singleton
+	txnService := service.GetTransactionQueryService()
 
 	// Querys partnerpay-engine database
 	info, err := txnService.QueryPartnerpayEngine(runID)

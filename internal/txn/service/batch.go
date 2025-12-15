@@ -43,8 +43,8 @@ func processBatchFileWithEnv(filePath, env string) {
 
 	fmt.Printf("Processing %d transaction IDs from %s\n", len(ids), filePath)
 
-	// Create a single TransactionService instance for batch processing
-	txnService := NewTransactionQueryService(env)
+	// Get the TransactionService singleton for batch processing
+	txnService := GetTransactionQueryService()
 
 	// Process each transaction ID
 	results := make([]domain.TransactionResult, 0, len(ids))
