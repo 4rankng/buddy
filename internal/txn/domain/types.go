@@ -43,6 +43,8 @@ type PCInternalInfo struct {
 	GroupID   string // payment-core transaction group ID
 	TxType    string // payment-core transaction type
 	TxStatus  string // payment-core transaction status
+	ErrorCode string // payment-core internal transaction error_code
+	ErrorMsg  string // payment-core internal transaction error_msg
 	CreatedAt string // created_at timestamp
 	Workflow  WorkflowInfo
 }
