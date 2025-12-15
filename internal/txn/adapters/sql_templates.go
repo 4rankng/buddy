@@ -504,7 +504,7 @@ AND workflow_id = 'internal_payment_flow';`,
 	domain.CaseEcotxnChargeFailedCaptureFailedTMError: func(result domain.TransactionResult) *domain.DMLTicket {
 		if result.PartnerpayEngine != nil && result.PartnerpayEngine.Workflow.RunID != "" {
 			// Get original updated_at from charge record
-			originalUpdatedAt := result.PartnerpayEngine.Transfers.UpdatedAt
+			originalUpdatedAt := result.PartnerpayEngine.Charge.UpdatedAt
 
 			return &domain.DMLTicket{
 				Deploy: []domain.TemplateInfo{

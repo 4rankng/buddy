@@ -512,7 +512,7 @@ func WriteEcoTransactionInfo(w io.Writer, result domain.TransactionResult, trans
 	}
 
 	// Check if this is a NOT_FOUND error
-	if result.PartnerpayEngine != nil && result.PartnerpayEngine.Transfers.Status == domain.NotFoundStatus {
+	if result.PartnerpayEngine != nil && result.PartnerpayEngine.Charge.Status == domain.NotFoundStatus {
 		if _, err := fmt.Fprintf(w, "### [%d] transaction_id: %s\nError: transaction not found\n\n", index, transactionID); err != nil {
 			fmt.Printf("Warning: failed to write error result: %v\n", err)
 		}
@@ -531,21 +531,21 @@ func WriteEcoTransactionInfo(w io.Writer, result domain.TransactionResult, trans
 		}
 
 		// Write the charge status
-		if result.PartnerpayEngine.Transfers.Status != "" {
-			if _, err := fmt.Fprintf(w, "charge.status: %s", result.PartnerpayEngine.Transfers.Status); err != nil {
+		if result.PartnerpayEngine.Charge.Status != "" {
+			if _, err := fmt.Fprintf(w, "charge.status: %s", result.PartnerpayEngine.Charge.Status); err != nil {
 				fmt.Printf("Warning: failed to write charge status: %v\n", err)
 			}
 
 			// If there's a status reason, append it
-			if result.PartnerpayEngine.Transfers.StatusReason != "" {
-				if _, err := fmt.Fprintf(w, " %s", result.PartnerpayEngine.Transfers.StatusReason); err != nil {
+			if result.PartnerpayEngine.Charge.StatusReason != "" {
+				if _, err := fmt.Fprintf(w, " %s", result.PartnerpayEngine.Charge.StatusReason); err != nil {
 					fmt.Printf("Warning: failed to write status reason: %v\n", err)
 				}
 			}
 
 			// If there's a status reason description, append it
-			if result.PartnerpayEngine.Transfers.StatusReasonDescription != "" {
-				if _, err := fmt.Fprintf(w, " %s", result.PartnerpayEngine.Transfers.StatusReasonDescription); err != nil {
+			if result.PartnerpayEngine.Charge.StatusReasonDescription != "" {
+				if _, err := fmt.Fprintf(w, " %s", result.PartnerpayEngine.Charge.StatusReasonDescription); err != nil {
 					fmt.Printf("Warning: failed to write status reason description: %v\n", err)
 				}
 			}

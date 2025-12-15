@@ -102,8 +102,8 @@ type PPEChargeInfo struct {
 
 // PartnerpayEngineInfo contains partnerpay-engine related information
 type PartnerpayEngineInfo struct {
-	Transfers PPEChargeInfo
-	Workflow  WorkflowInfo
+	Charge   PPEChargeInfo
+	Workflow WorkflowInfo
 }
 
 // TransactionResult represents the result of a transaction query

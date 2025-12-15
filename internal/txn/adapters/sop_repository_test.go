@@ -2,98 +2,169 @@ package adapters
 
 import (
 	"buddy/internal/txn/domain"
+	"fmt"
 	"testing"
 )
 
-func TestPeCaptureProcessingPcCaptureFailedRppSuccess(t *testing.T) {
-	// Test case for the specific transaction that should match CasePeCaptureProcessingPcCaptureFailedRppSuccess
-	// Based on the provided transaction data:
-	// E2E ID: 20251212GXSPMYKL040OQR49782779
-	// Payment Engine: state=stCaptureProcessing(230) attempt=0
-	// Payment Core Internal Capture: state=stFailed(500) attempt=0, type=CAPTURE, status=FAILED
-	// RPP Adapter: state=stSuccess(900) attempt=0, status=PROCESSING
-
-	result := &domain.TransactionResult{
-		InputID: "20251212GXSPMYKL040OQR49782779",
-		PaymentEngine: &domain.PaymentEngineInfo{
-			Transfers: domain.PETransfersInfo{
-				Type:        "PAYMENT",
-				TxnSubtype:  "RPP_NETWORK",
-				TxnDomain:   "DEPOSITS",
-				Status:      "FAILED",
-				ExternalID:  "20251212GXSPMYKL040OQR49782779",
-				ReferenceID: "33FABDFC-C067-45B1-AF50-288D63E508EE",
-				CreatedAt:   "2025-12-11T16:10:12.381401Z",
+// TestEcotxnChargeFailedCaptureFailedTMError tests the specific case that's failing
+func TestEcotxnChargeFailedCaptureFailedTMError(t *testing.T) {
+	// Create the exact transaction data from the provided example
+	transactionResult := &domain.TransactionResult{
+		InputID: "fd230a01dcd04282851b7b9dd6260c93",
+		PartnerpayEngine: &domain.PartnerpayEngineInfo{
+			Charge: domain.PPEChargeInfo{
+				Status:                  "FAILED",
+				StatusReason:            "SYSTEM_ERROR",
+				StatusReasonDescription: "error occurred in Thought Machine.",
 			},
 			Workflow: domain.WorkflowInfo{
-				WorkflowID: "workflow_transfer_payment",
-				State:      "230",
+				WorkflowID: "workflow_charge",
+				State:      "502",
 				Attempt:    0,
-				RunID:      "33FABDFC-C067-45B1-AF50-288D63E508EE",
+				RunID:      "fd230a01dcd04282851b7b9dd6260c93",
 			},
 		},
 		PaymentCore: &domain.PaymentCoreInfo{
 			InternalCapture: domain.PCInternalInfo{
-				TxID:      "3b7cd88629444d7fa08aa573d92dfe8c",
-				GroupID:   "8da1ee9e11a44cf389b7604aea39cfb4",
+				TxID:      "3550ca0d10df4b0ab2dce80218cdf51f",
+				GroupID:   "fd230a01dcd04282851b7b9dd6260c93",
 				TxType:    "CAPTURE",
 				TxStatus:  "FAILED",
-				CreatedAt: "2025-12-11T16:10:12.381401Z",
+				ErrorCode: "SYSTEM_ERROR",
+				ErrorMsg:  "error occurred in Thought Machine.",
 				Workflow: domain.WorkflowInfo{
 					WorkflowID: "internal_payment_flow",
 					State:      "500",
 					Attempt:    0,
-					RunID:      "3b7cd88629444d7fa08aa573d92dfe8c",
+					RunID:      "3550ca0d10df4b0ab2dce80218cdf51f",
 				},
 			},
 			InternalAuth: domain.PCInternalInfo{
-				TxID:      "bf599efb7a37477897e51d7df818ca68",
-				GroupID:   "8da1ee9e11a44cf389b7604aea39cfb4",
+				TxID:      "ce8c05866d134bb488038644c708740e",
+				GroupID:   "fd230a01dcd04282851b7b9dd6260c93",
 				TxType:    "AUTH",
 				TxStatus:  "SUCCESS",
-				CreatedAt: "2025-12-11T16:10:12.381401Z",
+				ErrorCode: "",
+				ErrorMsg:  "",
 				Workflow: domain.WorkflowInfo{
 					WorkflowID: "internal_payment_flow",
 					State:      "900",
 					Attempt:    0,
-					RunID:      "bf599efb7a37477897e51d7df818ca68",
+					RunID:      "ce8c05866d134bb488038644c708740e",
 				},
 			},
-			ExternalTransfer: domain.PCExternalInfo{
-				RefID:     "7b4ac93e5d1f493fb9c5def1f6fc4f39",
-				GroupID:   "8da1ee9e11a44cf389b7604aea39cfb4",
-				TxType:    "TRANSFER",
-				TxStatus:  "SUCCESS",
-				CreatedAt: "2025-12-11T16:10:12.381401Z",
+		},
+	}
+
+	// Create a new SOP repository
+	sopRepo := NewSOPRepository()
+
+	// Test with debug logging to see which conditions are failing
+	t.Run("WithDebug", func(t *testing.T) {
+		result := sopRepo.IdentifyCaseWithDebug(transactionResult, "my")
+		t.Logf("Identified case: %s", result)
+		
+		if result != domain.CaseEcotxnChargeFailedCaptureFailedTMError {
+			t.Errorf("Expected case %s, got %s", domain.CaseEcotxnChargeFailedCaptureFailedTMError, result)
+		}
+	})
+
+	// Test without debug logging
+	t.Run("WithoutDebug", func(t *testing.T) {
+		result := sopRepo.IdentifyCase(transactionResult, "my")
+		t.Logf("Identified case: %s", result)
+		
+		if result != domain.CaseEcotxnChargeFailedCaptureFailedTMError {
+			t.Errorf("Expected case %s, got %s", domain.CaseEcotxnChargeFailedCaptureFailedTMError, result)
+		}
+	})
+}
+
+// TestIndividualConditions tests each condition individually to identify the failing one
+func TestIndividualConditions(t *testing.T) {
+	// Create the exact transaction data from the provided example
+	transactionResult := &domain.TransactionResult{
+		InputID: "fd230a01dcd04282851b7b9dd6260c93",
+		PartnerpayEngine: &domain.PartnerpayEngineInfo{
+			Charge: domain.PPEChargeInfo{
+				Status:                  "FAILED",
+				StatusReason:            "SYSTEM_ERROR",
+				StatusReasonDescription: "error occurred in Thought Machine.",
+			},
+			Workflow: domain.WorkflowInfo{
+				WorkflowID: "workflow_charge",
+				State:      "502",
+				Attempt:    0,
+				RunID:      "fd230a01dcd04282851b7b9dd6260c93",
+			},
+		},
+		PaymentCore: &domain.PaymentCoreInfo{
+			InternalCapture: domain.PCInternalInfo{
+				TxID:      "3550ca0d10df4b0ab2dce80218cdf51f",
+				GroupID:   "fd230a01dcd04282851b7b9dd6260c93",
+				TxType:    "CAPTURE",
+				TxStatus:  "FAILED",
+				ErrorCode: "SYSTEM_ERROR",
+				ErrorMsg:  "error occurred in Thought Machine.",
 				Workflow: domain.WorkflowInfo{
-					WorkflowID: "external_payment_flow",
+					WorkflowID: "internal_payment_flow",
+					State:      "500",
+					Attempt:    0,
+					RunID:      "3550ca0d10df4b0ab2dce80218cdf51f",
+				},
+			},
+			InternalAuth: domain.PCInternalInfo{
+				TxID:      "ce8c05866d134bb488038644c708740e",
+				GroupID:   "fd230a01dcd04282851b7b9dd6260c93",
+				TxType:    "AUTH",
+				TxStatus:  "SUCCESS",
+				ErrorCode: "",
+				ErrorMsg:  "",
+				Workflow: domain.WorkflowInfo{
+					WorkflowID: "internal_payment_flow",
 					State:      "900",
 					Attempt:    0,
-					RunID:      "7b4ac93e5d1f493fb9c5def1f6fc4f39",
+					RunID:      "ce8c05866d134bb488038644c708740e",
 				},
 			},
 		},
-		RPPAdapter: &domain.RPPAdapterInfo{
-			ReqBizMsgID: "20251212GXSPMYKL040OQR49782779",
-			PartnerTxID: "8da1ee9e11a44cf389b7604aea39cfb4",
-			EndToEndID:  "20251212GXSPMYKL040OQR49782779",
-			Status:      "PROCESSING",
-			CreatedAt:   "2025-12-11T16:10:12.381401Z",
-			Workflow: domain.WorkflowInfo{
-				WorkflowID: "wf_ct_qr_payment",
-				State:      "900",
-				Attempt:    0,
-				RunID:      "8da1ee9e11a44cf389b7604aea39cfb4",
-			},
-			Info: "RPP Status: PROCESSING",
-		},
-		CaseType: domain.CaseNone,
+	}
+
+	// Get the rule we're testing
+	var targetRule *CaseRule
+	for _, rule := range getDefaultSOPRules() {
+		if rule.CaseType == domain.CaseEcotxnChargeFailedCaptureFailedTMError {
+			targetRule = &rule
+			break
+		}
+	}
+
+	if targetRule == nil {
+		t.Fatal("Target rule not found")
 	}
 
 	sopRepo := NewSOPRepository()
-	caseType := sopRepo.IdentifyCase(result, "my")
 
-	if caseType != domain.CasePeCaptureProcessingPcCaptureFailedRppSuccess {
-		t.Errorf("Expected case type %s, got %s", domain.CasePeCaptureProcessingPcCaptureFailedRppSuccess, caseType)
+	// Test each condition individually
+	for i, condition := range targetRule.Conditions {
+		t.Run(fmt.Sprintf("Condition_%d_%s", i, condition.FieldPath), func(t *testing.T) {
+			fieldValue, ok := sopRepo.getFieldValue(condition.FieldPath, transactionResult)
+			t.Logf("Field: %s", condition.FieldPath)
+			t.Logf("  Expected: %v", condition.Value)
+			t.Logf("  Actual: %v", fieldValue)
+			t.Logf("  Found: %v", ok)
+			
+			if !ok {
+				t.Errorf("Field not found: %s", condition.FieldPath)
+				return
+			}
+			
+			result := sopRepo.evaluateCondition(condition, transactionResult)
+			t.Logf("  Condition result: %v", result)
+			
+			if !result {
+				t.Errorf("Condition failed: %s %s %v", condition.FieldPath, condition.Operator, condition.Value)
+			}
+		})
 	}
 }
