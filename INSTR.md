@@ -1,4 +1,4 @@
-we should have case type classification for ecotxn 
+we should have case type classification for ecotxn
 
 case 'ecotxn_ChargeFailed_CaptureFailed_TMError
 
@@ -14,7 +14,7 @@ charge error code = 'SYSTEM_ERROR' error msg 'error occurred in Thought Machine.
 
 then we need to generate
 
-PPE_Deploy.sql
+PPE_Deploy.sql // dont need to put in output folder
 
 update charge set
 status = 'PROCESSING',
@@ -27,7 +27,7 @@ set state=300, data=JSON_SET(data, '$.State', 300,
 )
 WHERE run_id = {transaction_id} AND workflow_id='workflow_charge' AND state=502 AND attempt=0;
 
-PPE_Rollback.sql
+PPE_Rollback.sql // dont need to put in output folder
 
 update charge set
 status = 'FAILED',

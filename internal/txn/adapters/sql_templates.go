@@ -501,4 +501,59 @@ AND workflow_id = 'internal_payment_flow';`,
 			CaseType: domain.CasePeCaptureProcessingPcCaptureFailedRppSuccess,
 		}
 	},
+	domain.CaseEcotxnChargeFailedCaptureFailedTMError: func(result domain.TransactionResult) *domain.DMLTicket {
+		if result.PartnerpayEngine != nil && result.PartnerpayEngine.Workflow.RunID != "" {
+			// Get original updated_at from charge record
+			originalUpdatedAt := result.PartnerpayEngine.Transfers.UpdatedAt
+
+			return &domain.DMLTicket{
+				Deploy: []domain.TemplateInfo{
+					{
+						TargetDB: "PPE",
+						SQLTemplate: `-- ecotxn_ChargeFailed_CaptureFailed_TMError Deploy
+UPDATE charge SET
+status = 'PROCESSING',
+updated_at = %s
+WHERE transaction_id = %s;
+
+UPDATE workflow_execution
+SET state = 300, data = JSON_SET(data, '$.State', 300,
+'$.ChargeStorage.Status', 'PROCESSING')
+WHERE run_id = %s
+AND workflow_id = 'workflow_charge'
+AND state = 502
+AND attempt = 0;`,
+						Params: []domain.ParamInfo{
+							{Name: "updated_at", Value: originalUpdatedAt, Type: "string"},
+							{Name: "transaction_id", Value: result.PartnerpayEngine.Workflow.RunID, Type: "string"},
+							{Name: "run_id", Value: result.PartnerpayEngine.Workflow.RunID, Type: "string"},
+						},
+					},
+				},
+				Rollback: []domain.TemplateInfo{
+					{
+						TargetDB: "PPE",
+						SQLTemplate: `-- ecotxn_ChargeFailed_CaptureFailed_TMError Rollback
+UPDATE charge SET
+status = 'FAILED',
+updated_at = %s
+WHERE transaction_id = %s;
+
+UPDATE workflow_execution
+SET state = 502, data = JSON_SET(data, '$.State', 502,
+'$.ChargeStorage.Status', 'FAILED')
+WHERE run_id = %s
+AND workflow_id = 'workflow_charge';`,
+						Params: []domain.ParamInfo{
+							{Name: "updated_at", Value: originalUpdatedAt, Type: "string"},
+							{Name: "transaction_id", Value: result.PartnerpayEngine.Workflow.RunID, Type: "string"},
+							{Name: "run_id", Value: result.PartnerpayEngine.Workflow.RunID, Type: "string"},
+						},
+					},
+				},
+				CaseType: domain.CaseEcotxnChargeFailedCaptureFailedTMError,
+			}
+		}
+		return nil
+	},
 }

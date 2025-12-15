@@ -377,6 +377,52 @@ func getDefaultSOPRules() []CaseRule {
 				},
 			},
 		},
+		{
+			CaseType:    domain.CaseEcotxnChargeFailedCaptureFailedTMError,
+			Description: "Ecotxn Charge Failed Capture Failed with TMError",
+			Conditions: []RuleCondition{
+				{
+					FieldPath: "PartnerpayEngine.Workflow.WorkflowID",
+					Operator:  "eq",
+					Value:     "workflow_charge",
+				},
+				{
+					FieldPath: "PartnerpayEngine.Workflow.State",
+					Operator:  "eq",
+					Value:     "502",
+				},
+				{
+					FieldPath: "PartnerpayEngine.Workflow.Attempt",
+					Operator:  "eq",
+					Value:     0,
+				},
+				{
+					FieldPath: "PartnerpayEngine.Charge.StatusReason",
+					Operator:  "eq",
+					Value:     "SYSTEM_ERROR",
+				},
+				{
+					FieldPath: "PartnerpayEngine.Charge.StatusReasonDescription",
+					Operator:  "eq",
+					Value:     "error occurred in Thought Machine.",
+				},
+				{
+					FieldPath: "PaymentCore.Workflow.WorkflowID",
+					Operator:  "eq",
+					Value:     "internal_payment_flow",
+				},
+				{
+					FieldPath: "PaymentCore.Workflow.State",
+					Operator:  "eq",
+					Value:     "500",
+				},
+				{
+					FieldPath: "PaymentCore.Workflow.Attempt",
+					Operator:  "eq",
+					Value:     0,
+				},
+			},
+		},
 	}
 }
 

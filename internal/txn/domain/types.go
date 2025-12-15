@@ -95,6 +95,9 @@ type PPEChargeInfo struct {
 	StatusReason            string // partnerpay-engine charge.status_reason
 	StatusReasonDescription string // partnerpay-engine charge.status_reason_description
 	CreatedAt               string // created_at timestamp
+	UpdatedAt               string // updated_at timestamp
+	ErrorCode               string // partnerpay-engine charge error code (from workflow data)
+	ErrorMsg                string // partnerpay-engine charge error message (from workflow data)
 }
 
 // PartnerpayEngineInfo contains partnerpay-engine related information
@@ -134,6 +137,7 @@ const (
 	CasePe2200FastCashinFailed                       Case = "pe_220_0_fast_cashin_failed"
 	CaseThoughtMachineFalseNegative                  Case = "thought_machine_false_negative"
 	CasePeCaptureProcessingPcCaptureFailedRppSuccess Case = "pe_capture_processing_pc_capture_failed_rpp_success"
+	CaseEcotxnChargeFailedCaptureFailedTMError       Case = "ecotxn_ChargeFailed_CaptureFailed_TMError"
 )
 
 // GetCaseSummaryOrder returns the order in which SOP cases should be displayed in summaries
@@ -150,6 +154,7 @@ func GetCaseSummaryOrder() []Case {
 		CaseRppCashoutReject101_19,
 		CaseRppQrPaymentReject210_0,
 		CaseRppNoResponseResume,
+		CaseEcotxnChargeFailedCaptureFailedTMError,
 	}
 }
 
