@@ -12,6 +12,18 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// isEmptyStatements checks if all SQL statement slices are empty
+func isEmptyStatements(statements domain.SQLStatements) bool {
+	return len(statements.PCDeployStatements) == 0 &&
+		len(statements.PCRollbackStatements) == 0 &&
+		len(statements.PEDeployStatements) == 0 &&
+		len(statements.PERollbackStatements) == 0 &&
+		len(statements.PPEDeployStatements) == 0 &&
+		len(statements.PPERollbackStatements) == 0 &&
+		len(statements.RPPDeployStatements) == 0 &&
+		len(statements.RPPRollbackStatements) == 0
+}
+
 func NewEcoTxnCmd(appCtx *common.Context) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "ecotxn [run-id]",
@@ -52,9 +64,16 @@ func processEcoTransaction(appCtx *common.Context, runID string) {
 		// Generate SQL statements based on the identified case
 		statements := adapters.GenerateSQLStatements([]domain.TransactionResult{*result})
 
+		// Debug: Check if any statements were generated
+		if isEmptyStatements(statements) {
+			fmt.Printf("\nWarning: No SQL statements were generated for case: %s\n", result.CaseType)
+			if result.Error != "" {
+				fmt.Printf("Error details: %s\n", result.Error)
+			}
+		}
+
 		// Write SQL files to current directory
-		basePath := fmt.Sprintf("ecotxn_%s", runID)
-		if err := adapters.WriteSQLFiles(statements, basePath); err != nil {
+		if err := adapters.WriteSQLFiles(statements, ""); err != nil {
 			fmt.Printf("\nWarning: Failed to write DML files: %v\n", err)
 		} else {
 			fmt.Printf("\nDML files written successfully for case: %s\n", result.CaseType)

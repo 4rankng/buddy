@@ -132,12 +132,20 @@ func generateSQLFromTicket(ticket domain.DMLTicket) (domain.SQLStatements, error
 		return domain.SQLStatements{}, fmt.Errorf("ticket contains no templates")
 	}
 
+	// Define valid target databases
+	validDatabases := map[string]struct{}{
+		"PC":  {},
+		"PE":  {},
+		"RPP": {},
+		"PPE": {},
+	}
+
 	statements := domain.SQLStatements{}
 
 	// Process all deploy templates
 	for _, deploy := range ticket.Deploy {
 		// Validate target DB
-		if deploy.TargetDB != "PC" && deploy.TargetDB != "PE" && deploy.TargetDB != "RPP" {
+		if _, ok := validDatabases[deploy.TargetDB]; !ok {
 			return domain.SQLStatements{}, fmt.Errorf("unknown target database: %s", deploy.TargetDB)
 		}
 
@@ -161,7 +169,7 @@ func generateSQLFromTicket(ticket domain.DMLTicket) (domain.SQLStatements, error
 	// Process all rollback templates
 	for _, rollback := range ticket.Rollback {
 		// Validate target DB
-		if rollback.TargetDB != "PC" && rollback.TargetDB != "PE" && rollback.TargetDB != "RPP" {
+		if _, ok := validDatabases[rollback.TargetDB]; !ok {
 			return domain.SQLStatements{}, fmt.Errorf("unknown target database: %s", rollback.TargetDB)
 		}
 

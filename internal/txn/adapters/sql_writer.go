@@ -9,58 +9,58 @@ import (
 
 // WriteSQLFiles writes the SQL statements to database-specific Deploy.sql and Rollback.sql files
 func WriteSQLFiles(statements domain.SQLStatements, basePath string) error {
-	// Write PC files
+	// Write PC files (always append to fixed filenames)
 	if len(statements.PCDeployStatements) > 0 {
-		deployPath := basePath + "_PC_Deploy.sql"
-		if err := WriteSQLFile(deployPath, statements.PCDeployStatements); err != nil {
+		deployPath := "PC_Deploy.sql"
+		if err := AppendSQLFile(deployPath, statements.PCDeployStatements); err != nil {
 			return err
 		}
 	}
 	if len(statements.PCRollbackStatements) > 0 {
-		rollbackPath := basePath + "_PC_Rollback.sql"
-		if err := WriteSQLFile(rollbackPath, statements.PCRollbackStatements); err != nil {
+		rollbackPath := "PC_Rollback.sql"
+		if err := AppendSQLFile(rollbackPath, statements.PCRollbackStatements); err != nil {
 			return err
 		}
 	}
 
-	// Write PE files
+	// Write PE files (always append to fixed filenames)
 	if len(statements.PEDeployStatements) > 0 {
-		deployPath := basePath + "_PE_Deploy.sql"
-		if err := WriteSQLFile(deployPath, statements.PEDeployStatements); err != nil {
+		deployPath := "PE_Deploy.sql"
+		if err := AppendSQLFile(deployPath, statements.PEDeployStatements); err != nil {
 			return err
 		}
 	}
 	if len(statements.PERollbackStatements) > 0 {
-		rollbackPath := basePath + "_PE_Rollback.sql"
-		if err := WriteSQLFile(rollbackPath, statements.PERollbackStatements); err != nil {
+		rollbackPath := "PE_Rollback.sql"
+		if err := AppendSQLFile(rollbackPath, statements.PERollbackStatements); err != nil {
 			return err
 		}
 	}
 
-	// Write PPE files
+	// Write PPE files (always append to fixed filenames)
 	if len(statements.PPEDeployStatements) > 0 {
-		deployPath := basePath + "_PPE_Deploy.sql"
-		if err := WriteSQLFile(deployPath, statements.PPEDeployStatements); err != nil {
+		deployPath := "PPE_Deploy.sql"
+		if err := AppendSQLFile(deployPath, statements.PPEDeployStatements); err != nil {
 			return err
 		}
 	}
 	if len(statements.PPERollbackStatements) > 0 {
-		rollbackPath := basePath + "_PPE_Rollback.sql"
-		if err := WriteSQLFile(rollbackPath, statements.PPERollbackStatements); err != nil {
+		rollbackPath := "PPE_Rollback.sql"
+		if err := AppendSQLFile(rollbackPath, statements.PPERollbackStatements); err != nil {
 			return err
 		}
 	}
 
-	// Write RPP files
+	// Write RPP files (always append to fixed filenames)
 	if len(statements.RPPDeployStatements) > 0 {
-		deployPath := basePath + "_RPP_Deploy.sql"
-		if err := WriteSQLFile(deployPath, statements.RPPDeployStatements); err != nil {
+		deployPath := "RPP_Deploy.sql"
+		if err := AppendSQLFile(deployPath, statements.RPPDeployStatements); err != nil {
 			return err
 		}
 	}
 	if len(statements.RPPRollbackStatements) > 0 {
-		rollbackPath := basePath + "_RPP_Rollback.sql"
-		if err := WriteSQLFile(rollbackPath, statements.RPPRollbackStatements); err != nil {
+		rollbackPath := "RPP_Rollback.sql"
+		if err := AppendSQLFile(rollbackPath, statements.RPPRollbackStatements); err != nil {
 			return err
 		}
 	}
@@ -85,5 +85,41 @@ func WriteSQLFile(filePath string, statements []string) error {
 	}
 
 	fmt.Printf("SQL statements written to %s\n", filePath)
+	return nil
+}
+
+// AppendSQLFile appends SQL statements to a file
+func AppendSQLFile(filePath string, statements []string) error {
+	// Check if file exists to determine if we need to add separator
+	_, err := os.Stat(filePath)
+	fileExists := err == nil
+
+	file, err := os.OpenFile(filePath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
+	if err != nil {
+		return fmt.Errorf("failed to open file %s: %v", filePath, err)
+	}
+	defer func() {
+		if closeErr := file.Close(); closeErr != nil {
+			fmt.Printf("Warning: failed to close file %s: %v\n", filePath, closeErr)
+		}
+	}()
+
+	// Add separator if file is not empty
+	if fileExists {
+		if _, err := file.WriteString("\n\n"); err != nil {
+			fmt.Printf("Warning: failed to write separator: %v\n", err)
+		}
+	}
+
+	for _, stmt := range statements {
+		if _, err := file.WriteString(stmt); err != nil {
+			fmt.Printf("Warning: failed to write SQL statement: %v\n", err)
+		}
+		if _, err := file.WriteString("\n\n"); err != nil {
+			fmt.Printf("Warning: failed to write newline: %v\n", err)
+		}
+	}
+
+	fmt.Printf("SQL statements appended to %s\n", filePath)
 	return nil
 }
