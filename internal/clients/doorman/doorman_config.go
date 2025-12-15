@@ -124,7 +124,7 @@ func NewDoormanClient(env string) error {
 	if Doorman != nil {
 		return nil // Already initialized
 	}
-
+	fmt.Println("Initialize Doorman client for ", env)
 	cfg, exists := configs[env]
 	if !exists {
 		panic(fmt.Sprintf("country %s is not supported", env))

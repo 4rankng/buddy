@@ -24,8 +24,8 @@ type JiraClient struct {
 
 // NewJiraClient creates a new JIRA client instance
 func NewJiraClient(env string) *JiraClient {
+	fmt.Println("Initialize Jira client for ", env)
 	cfg := GetJiraConfig(env)
-
 	return &JiraClient{
 		config: cfg,
 		httpClient: &http.Client{
