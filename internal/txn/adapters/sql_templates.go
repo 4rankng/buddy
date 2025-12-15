@@ -406,7 +406,7 @@ AND state = 701;`,
 				},
 				{
 					TargetDB: "PC",
-					SQLTemplate: `-- thought_machine_false_negative - PC Deploy
+					SQLTemplate: `-- thought_machine_false_negative (restart PC capture flow from 0)
 UPDATE workflow_execution
 SET state = 0,
     attempt = 1,
@@ -470,7 +470,7 @@ AND workflow_id = 'internal_payment_flow';`,
 			Deploy: []domain.TemplateInfo{
 				{
 					TargetDB: "PC",
-					SQLTemplate: `-- pe_capture_processing_pc_capture_failed_rpp_success - PC Deploy
+					SQLTemplate: `-- pe_capture_processing_pc_capture_failed_rpp_success (restart PC capture flow from 0)
 UPDATE workflow_execution
 SET state = 0,
     attempt = 1,
