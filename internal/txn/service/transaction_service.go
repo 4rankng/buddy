@@ -1,6 +1,7 @@
 package service
 
 import (
+	"buddy/internal/clients/doorman"
 	"buddy/internal/txn/domain"
 	"buddy/internal/txn/ports"
 	svcAdapters "buddy/internal/txn/service/adapters"
@@ -60,7 +61,7 @@ func NewTransactionQueryServiceWithAdapters(adapterSet AdapterSet, env string) *
 
 // createMalaysiaAdapters creates adapters for Malaysia environment
 func createMalaysiaAdapters() AdapterSet {
-	client := NewDoormanClient()
+	client := doorman.Doorman
 	return AdapterSet{
 		PaymentEngine:    svcAdapters.NewPaymentEngineAdapter(client),
 		PaymentCore:      svcAdapters.NewPaymentCoreAdapter(client),
@@ -72,7 +73,7 @@ func createMalaysiaAdapters() AdapterSet {
 
 // createSingaporeAdapters creates adapters for Singapore environment
 func createSingaporeAdapters() AdapterSet {
-	client := NewDoormanClient()
+	client := doorman.Doorman
 	return AdapterSet{
 		PaymentEngine:    svcAdapters.NewPaymentEngineAdapter(client),
 		PaymentCore:      svcAdapters.NewPaymentCoreAdapter(client),
@@ -369,7 +370,7 @@ func (s *TransactionQueryService) queryWorkflowInfo(runID string) domain.Workflo
 // QueryPaymentCoreTransactions queries Payment Core transactions for a given transaction ID within a time window
 // This method can be used by adapters to populate Payment Core data
 func (s *TransactionQueryService) QueryPaymentCoreTransactions(result *domain.TransactionResult, transactionID string, windowStart, windowEnd time.Time) {
-	client := NewDoormanClient()
+	client := doorman.Doorman
 
 	// Initialize PaymentCore if nil
 	if result.PaymentCore == nil {
@@ -443,7 +444,7 @@ func (s *TransactionQueryService) QueryPaymentCoreTransactions(result *domain.Tr
 }
 
 // queryWorkflowInfoDirect queries workflow information using a direct client connection
-func (s *TransactionQueryService) queryWorkflowInfoDirect(client *DoormanClient, runID string) domain.WorkflowInfo {
+func (s *TransactionQueryService) queryWorkflowInfoDirect(client doorman.DoormanInterface, runID string) domain.WorkflowInfo {
 	workflowInfo := domain.WorkflowInfo{}
 
 	if runID == "" {

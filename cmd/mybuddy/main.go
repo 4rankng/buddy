@@ -19,13 +19,13 @@ func main() {
 	}
 
 	// Initialize Doorman client
-	if err := doorman.NewDoormanClient(appCtx.Environment); err != nil {
-		log.Fatalf("Failed to initialize Doorman client: %v", err)
+	if doorman.NewDoormanClient(appCtx.Environment) == nil {
+		log.Fatalf("Failed to initialize Doorman client")
 	}
 
 	// Initialize Jira client
-	if err := clients.NewJiraClient(appCtx.Environment); err != nil {
-		log.Fatalf("Failed to initialize Jira client: %v", err)
+	if clients.NewJiraClient(appCtx.Environment) == nil {
+		log.Fatalf("Failed to initialize Jira client")
 	}
 
 	// 1. Get the base command

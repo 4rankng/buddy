@@ -120,9 +120,9 @@ var configs = map[string]DoormanConfig{
 var Doorman DoormanInterface
 
 // NewDoormanClient initializes the global Doorman client with the specified environment
-func NewDoormanClient(env string) error {
+func NewDoormanClient(env string) DoormanInterface {
 	if Doorman != nil {
-		return nil // Already initialized
+		return Doorman
 	}
 	fmt.Println("Initialize Doorman client for ", env)
 	cfg, exists := configs[env]
@@ -137,7 +137,7 @@ func NewDoormanClient(env string) error {
 		},
 	}
 
-	return nil
+	return Doorman
 }
 
 // GetDoormanClient returns the initialized DoormanClient instance
