@@ -63,7 +63,7 @@ func TestEcotxnChargeFailedCaptureFailedTMError(t *testing.T) {
 	t.Run("WithDebug", func(t *testing.T) {
 		result := sopRepo.IdentifyCaseWithDebug(transactionResult, "my")
 		t.Logf("Identified case: %s", result)
-		
+
 		if result != domain.CaseEcotxnChargeFailedCaptureFailedTMError {
 			t.Errorf("Expected case %s, got %s", domain.CaseEcotxnChargeFailedCaptureFailedTMError, result)
 		}
@@ -73,7 +73,7 @@ func TestEcotxnChargeFailedCaptureFailedTMError(t *testing.T) {
 	t.Run("WithoutDebug", func(t *testing.T) {
 		result := sopRepo.IdentifyCase(transactionResult, "my")
 		t.Logf("Identified case: %s", result)
-		
+
 		if result != domain.CaseEcotxnChargeFailedCaptureFailedTMError {
 			t.Errorf("Expected case %s, got %s", domain.CaseEcotxnChargeFailedCaptureFailedTMError, result)
 		}
@@ -153,15 +153,15 @@ func TestIndividualConditions(t *testing.T) {
 			t.Logf("  Expected: %v", condition.Value)
 			t.Logf("  Actual: %v", fieldValue)
 			t.Logf("  Found: %v", ok)
-			
+
 			if !ok {
 				t.Errorf("Field not found: %s", condition.FieldPath)
 				return
 			}
-			
+
 			result := sopRepo.evaluateCondition(condition, transactionResult)
 			t.Logf("  Condition result: %v", result)
-			
+
 			if !result {
 				t.Errorf("Condition failed: %s %s %v", condition.FieldPath, condition.Operator, condition.Value)
 			}

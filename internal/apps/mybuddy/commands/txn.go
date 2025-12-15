@@ -59,7 +59,7 @@ func processSingleTransaction(appCtx *common.Context, transactionID string) {
 
 	// Check if PaymentEngine or PartnerpayEngine have NotFoundStatus
 	paymentEngineNotFound := result.PaymentEngine != nil && result.PaymentEngine.Transfers.Status == domain.NotFoundStatus
-	partnerpayEngineNotFound := result.PartnerpayEngine != nil && result.PartnerpayEngine.Transfers.Status == domain.NotFoundStatus
+	partnerpayEngineNotFound := result.PartnerpayEngine != nil && result.PartnerpayEngine.Charge.Status == domain.NotFoundStatus
 
 	if paymentEngineNotFound || partnerpayEngineNotFound || result.Error != "" {
 		fmt.Printf("Failed to retrieve complete transaction details: %+v\n", *result)

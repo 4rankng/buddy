@@ -29,29 +29,29 @@ func (p *PartnerpayEngineAdapter) QueryCharge(transactionID string) (domain.Part
 		return domain.PartnerpayEngineInfo{}, fmt.Errorf("failed to query charge table: %v", err)
 	}
 	if len(charges) == 0 {
-		return domain.PartnerpayEngineInfo{Transfers: domain.PPEChargeInfo{TransactionID: transactionID, Status: domain.NotFoundStatus}}, nil
+		return domain.PartnerpayEngineInfo{Charge: domain.PPEChargeInfo{TransactionID: transactionID, Status: domain.NotFoundStatus}}, nil
 	}
 	charge := charges[0]
 	result := domain.PartnerpayEngineInfo{}
 	if txID, ok := charge["transaction_id"].(string); ok && txID != "" {
-		result.Transfers.TransactionID = txID
+		result.Charge.TransactionID = txID
 	} else {
-		result.Transfers.TransactionID = transactionID
+		result.Charge.TransactionID = transactionID
 	}
 	if status, ok := charge["status"].(string); ok {
-		result.Transfers.Status = status
+		result.Charge.Status = status
 	}
 	if statusReason, ok := charge["status_reason"].(string); ok {
-		result.Transfers.StatusReason = statusReason
+		result.Charge.StatusReason = statusReason
 	}
 	if statusReasonDesc, ok := charge["status_reason_description"].(string); ok {
-		result.Transfers.StatusReasonDescription = statusReasonDesc
+		result.Charge.StatusReasonDescription = statusReasonDesc
 	}
 	if createdAt, ok := charge["created_at"].(string); ok {
-		result.Transfers.CreatedAt = createdAt
+		result.Charge.CreatedAt = createdAt
 	}
 	if updatedAt, ok := charge["updated_at"].(string); ok {
-		result.Transfers.UpdatedAt = updatedAt
+		result.Charge.UpdatedAt = updatedAt
 	}
 	workflowQuery := fmt.Sprintf("SELECT run_id, workflow_id, state, attempt, data FROM workflow_execution WHERE run_id='%s' AND workflow_id='workflow_charge'", transactionID)
 	if workflows, err := p.client.QueryPartnerpayEngine(workflowQuery); err == nil && len(workflows) > 0 {
@@ -81,26 +81,26 @@ func (p *PartnerpayEngineAdapter) QueryCharge(transactionID string) (domain.Part
 				if err := json.Unmarshal([]byte(dataStr), &workflowData); err == nil {
 					// Try to extract error code and message from various possible locations
 					if errorCode, ok := workflowData["ErrorCode"].(string); ok {
-						result.Transfers.ErrorCode = errorCode
+						result.Charge.ErrorCode = errorCode
 					} else if errorCode, ok := workflowData["error_code"].(string); ok {
-						result.Transfers.ErrorCode = errorCode
+						result.Charge.ErrorCode = errorCode
 					}
 
 					if errorMsg, ok := workflowData["ErrorMessage"].(string); ok {
-						result.Transfers.ErrorMsg = errorMsg
+						result.Charge.ErrorMsg = errorMsg
 					} else if errorMsg, ok := workflowData["error_message"].(string); ok {
-						result.Transfers.ErrorMsg = errorMsg
+						result.Charge.ErrorMsg = errorMsg
 					} else if errorMsg, ok := workflowData["error_msg"].(string); ok {
-						result.Transfers.ErrorMsg = errorMsg
+						result.Charge.ErrorMsg = errorMsg
 					}
 
 					// Also check nested ChargeStorage for errors
 					if chargeStorage, ok := workflowData["ChargeStorage"].(map[string]interface{}); ok {
 						if errorCode, ok := chargeStorage["ErrorCode"].(string); ok {
-							result.Transfers.ErrorCode = errorCode
+							result.Charge.ErrorCode = errorCode
 						}
 						if errorMsg, ok := chargeStorage["ErrorMessage"].(string); ok {
-							result.Transfers.ErrorMsg = errorMsg
+							result.Charge.ErrorMsg = errorMsg
 						}
 					}
 				}
