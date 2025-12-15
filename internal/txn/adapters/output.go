@@ -468,7 +468,12 @@ func writeResult(w io.Writer, result domain.TransactionResult, index int) {
 
 	// 4. Partnerpay Engine
 	if result.PartnerpayEngine != nil {
-		WriteEcoTransactionInfo(w, *result.PartnerpayEngine, result.InputID, index)
+		// Create a minimal TransactionResult with just the partnerpay-engine info
+		peResult := domain.TransactionResult{
+			InputID:          result.InputID,
+			PartnerpayEngine: result.PartnerpayEngine,
+		}
+		WriteEcoTransactionInfo(w, peResult, result.InputID, index)
 		if _, err := fmt.Fprintln(w); err != nil {
 			fmt.Printf("Warning: failed to write newline: %v\n", err)
 		}
@@ -486,18 +491,18 @@ func writeResult(w io.Writer, result domain.TransactionResult, index int) {
 // WriteEcoTransactionResult writes a partnerpay-engine transaction result in the required format
 func WriteEcoTransactionResult(w io.Writer, result domain.TransactionResult, index int) {
 	if result.PartnerpayEngine != nil {
-		WriteEcoTransactionInfo(w, *result.PartnerpayEngine, result.InputID, index)
+		WriteEcoTransactionInfo(w, result, result.InputID, index)
 	}
 }
 
 // WriteEcoTransactionInfo writes a partnerpay-engine transaction info in the required format
-func WriteEcoTransactionInfo(w io.Writer, info domain.PartnerpayEngineInfo, transactionID string, index int) {
+func WriteEcoTransactionInfo(w io.Writer, result domain.TransactionResult, transactionID string, index int) {
 	if index <= 0 {
 		index = 1
 	}
 
 	// Check if this is a NOT_FOUND error
-	if info.Transfers.Status == domain.NotFoundStatus {
+	if result.PartnerpayEngine != nil && result.PartnerpayEngine.Transfers.Status == domain.NotFoundStatus {
 		if _, err := fmt.Fprintf(w, "### [%d] transaction_id: %s\nError: transaction not found\n\n", index, transactionID); err != nil {
 			fmt.Printf("Warning: failed to write error result: %v\n", err)
 		}
@@ -510,49 +515,60 @@ func WriteEcoTransactionInfo(w io.Writer, info domain.PartnerpayEngineInfo, tran
 	}
 
 	// Write the partnerpay-engine section
-	if _, err := fmt.Fprintln(w, "[partnerpay-engine]"); err != nil {
-		fmt.Printf("Warning: failed to write partnerpay-engine header: %v\n", err)
-	}
-
-	// Write the charge status
-	if info.Transfers.Status != "" {
-		if _, err := fmt.Fprintf(w, "charge.status: %s", info.Transfers.Status); err != nil {
-			fmt.Printf("Warning: failed to write charge status: %v\n", err)
+	if result.PartnerpayEngine != nil {
+		if _, err := fmt.Fprintln(w, "[partnerpay-engine]"); err != nil {
+			fmt.Printf("Warning: failed to write partnerpay-engine header: %v\n", err)
 		}
 
-		// If there's a status reason, append it
-		if info.Transfers.StatusReason != "" {
-			if _, err := fmt.Fprintf(w, " %s", info.Transfers.StatusReason); err != nil {
-				fmt.Printf("Warning: failed to write status reason: %v\n", err)
+		// Write the charge status
+		if result.PartnerpayEngine.Transfers.Status != "" {
+			if _, err := fmt.Fprintf(w, "charge.status: %s", result.PartnerpayEngine.Transfers.Status); err != nil {
+				fmt.Printf("Warning: failed to write charge status: %v\n", err)
+			}
+
+			// If there's a status reason, append it
+			if result.PartnerpayEngine.Transfers.StatusReason != "" {
+				if _, err := fmt.Fprintf(w, " %s", result.PartnerpayEngine.Transfers.StatusReason); err != nil {
+					fmt.Printf("Warning: failed to write status reason: %v\n", err)
+				}
+			}
+
+			// If there's a status reason description, append it
+			if result.PartnerpayEngine.Transfers.StatusReasonDescription != "" {
+				if _, err := fmt.Fprintf(w, " %s", result.PartnerpayEngine.Transfers.StatusReasonDescription); err != nil {
+					fmt.Printf("Warning: failed to write status reason description: %v\n", err)
+				}
+			}
+
+			if _, err := fmt.Fprintln(w); err != nil {
+				fmt.Printf("Warning: failed to write newline after charge status: %v\n", err)
 			}
 		}
 
-		// If there's a status reason description, append it
-		if info.Transfers.StatusReasonDescription != "" {
-			if _, err := fmt.Fprintf(w, " %s", info.Transfers.StatusReasonDescription); err != nil {
-				fmt.Printf("Warning: failed to write status reason description: %v\n", err)
+		// Write the workflow_charge information if available
+		if result.PartnerpayEngine.Workflow.RunID != "" {
+			line := fmt.Sprintf("workflow_charge: %s Attempt=%d run_id=%s",
+				result.PartnerpayEngine.Workflow.GetFormattedState(),
+				result.PartnerpayEngine.Workflow.Attempt,
+				result.PartnerpayEngine.Workflow.RunID)
+
+			if _, err := fmt.Fprintf(w, "%s\n", line); err != nil {
+				fmt.Printf("Warning: failed to write workflow_charge: %v\n", err)
 			}
 		}
 
 		if _, err := fmt.Fprintln(w); err != nil {
-			fmt.Printf("Warning: failed to write newline after charge status: %v\n", err)
+			fmt.Printf("Warning: failed to write newline after partnerpay-engine section: %v\n", err)
 		}
 	}
 
-	// Write the workflow_charge information if available
-	if info.Workflow.RunID != "" {
-		line := fmt.Sprintf("workflow_charge: %s Attempt=%d run_id=%s",
-			info.Workflow.GetFormattedState(),
-			info.Workflow.Attempt,
-			info.Workflow.RunID)
-
-		if _, err := fmt.Fprintf(w, "%s\n", line); err != nil {
-			fmt.Printf("Warning: failed to write workflow_charge: %v\n", err)
+	// Write payment-core section if available
+	if result.PaymentCore != nil {
+		if err := displayPaymentCoreSection(w, *result.PaymentCore); err != nil {
+			fmt.Printf("Warning: failed to display payment core section: %v\n", err)
 		}
-	}
-
-	// Add a final newline
-	if _, err := fmt.Fprintln(w); err != nil {
-		fmt.Printf("Warning: failed to write final newline: %v\n", err)
+		if _, err := fmt.Fprintln(w); err != nil {
+			fmt.Printf("Warning: failed to write newline: %v\n", err)
+		}
 	}
 }

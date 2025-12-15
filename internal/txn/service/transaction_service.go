@@ -108,11 +108,9 @@ func (s *TransactionQueryService) QueryTransactionWithEnv(inputID string, env st
 	}
 
 	// Step 1: Determine input type and fill primary adapters
-	isE2EID := domain.IsRppE2EID(inputID) &&
+	if domain.IsRppE2EID(inputID) &&
 		((env == "my" && s.adapters.RPPAdapter != nil) ||
-			(env == "sg" && s.adapters.FastAdapter != nil))
-
-	if isE2EID {
+			(env == "sg" && s.adapters.FastAdapter != nil)) {
 		// E2E ID: Fill RPP/Fast adapter first
 		s.fillAdapterFromE2EID(result, env)
 	} else {
@@ -136,6 +134,27 @@ func (s *TransactionQueryService) QueryTransactionWithEnv(inputID string, env st
 	}
 
 	// Step 5: Identify SOP case
+	s.sopRepo.IdentifyCase(result, env)
+
+	return result
+}
+
+// QueryEcoTransactionWithEnv retrieves ecological transaction information by run_id
+func (s *TransactionQueryService) QueryEcoTransactionWithEnv(runID string, env string) *domain.TransactionResult {
+	result := &domain.TransactionResult{
+		InputID:  runID,
+		CaseType: domain.CaseNone,
+	}
+
+	// Step 1: Fill PartnerpayEngine first for ecological transactions
+	s.fillPartnerpayEngineFromRunID(result, runID)
+
+	// Step 2: If we have partnerpay-engine data, query payment-core
+	if result.PartnerpayEngine != nil {
+		s.populatePaymentCoreFromPartnerpayEngine(result)
+	}
+
+	// Step 3: Identify SOP case
 	s.sopRepo.IdentifyCase(result, env)
 
 	return result
@@ -248,6 +267,123 @@ func (s *TransactionQueryService) populateAdaptersFromPaymentEngine(result *doma
 			result.PaymentEngine.Transfers.ExternalID,
 			result.PaymentEngine.Transfers.CreatedAt); err == nil && fastInfo != nil {
 			result.FastAdapter = fastInfo
+		}
+	}
+}
+
+// fillPartnerpayEngineFromRunID fills partnerpay-engine data from run_id
+func (s *TransactionQueryService) fillPartnerpayEngineFromRunID(result *domain.TransactionResult, runID string) {
+	if s.adapters.PartnerpayEngine == nil {
+		return
+	}
+
+	if info, err := s.adapters.PartnerpayEngine.QueryCharge(runID); err == nil {
+		result.PartnerpayEngine = &info
+	}
+}
+
+// populatePaymentCoreFromPartnerpayEngine queries payment-core using partnerpay-engine transaction info
+func (s *TransactionQueryService) populatePaymentCoreFromPartnerpayEngine(result *domain.TransactionResult) {
+	if result.PartnerpayEngine == nil || s.adapters.PaymentCore == nil {
+		return
+	}
+
+	// Initialize PaymentCore if nil
+	if result.PaymentCore == nil {
+		result.PaymentCore = &domain.PaymentCoreInfo{}
+	}
+
+	// Use transaction_id as group_id to query payment-core
+	groupID := result.PartnerpayEngine.Transfers.TransactionID
+	createdAt := result.PartnerpayEngine.Transfers.CreatedAt
+
+	if groupID != "" && createdAt != "" {
+		// Query internal transactions
+		if internalTxs, err := s.adapters.PaymentCore.QueryInternalTransactions(groupID, createdAt); err == nil {
+			for _, internalTx := range internalTxs {
+				txType := ""
+				txStatus := ""
+				txID := ""
+				groupIDValue := ""
+				createdAtValue := ""
+
+				if val, ok := internalTx["tx_type"].(string); ok {
+					txType = val
+				}
+				if val, ok := internalTx["status"].(string); ok {
+					txStatus = val
+				}
+				if val, ok := internalTx["tx_id"].(string); ok {
+					txID = val
+				}
+				if val, ok := internalTx["group_id"].(string); ok {
+					groupIDValue = val
+				}
+				if val, ok := internalTx["created_at"].(string); ok {
+					createdAtValue = val
+				}
+
+				// Query workflow for this transaction
+				workflowInfo := s.queryWorkflowInfo(txID)
+
+				internalInfo := domain.PCInternalInfo{
+					TxID:      txID,
+					GroupID:   groupIDValue,
+					TxType:    txType,
+					TxStatus:  txStatus,
+					CreatedAt: createdAtValue,
+					Workflow:  workflowInfo,
+				}
+
+				// Populate based on transaction type
+				switch txType {
+				case "AUTH":
+					result.PaymentCore.InternalCapture = internalInfo
+				case "CAPTURE":
+					result.PaymentCore.InternalAuth = internalInfo
+				}
+			}
+		}
+
+		// Query external transactions
+		if externalTxs, err := s.adapters.PaymentCore.QueryExternalTransactions(groupID, createdAt); err == nil {
+			for _, externalTx := range externalTxs {
+				txType := ""
+				txStatus := ""
+				refID := ""
+				groupIDValue := ""
+				createdAtValue := ""
+
+				if val, ok := externalTx["tx_type"].(string); ok {
+					txType = val
+				}
+				if val, ok := externalTx["status"].(string); ok {
+					txStatus = val
+				}
+				if val, ok := externalTx["ref_id"].(string); ok {
+					refID = val
+				}
+				if val, ok := externalTx["group_id"].(string); ok {
+					groupIDValue = val
+				}
+				if val, ok := externalTx["created_at"].(string); ok {
+					createdAtValue = val
+				}
+
+				// Query workflow for this transaction
+				workflowInfo := s.queryWorkflowInfo(refID)
+
+				externalInfo := domain.PCExternalInfo{
+					RefID:     refID,
+					GroupID:   groupIDValue,
+					TxType:    txType,
+					TxStatus:  txStatus,
+					CreatedAt: createdAtValue,
+					Workflow:  workflowInfo,
+				}
+
+				result.PaymentCore.ExternalTransfer = externalInfo
+			}
 		}
 	}
 }

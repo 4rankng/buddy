@@ -34,13 +34,22 @@ func processEcoTransaction(appCtx *common.Context, runID string) {
 	// Get the TransactionService singleton
 	txnService := service.GetTransactionQueryService()
 
-	// Querys partnerpay-engine database
-	info, err := txnService.QueryPartnerpayEngine(runID)
-	if err != nil {
-		fmt.Printf("%sError querying partnerpay-engine: %v\n", appCtx.GetPrefix(), err)
+	// Use the dedicated QueryEcoTransactionWithEnv method for ecological transactions
+	result := txnService.QueryEcoTransactionWithEnv(runID, "my")
+
+	// Check for errors
+	if result.Error != "" {
+		fmt.Printf("%sError querying transaction: %s\n", appCtx.GetPrefix(), result.Error)
 		return
 	}
 
 	// Display the result in the required format
-	adapters.WriteEcoTransactionInfo(os.Stdout, info, runID, 1)
+	adapters.WriteEcoTransactionInfo(os.Stdout, *result, runID, 1)
+
+	// Write DML files if payment-core data is available
+	if result.PaymentCore != nil {
+		if err := adapters.WriteDMLFiles(*result, ""); err != nil {
+			fmt.Printf("\nWarning: Failed to write DML files: %v\n", err)
+		}
+	}
 }

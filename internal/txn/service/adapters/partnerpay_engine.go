@@ -22,7 +22,7 @@ func (p *PartnerpayEngineAdapter) QueryCharge(transactionID string) (domain.Part
 	if p.client == nil {
 		return domain.PartnerpayEngineInfo{}, fmt.Errorf("QueryCharge: database client is not initialized")
 	}
-	query := fmt.Sprintf("SELECT status, status_reason, status_reason_description, transaction_id FROM charge WHERE transaction_id='%s'", transactionID)
+	query := fmt.Sprintf("SELECT status, status_reason, status_reason_description, transaction_id, created_at FROM charge WHERE transaction_id='%s'", transactionID)
 	charges, err := p.client.QueryPartnerpayEngine(query)
 	if err != nil {
 		return domain.PartnerpayEngineInfo{}, fmt.Errorf("failed to query charge table: %v", err)
@@ -45,6 +45,9 @@ func (p *PartnerpayEngineAdapter) QueryCharge(transactionID string) (domain.Part
 	}
 	if statusReasonDesc, ok := charge["status_reason_description"].(string); ok {
 		result.Transfers.StatusReasonDescription = statusReasonDesc
+	}
+	if createdAt, ok := charge["created_at"].(string); ok {
+		result.Transfers.CreatedAt = createdAt
 	}
 	workflowQuery := fmt.Sprintf("SELECT run_id, workflow_id, state, attempt FROM workflow_execution WHERE run_id='%s' AND workflow_id='workflow_charge'", transactionID)
 	if workflows, err := p.client.QueryPartnerpayEngine(workflowQuery); err == nil && len(workflows) > 0 {
