@@ -165,7 +165,7 @@ func (c *DoormanClient) Authenticate() error {
 
 	cfg := c.config
 	loginURL, _ := url.JoinPath(cfg.Host, "/api/login/ldap/signin")
-	fmt.Println("LOGIN URL: ", loginURL)
+
 	loginReq := struct {
 		Username string `json:"username"`
 		Password string `json:"password"`
