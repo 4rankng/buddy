@@ -55,16 +55,14 @@ should provide all available information from TransactionResult similar to the o
 
 
 currently the output is
-frank.nguyen@DBSG-H4M0DVF2C7 buddy % mybuddy ecotxn fd230a01dcd04282851b7b9dd6260c93
-Initialize Doorman client for [my]...
-Initialize Jira client for [my]...
+frank.nguyen@DBSG-H4M0DVF2C7 buddy % mybuddy ecotxn 
 ### [1] transaction_id: fd230a01dcd04282851b7b9dd6260c93
 [partnerpay-engine]
 charge.status: FAILED SYSTEM_ERROR error occurred in Thought Machine.
 workflow_charge: stFailureNotified(502) Attempt=0 run_id=fd230a01dcd04282851b7b9dd6260c93
 
 [payment-core]
-internal_transaction:
+internal_auth:
    tx_id=ce8c05866d134bb488038644c708740e
    type=AUTH status=SUCCESS
    workflow:
@@ -72,35 +70,36 @@ internal_transaction:
       state=stSuccess(900) attempt=0
       run_id=ce8c05866d134bb488038644c708740e
 
+DML files written:
+  Deploy:   output/deploy_fd230a01dcd04282851b7b9dd6260c93_20251215_214431.sql
+  Rollback: output/rollback_fd230a01dcd04282851b7b9dd6260c93_20251215_214431.sql
+frank.nguyen@DBSG-H4M0DVF2C7 buddy % 
+
 I should have both Capture and Auth
-and with error code and error message, you can see from
-
-SELECT * FROM internal_transaction 
-where group_id='fd230a01dcd04282851b7b9dd6260c93'
-and created_at >= '2025-08-09T14:14:03.379002Z'
-and created_at <= '2025-08-09T16:14:03.379002Z'
-
-please update func (p *PaymentCoreAdapter) QueryInternalTransactions(transactionID string, createdAt string) ([]map[string]interface{}, error) {
+and with error code and error message, 
 
 
-// PCInternalTxnInfo contains payment-core internal transaction information
-type PCInternalInfo struct {
-	TxID      string // payment-core internal transaction ID
-	GroupID   string // payment-core transaction group ID
-	TxType    string // payment-core transaction type
-	TxStatus  string // payment-core transaction status
-	ErrorCode string // payment-core internal transaction error_code
-	ErrorMsg  string // payment-core internal transaction error_msg
-	CreatedAt string // created_at timestamp
-	Workflow  WorkflowInfo
-}
+for example
 
-// PCExternalTxnInfo contains payment-core external transaction information
-type PCExternalInfo struct {
-	RefID     string // payment-core external transaction reference ID
-	GroupID   string // payment-core transaction group ID
-	TxType    string // payment-core transaction type
-	TxStatus  string // payment-core transaction status
-	CreatedAt string // created_at timestamp
-	Workflow  WorkflowInfo
-}
+### [1] transaction_id: fd230a01dcd04282851b7b9dd6260c93
+[partnerpay-engine]
+charge.status: FAILED SYSTEM_ERROR error occurred in Thought Machine.
+workflow_charge: stFailureNotified(502) Attempt=0 run_id=fd230a01dcd04282851b7b9dd6260c93
+
+[payment-core]
+internal_auth: SUCCESS
+   tx_id=ce8c05866d134bb488038644c708740e
+   error_code='', error_msg=''
+   workflow:
+      workflow_id=internal_payment_flow
+      state=stSuccess(900) attempt=0
+      run_id=ce8c05866d134bb488038644c708740e
+internal_auth: FAILED
+   tx_id=ce8c05866d134bb488038644c708740e
+   error_code='SYSTEM_ERROR', error_msg='Thought machine error'
+   workflow:
+      workflow_id=internal_payment_flow
+      state=stSuccess(900) attempt=0
+      run_id=ce8c05866d134bb488038644c708740e
+external_transfer: NOT FOUND	  
+
