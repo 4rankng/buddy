@@ -194,7 +194,7 @@ func (p *EcoTxnPublisher) processSingleTransaction(transactionID string) Process
 	}
 
 	// Step 4: Generate UPDATE SQL for charge table
-	p.generateChargeUpdateSQL(transactionID, chargeRecord.Status, valueTimestamp)
+	p.generateChargeUpdateSQL(transactionID, chargeRecord.Status, chargeRecord.ValuedAt, valueTimestamp)
 
 	// Step 5: Generate UPDATE SQL for workflow_execution table
 	p.generateWorkflowUpdateSQL(transactionID, chargeRecord, valueTimestamp)
@@ -361,7 +361,7 @@ func (p *EcoTxnPublisher) queryOriginalChargeStorage(txID string) (string, error
 }
 
 // generateChargeUpdateSQL generates UPDATE SQL for charge table
-func (p *EcoTxnPublisher) generateChargeUpdateSQL(transactionID, originalStatus, valueAt string) {
+func (p *EcoTxnPublisher) generateChargeUpdateSQL(transactionID, originalStatus, originalValuedAt, valueAt string) {
 	// Format timestamp with exactly 2 decimal places
 	formattedValueAt := formatTimestampWithTwoDecimals(valueAt)
 
@@ -378,12 +378,13 @@ WHERE transaction_id = '%s';
 	// Generate corresponding rollback
 	p.RollbackSQL.WriteString(fmt.Sprintf(`-- Rollback charge table for transaction_id: %s
 UPDATE charge
-SET status = '%s', valued_at = NULL
+SET status = '%s', valued_at = '%s'
 WHERE transaction_id = '%s';
 
 `,
 		transactionID,
 		strings.ReplaceAll(originalStatus, "'", "''"),
+		strings.ReplaceAll(originalValuedAt, "'", "''"),
 		strings.ReplaceAll(transactionID, "'", "''")))
 }
 

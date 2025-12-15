@@ -54,7 +54,7 @@ PPE_Rollback.sql
 
 -- Rollback charge table for transaction_id: 1ed87447b552420790357c2d5abe5509
 UPDATE charge
-SET status = 'COMPLETED', valued_at = NULL
+SET status = 'COMPLETED', valued_at = '0000-00-00T00:00:00.00Z'
 WHERE transaction_id = '1ed87447b552420790357c2d5abe5509';
 
 -- Rollback workflow_execution for transaction_id: 1ed87447b552420790357c2d5abe5509
