@@ -115,9 +115,9 @@ func displayPaymentCoreSection(w io.Writer, pc domain.PaymentCoreInfo) error {
 	}
 
 	if hasData {
-		// Display Internal Capture transaction (AUTH)
+		// Display Internal CAPTURE transaction
 		if pc.InternalCapture.TxID != "" {
-			if _, err := fmt.Fprintf(w, "internal_transaction:\n"); err != nil {
+			if _, err := fmt.Fprintf(w, "internal_capture:\n"); err != nil {
 				fmt.Printf("Warning: failed to write internal transaction header: %v\n", err)
 			}
 			if _, err := fmt.Fprintf(w, "   tx_id=%s\n", pc.InternalCapture.TxID); err != nil {
@@ -161,9 +161,9 @@ func displayPaymentCoreSection(w io.Writer, pc domain.PaymentCoreInfo) error {
 			}
 		}
 
-		// Display Internal Auth transaction (CAPTURE)
+		// Display Internal AUTH transaction
 		if pc.InternalAuth.TxID != "" {
-			if _, err := fmt.Fprintf(w, "internal_transaction:\n"); err != nil {
+			if _, err := fmt.Fprintf(w, "internal_auth:\n"); err != nil {
 				fmt.Printf("Warning: failed to write internal transaction header: %v\n", err)
 			}
 			if _, err := fmt.Fprintf(w, "   tx_id=%s\n", pc.InternalAuth.TxID); err != nil {
