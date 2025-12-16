@@ -17,7 +17,7 @@ func TestEvaluateRule_PeStuck300RppNotFound(t *testing.T) {
 				PaymentEngine: &domain.PaymentEngineInfo{
 					Workflow: domain.WorkflowInfo{
 						WorkflowID: "workflow_transfer_payment",
-						State:     "300",
+						State:      "300",
 						Attempt:    0,
 					},
 				},
@@ -25,7 +25,7 @@ func TestEvaluateRule_PeStuck300RppNotFound(t *testing.T) {
 					InternalAuth: domain.PCInternalInfo{
 						Workflow: domain.WorkflowInfo{
 							WorkflowID: "internal_payment_flow",
-							State:     "900",
+							State:      "900",
 							Attempt:    0,
 						},
 					},
@@ -43,7 +43,7 @@ func TestEvaluateRule_PeStuck300RppNotFound(t *testing.T) {
 				PaymentEngine: &domain.PaymentEngineInfo{
 					Workflow: domain.WorkflowInfo{
 						WorkflowID: "workflow_transfer_payment",
-						State:     "300",
+						State:      "300",
 						Attempt:    0,
 					},
 				},
@@ -51,7 +51,7 @@ func TestEvaluateRule_PeStuck300RppNotFound(t *testing.T) {
 					InternalAuth: domain.PCInternalInfo{
 						Workflow: domain.WorkflowInfo{
 							WorkflowID: "internal_payment_flow",
-							State:     "900",
+							State:      "900",
 							Attempt:    0,
 						},
 					},
@@ -59,7 +59,7 @@ func TestEvaluateRule_PeStuck300RppNotFound(t *testing.T) {
 				RPPAdapter: &domain.RPPAdapterInfo{
 					Workflow: domain.WorkflowInfo{
 						WorkflowID: "wf_ct_qr_payment",
-						State:     "210",
+						State:      "210",
 						Attempt:    0,
 					},
 				},
@@ -72,7 +72,7 @@ func TestEvaluateRule_PeStuck300RppNotFound(t *testing.T) {
 				PaymentEngine: &domain.PaymentEngineInfo{
 					Workflow: domain.WorkflowInfo{
 						WorkflowID: "workflow_transfer_payment",
-						State:     "300",
+						State:      "300",
 						Attempt:    0,
 					},
 				},
@@ -80,14 +80,14 @@ func TestEvaluateRule_PeStuck300RppNotFound(t *testing.T) {
 					InternalAuth: domain.PCInternalInfo{
 						Workflow: domain.WorkflowInfo{
 							WorkflowID: "internal_payment_flow",
-							State:     "900",
+							State:      "900",
 							Attempt:    0,
 						},
 					},
 					InternalCapture: domain.PCInternalInfo{
 						Workflow: domain.WorkflowInfo{
 							WorkflowID: "internal_payment_flow",
-							State:     "500",
+							State:      "500",
 							Attempt:    0,
 						},
 					},

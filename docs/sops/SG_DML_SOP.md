@@ -1,7 +1,7 @@
 case pe_220_0_fast_cashin_failed
-when 
+when
 [payment-engine]
-workflow_transfer_collection: state=stAuthProcessing(220) attempt=0 
+workflow_transfer_collection: state=stAuthProcessing(220) attempt=0
 [fast-adapter]
 status: FAILED (4)
 
@@ -11,8 +11,8 @@ sg-prd-m-payment-engine
 PE_Deploy.sql
 
 update workflow_execution
-set attempt=1, state=221, data=json_set(data, 
-'$.State', 221, 
+set attempt=1, state=221, data=json_set(data,
+'$.State', 221,
 '$.StreamMessage.Status', 'FAILED',
 '$.StreamMessage.ErrorMessage', 'MANUAL REJECT')
 where run_id = 'bc5f22c3fe474399adab3b9b0e6315a5'
@@ -20,8 +20,8 @@ where run_id = 'bc5f22c3fe474399adab3b9b0e6315a5'
 
 PE_Rollback.sql
 update workflow_execution
-set attempt=0, state=220, data=json_set(data, 
-'$.State', 220, 
+set attempt=0, state=220, data=json_set(data,
+'$.State', 220,
 '$.StreamMessage', JSON_OBJECT()
 )
 where run_id = 'bc5f22c3fe474399adab3b9b0e6315a5';
@@ -48,12 +48,11 @@ https://central-nonprod-doorman.sgbank.pr/rds/dml/10282
 for ecotxn in partnerpay-engine
 when we call sgbuddy ecotxn publish 7eba1b67c9174d21bb66bb089ebd6fd3
 
-we can generate this 
+we can generate this
 
 PPE_Deploy.sql
 UPDATE charge
-SET 
-status = 'COMPLETED', 
+SET
 valued_at = '2025-10-24T15:30:01Z', // this value from payment-core
 updated_at = '2025-12-16T07:06:07Z' // this is charge.updated_at, we need to set to preserve, otherwise it will be autodate to current timestamp
 WHERE transaction_id = '7eba1b67c9174d21bb66bb089ebd6fd3';
@@ -69,7 +68,7 @@ SET
             '$.ChargeStorage', JSON_OBJECT( // these value from charge table
     'ID', 786874,
     'Amount', 200,
-    'Status', 'COMPLETED',
+    'Status', 'COMPLETED', // charge.status
     'Remarks', '',
     'TxnType', 'SPEND_MONEY',
     'Currency', 'SGD',
@@ -100,8 +99,7 @@ WHERE
 PPE_Rollback.sql
 
 UPDATE charge
-SET 
-status = 'COMPLETED', 
+SET
 valued_at = '000-00-00T00:00:00Z', // use original charge.valued_at
 updated_at = '2025-12-16T07:06:07Z' // this is charge.updated_at, we need to set to preserve, otherwise it will be autodate to current timestamp
 WHERE transaction_id = '7eba1b67c9174d21bb66bb089ebd6fd3';

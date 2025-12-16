@@ -296,12 +296,13 @@ func (p *EcoTxnPublisher) generateChargeUpdateSQL(transactionID, valueAt string)
 	// Generate deploy SQL - update charge to COMPLETED status
 	p.DeploySQL.WriteString(fmt.Sprintf(`-- Update charge table for transaction_id: %s
 UPDATE charge
-SET status = 'COMPLETED', valued_at = '%s'
+SET valued_at = '%s', updated_at = '%s'
 WHERE transaction_id = '%s';
 
 `,
 		transactionID,
 		strings.ReplaceAll(formattedValueAt, "'", "''"),
+		strings.ReplaceAll(p.OriginalCharge.UpdatedAt, "'", "''"),
 		strings.ReplaceAll(transactionID, "'", "''")))
 
 	// Generate rollback SQL - restore original status and valued_at
@@ -314,13 +315,14 @@ WHERE transaction_id = '%s';
 
 		p.RollbackSQL.WriteString(fmt.Sprintf(`-- Rollback charge table for transaction_id: %s
 UPDATE charge
-SET status = '%s', valued_at = '%s'
+SET status = '%s', valued_at = '%s', updated_at = '%s'
 WHERE transaction_id = '%s';
 
 `,
 			transactionID,
 			strings.ReplaceAll(p.OriginalCharge.Status, "'", "''"),
 			strings.ReplaceAll(rollbackValuedAt, "'", "''"),
+			strings.ReplaceAll(p.OriginalCharge.UpdatedAt, "'", "''"),
 			strings.ReplaceAll(transactionID, "'", "''")))
 	}
 }
@@ -348,7 +350,7 @@ func (p *EcoTxnPublisher) generateWorkflowUpdateSQL(transactionID string, charge
 	chargeStorage := ChargeStorage{
 		ID:                      chargeRecord.ID,
 		Amount:                  chargeRecord.Amount,
-		Status:                  "COMPLETED",
+		Status:                  chargeRecord.Status,
 		Remarks:                 chargeRecord.Remarks,
 		TxnType:                 chargeRecord.TxnType,
 		Currency:                chargeRecord.Currency,
@@ -357,7 +359,7 @@ func (p *EcoTxnPublisher) generateWorkflowUpdateSQL(transactionID string, charge
 		CreatedAt:               chargeRecord.CreatedAt,
 		PartnerID:               chargeRecord.PartnerID,
 		TxnDomain:               chargeRecord.TxnDomain,
-		UpdatedAt:               time.Now().Format("2006-01-02 15:04:05"),
+		UpdatedAt:               chargeRecord.UpdatedAt,
 		CustomerID:              chargeRecord.CustomerID,
 		ExternalID:              chargeRecord.ExternalID,
 		Properties:              stringPtr(chargeRecord.Properties),
