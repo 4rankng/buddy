@@ -426,12 +426,12 @@ func getDefaultSOPRules() []CaseRule {
 					Value:     "900",
 				},
 				{
-					FieldPath: "PaymentCore.InternalCapture.Workflow",
+					FieldPath: "PaymentCore.InternalCapture.Workflow.WorkflowID",
 					Operator:  "eq",
-					Value:     "", // Checks for nil/empty InternalCapture
+					Value:     "", // Checks for empty InternalCapture.Workflow.WorkflowID
 				},
 				{
-					FieldPath: "RPPAdapter.Workflow",
+					FieldPath: "RPPAdapter.Workflow.WorkflowID",
 					Operator:  "eq",
 					Value:     "", // Checks for nil/empty RPPAdapter
 				},
