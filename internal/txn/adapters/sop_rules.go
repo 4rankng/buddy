@@ -401,5 +401,41 @@ func getDefaultSOPRules() []CaseRule {
 				},
 			},
 		},
+		{
+			CaseType:    domain.CasePeStuck300RppNotFound,
+			Description: "PE stuck at state 300 with auth success, no capture, no RPP",
+			Conditions: []RuleCondition{
+				{
+					FieldPath: "PaymentEngine.Workflow.State",
+					Operator:  "eq",
+					Value:     "300",
+				},
+				{
+					FieldPath: "PaymentEngine.Workflow.Attempt",
+					Operator:  "eq",
+					Value:     0,
+				},
+				{
+					FieldPath: "PaymentEngine.Workflow.WorkflowID",
+					Operator:  "eq",
+					Value:     "workflow_transfer_payment",
+				},
+				{
+					FieldPath: "PaymentCore.InternalAuth.Workflow.State",
+					Operator:  "eq",
+					Value:     "900",
+				},
+				{
+					FieldPath: "PaymentCore.InternalCapture.Workflow",
+					Operator:  "eq",
+					Value:     "", // Checks for nil/empty InternalCapture
+				},
+				{
+					FieldPath: "RPPAdapter.Workflow",
+					Operator:  "eq",
+					Value:     "", // Checks for nil/empty RPPAdapter
+				},
+			},
+		},
 	}
 }

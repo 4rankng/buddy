@@ -6,6 +6,7 @@ import (
 	"buddy/internal/txn/ports"
 	svcAdapters "buddy/internal/txn/service/adapters"
 	"buddy/internal/txn/utils"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"sync"
@@ -691,6 +692,18 @@ func (s *TransactionQueryService) populatePaymentEngineWorkflowFromWorkflow(paym
 	// Populate prev_trans_id field
 	if prevTransID, ok := workflow["prev_trans_id"]; ok {
 		paymentEngineInfo.Workflow.PrevTransID = fmt.Sprintf("%v", prevTransID)
+	}
+
+	// Populate data field (full JSON data)
+	if data, ok := workflow["data"]; ok {
+		if dataStr, ok := data.(string); ok {
+			paymentEngineInfo.Workflow.Data = dataStr
+		} else {
+			// Convert to JSON string if not already
+			if dataBytes, err := json.Marshal(data); err == nil {
+				paymentEngineInfo.Workflow.Data = string(dataBytes)
+			}
+		}
 	}
 
 	// If we do not have created_at from transfer, use workflow timestamps

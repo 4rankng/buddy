@@ -1,6 +1,9 @@
 package adapters
 
-import "buddy/internal/txn/domain"
+import (
+	"buddy/internal/txn/domain"
+	"buddy/internal/utils"
+)
 
 // sqlTemplates maps SOP cases to their DML tickets
 var sqlTemplates = map[domain.Case]func(domain.TransactionResult) *domain.DMLTicket{
@@ -18,8 +21,8 @@ var sqlTemplates = map[domain.Case]func(domain.TransactionResult) *domain.DMLTic
 UPDATE workflow_execution
 SET state = 202,
     attempt = 1,
-    ` + "`data`" + ` = JSON_SET(
-      ` + "`data`" + `,
+    data = JSON_SET(
+      data,
       '$.StreamResp', JSON_OBJECT(
         'TxID', '',
         'Status', 'FAILED',
@@ -41,7 +44,7 @@ AND attempt = 11;`,
 						SQLTemplate: `UPDATE workflow_execution
 SET state = 200,
     attempt = 11,
-    ` + "`data`" + ` = JSON_SET(` + "`data`" + `, '$.State', 200)
+    data = JSON_SET(data, '$.State', 200)
 WHERE run_id = %s;`,
 						Params: []domain.ParamInfo{
 							{Name: "run_id", Value: result.PaymentCore.ExternalTransfer.Workflow.RunID, Type: "string"},
@@ -66,8 +69,8 @@ WHERE run_id = %s;`,
 UPDATE workflow_execution
 SET state = 221,
     attempt = 1,
-    ` + "`data`" + ` = JSON_SET(
-      ` + "`data`" + `,
+    data = JSON_SET(
+      data,
       '$.StreamMessage', JSON_OBJECT(
         'Status', 'FAILED',
         'ErrorCode', 'ADAPTER_ERROR',
@@ -87,8 +90,8 @@ AND state = 210;`,
 					SQLTemplate: `UPDATE workflow_execution
 SET state = 210,
     attempt = 0,
-    ` + "`data`" + ` = JSON_SET(
-      ` + "`data`" + `,
+    data = JSON_SET(
+      data,
       '$.StreamMessage', NULL,
       '$.State', 210)
 WHERE run_id = %s
@@ -111,8 +114,8 @@ AND workflow_id = 'workflow_transfer_payment';`,
 UPDATE workflow_execution
 SET attempt = 1,
     state = 221,
-    ` + "`data`" + ` = JSON_SET(
-      ` + "`data`" + `,
+    data = JSON_SET(
+      data,
       '$.State', 221,
       '$.StreamMessage.Status', 'FAILED',
       '$.StreamMessage.ErrorMessage', 'MANUAL REJECT')
@@ -131,8 +134,8 @@ AND attempt = 0;`,
 						SQLTemplate: `UPDATE workflow_execution
 SET attempt = 0,
     state = 220,
-    ` + "`data`" + ` = JSON_SET(
-      ` + "`data`" + `,
+    data = JSON_SET(
+      data,
       '$.State', 220,
       '$.StreamMessage', JSON_OBJECT())
 WHERE run_id = %s
@@ -157,7 +160,7 @@ AND workflow_id = 'workflow_transfer_collection';`,
 UPDATE workflow_execution
 SET state = 902,
     attempt = 1,
-    ` + "`data`" + ` = JSON_SET(` + "`data`" + `, '$.State', 902)
+    data = JSON_SET(data, '$.State', 902)
 WHERE run_id = %s
 AND workflow_id = 'internal_payment_flow'
 AND state = 900;`,
@@ -172,7 +175,7 @@ AND state = 900;`,
 						SQLTemplate: `UPDATE workflow_execution
 SET state = 900,
     attempt = 1,
-    ` + "`data`" + ` = JSON_SET(` + "`data`" + `, '$.State', 900)
+    data = JSON_SET(data, '$.State', 900)
 WHERE run_id = %s
 AND workflow_id = 'internal_payment_flow'
 AND state = 902;`,
@@ -199,7 +202,7 @@ AND state = 902;`,
 UPDATE workflow_execution
 SET state = 222,
     attempt = 1,
-    ` + "`data`" + ` = JSON_SET(` + "`data`" + `, '$.State', 222)
+    data = JSON_SET(data, '$.State', 222)
 WHERE run_id = %s
 AND state = 210;`,
 					Params: []domain.ParamInfo{
@@ -213,7 +216,7 @@ AND state = 210;`,
 					SQLTemplate: `UPDATE workflow_execution
 SET state = 201,
     attempt = 0,
-    ` + "`data`" + ` = JSON_SET(` + "`data`" + `, '$.State', 201)
+    data = JSON_SET(data, '$.State', 201)
 WHERE run_id = %s;`,
 					Params: []domain.ParamInfo{
 						{Name: "run_id", Value: result.RPPAdapter.Workflow.RunID, Type: "string"},
@@ -233,7 +236,7 @@ WHERE run_id = %s;`,
 UPDATE workflow_execution
 SET state = 301,
     attempt = 1,
-    ` + "`data`" + ` = JSON_SET(` + "`data`" + `, '$.State', 301)
+    data = JSON_SET(data, '$.State', 301)
 WHERE run_id = %s
 AND state = 900;`,
 					Params: []domain.ParamInfo{
@@ -247,7 +250,7 @@ AND state = 900;`,
 					SQLTemplate: `UPDATE workflow_execution
 SET state = 900,
     attempt = 0,
-    ` + "`data`" + ` = JSON_SET(` + "`data`" + `, '$.State', 900)
+    data = JSON_SET(data, '$.State', 900)
 WHERE run_id = %s;`,
 					Params: []domain.ParamInfo{
 						{Name: "run_id", Value: result.RPPAdapter.Workflow.RunID, Type: "string"},
@@ -342,7 +345,7 @@ AND workflow_id = 'wf_ct_qr_payment';`,
 UPDATE workflow_execution
 SET state = 222,
     attempt = 1,
-    ` + "`data`" + ` = JSON_SET(` + "`data`" + `, '$.State', 222)
+    data = JSON_SET(data, '$.State', 222)
 WHERE run_id = %s
 AND state = 210
 AND workflow_id IN ('wf_ct_cashout', 'wf_ct_qr_payment');`,
@@ -358,7 +361,7 @@ AND workflow_id IN ('wf_ct_cashout', 'wf_ct_qr_payment');`,
 UPDATE workflow_execution
 SET state = 210,
     attempt = 0,
-    ` + "`data`" + ` = JSON_SET(` + "`data`" + `, '$.State', 210)
+    data = JSON_SET(data, '$.State', 210)
 WHERE run_id = %s
 AND workflow_id IN ('wf_ct_cashout', 'wf_ct_qr_payment');`,
 					Params: []domain.ParamInfo{
@@ -397,7 +400,7 @@ AND workflow_id IN ('wf_ct_cashout', 'wf_ct_qr_payment');`,
 UPDATE workflow_execution
 SET state = 230,
     prev_trans_id = JSON_EXTRACT(data, '$.StreamMessage.ReferenceID'),
-    ` + "`data`" + ` = JSON_SET(` + "`data`" + `, '$.State', 230)
+    data = JSON_SET(data, '$.State', 230)
 WHERE run_id = %s
 AND state = 701;`,
 					Params: []domain.ParamInfo{
@@ -410,7 +413,7 @@ AND state = 701;`,
 UPDATE workflow_execution
 SET state = 0,
     attempt = 1,
-    ` + "`data`" + ` = JSON_SET(` + "`data`" + `, '$.State', 0)
+    data = JSON_SET(data, '$.State', 0)
 WHERE run_id = %s
 AND workflow_id = 'internal_payment_flow'
 AND state = 500;`,
@@ -427,7 +430,7 @@ UPDATE workflow_execution
 SET state = 701,
     attempt = 0,
     prev_trans_id = %s,
-    ` + "`data`" + ` = JSON_SET(` + "`data`" + `, '$.State', 701)
+    data = JSON_SET(data, '$.State', 701)
 WHERE run_id = %s
 AND state = 230;`,
 					Params: []domain.ParamInfo{
@@ -441,7 +444,7 @@ AND state = 230;`,
 UPDATE workflow_execution
 SET state = 500,
     attempt = 0,
-    ` + "`data`" + ` = JSON_SET(` + "`data`" + `, '$.State', 500)
+    data = JSON_SET(data, '$.State', 500)
 WHERE run_id = %s
 AND workflow_id = 'internal_payment_flow';`,
 					Params: []domain.ParamInfo{
@@ -474,7 +477,7 @@ AND workflow_id = 'internal_payment_flow';`,
 UPDATE workflow_execution
 SET state = 0,
     attempt = 1,
-    ` + "`data`" + ` = JSON_SET(` + "`data`" + `, '$.State', 0)
+    data = JSON_SET(data, '$.State', 0)
 WHERE run_id = %s
 AND workflow_id = 'internal_payment_flow'
 AND state = 500;`,
@@ -490,7 +493,7 @@ AND state = 500;`,
 UPDATE workflow_execution
 SET state = 500,
     attempt = 0,
-    ` + "`data`" + ` = JSON_SET(` + "`data`" + `, '$.State', 500)
+    data = JSON_SET(data, '$.State', 500)
 WHERE run_id = %s
 AND workflow_id = 'internal_payment_flow';`,
 					Params: []domain.ParamInfo{
@@ -510,8 +513,8 @@ AND workflow_id = 'internal_payment_flow';`,
 				Deploy: []domain.TemplateInfo{
 					{
 						TargetDB: "PPE",
-						SQLTemplate: `-- ecotxn_ChargeFailed_CaptureFailed_TMError 
--- Move to AuthCompleted and wait for cron to cancel the transaction						
+						SQLTemplate: `-- ecotxn_ChargeFailed_CaptureFailed_TMError
+-- Move to AuthCompleted and wait for cron to cancel the transaction
 UPDATE charge SET
 status = 'PROCESSING',
 updated_at = %s
@@ -553,6 +556,59 @@ AND workflow_id = 'workflow_charge';`,
 					},
 				},
 				CaseType: domain.CaseEcotxnChargeFailedCaptureFailedTMError,
+			}
+		}
+		return nil
+	},
+	domain.CasePeStuck300RppNotFound: func(result domain.TransactionResult) *domain.DMLTicket {
+		if runID := result.PaymentEngine.Workflow.RunID; runID != "" {
+			// Get rollback stream message
+			rollbackStreamMessage := utils.GetRollbackStreamMessage(result.PaymentEngine.Workflow.Data)
+
+			return &domain.DMLTicket{
+				Deploy: []domain.TemplateInfo{
+					{
+						TargetDB: "PE",
+						SQLTemplate: `-- pe_stuck_300_rpp_not_found
+UPDATE workflow_execution
+SET state = 221,
+    attempt = 1,
+    data = JSON_SET(
+      data,
+      '$.StreamMessage', JSON_OBJECT(
+        'Status', 'FAILED',
+        'ErrorCode', 'ADAPTER_ERROR',
+        'ErrorMessage', 'Manual Rejected'),
+      '$.State', 221)
+WHERE run_id = %s
+AND workflow_id = 'workflow_transfer_payment'
+AND state = 300
+AND attempt = 0;`,
+						Params: []domain.ParamInfo{
+							{Name: "run_id", Value: runID, Type: "string"},
+						},
+					},
+				},
+				Rollback: []domain.TemplateInfo{
+					{
+						TargetDB: "PE",
+						SQLTemplate: `-- pe_stuck_300_rpp_not_found rollback
+UPDATE workflow_execution
+SET state = 300,
+    attempt = 0,
+    data = JSON_SET(
+      data,
+      '$.StreamMessage', %s,
+      '$.State', 300)
+WHERE run_id = %s
+AND workflow_id = 'workflow_transfer_payment';`,
+						Params: []domain.ParamInfo{
+							{Name: "stream_message", Value: rollbackStreamMessage, Type: "string"},
+							{Name: "run_id", Value: runID, Type: "string"},
+						},
+					},
+				},
+				CaseType: domain.CasePeStuck300RppNotFound,
 			}
 		}
 		return nil

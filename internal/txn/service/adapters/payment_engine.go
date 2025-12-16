@@ -37,7 +37,7 @@ func (p *PaymentEngineAdapter) QueryWorkflow(referenceID string) (map[string]int
 	if p.client == nil {
 		return nil, fmt.Errorf("QueryWorkflow: database client is not initialized")
 	}
-	query := fmt.Sprintf("SELECT run_id, workflow_id, prev_trans_id, state, attempt, created_at, updated_at FROM workflow_execution WHERE run_id='%s'", referenceID)
+	query := fmt.Sprintf("SELECT run_id, workflow_id, prev_trans_id, state, attempt, created_at, updated_at, data FROM workflow_execution WHERE run_id='%s'", referenceID)
 	workflows, err := p.client.QueryPaymentEngine(query)
 	if err != nil {
 		return nil, err

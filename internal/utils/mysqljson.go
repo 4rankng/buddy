@@ -126,3 +126,32 @@ func mysqlStringLiteral(s string) string {
 	b.WriteByte('\'')
 	return b.String()
 }
+
+// GetRollbackStreamMessage extracts and formats the StreamMessage for rollback
+func GetRollbackStreamMessage(data string) string {
+	// Default success object
+	streamMessageExpr := "JSON_OBJECT('TxID','', 'Status','SUCCESS', 'ErrorCode','', 'ExternalID','', 'ReferenceID','', 'ErrorMessage','', 'ValueTimestamp','')"
+
+	if data != "" {
+		var dataMap map[string]interface{}
+		if err := json.Unmarshal([]byte(data), &dataMap); err == nil {
+			if sm, ok := dataMap["StreamMessage"]; ok {
+				if smBytes, err := json.Marshal(sm); err == nil {
+					smJSON := string(smBytes)
+					if expr, err := ToMySQLJSONObjectExpr(smJSON); err == nil {
+						streamMessageExpr = expr
+						// Update status to SUCCESS and clear errors
+						streamMessageExpr = strings.ReplaceAll(streamMessageExpr,
+							"'Status','FAILED'", "'Status','SUCCESS'")
+						streamMessageExpr = strings.ReplaceAll(streamMessageExpr,
+							"'ErrorCode','ADAPTER_ERROR'", "'ErrorCode',''")
+						streamMessageExpr = strings.ReplaceAll(streamMessageExpr,
+							"'ErrorMessage','Manual Rejected'", "'ErrorMessage',''")
+					}
+				}
+			}
+		}
+	}
+
+	return streamMessageExpr
+}

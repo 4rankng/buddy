@@ -24,6 +24,7 @@ type WorkflowInfo struct {
 	State       string // workflow_execution.state
 	RunID       string // workflow_execution.run_id
 	PrevTransID string // workflow_execution.prev_trans_id
+	Data        string // workflow_execution.data (full JSON data)
 }
 
 // GetFormattedState returns the formatted state with name and number
@@ -138,6 +139,7 @@ const (
 	CaseThoughtMachineFalseNegative                  Case = "thought_machine_false_negative"
 	CasePeCaptureProcessingPcCaptureFailedRppSuccess Case = "pe_capture_processing_pc_capture_failed_rpp_success"
 	CaseEcotxnChargeFailedCaptureFailedTMError       Case = "ecotxn_ChargeFailed_CaptureFailed_TMError"
+	CasePeStuck300RppNotFound                        Case = "pe_stuck_300_rpp_not_found"
 )
 
 // GetCaseSummaryOrder returns the order in which SOP cases should be displayed in summaries
@@ -155,6 +157,7 @@ func GetCaseSummaryOrder() []Case {
 		CaseRppQrPaymentReject210_0,
 		CaseRppNoResponseResume,
 		CaseEcotxnChargeFailedCaptureFailedTMError,
+		CasePeStuck300RppNotFound,
 	}
 }
 
