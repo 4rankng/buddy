@@ -90,7 +90,8 @@ func displayPaymentEngineSection(w io.Writer, pe domain.PaymentEngineInfo) error
 
 	// Write workflow if exists
 	if pe.Workflow.RunID != "" {
-		if _, err := fmt.Fprintf(w, "workflow_transfer_payment:\n"); err != nil {
+		// Use the actual workflow ID from the data
+		if _, err := fmt.Fprintf(w, "%s:\n", pe.Workflow.WorkflowID); err != nil {
 			fmt.Printf("Warning: failed to write workflow header: %v\n", err)
 		}
 		if _, err := fmt.Fprintf(w, "   state=%s attempt=%d\n", pe.Workflow.GetFormattedState(), pe.Workflow.Attempt); err != nil {
