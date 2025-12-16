@@ -10,7 +10,8 @@ import (
 func TestEcotxnChargeFailedCaptureFailedTMError(t *testing.T) {
 	// Create the exact transaction data from the provided example
 	transactionResult := &domain.TransactionResult{
-		InputID: "fd230a01dcd04282851b7b9dd6260c93",
+		InputID:    "fd230a01dcd04282851b7b9dd6260c93",
+		CaseType:   domain.CaseNone, // Initialize to CaseNone
 		PartnerpayEngine: &domain.PartnerpayEngineInfo{
 			Charge: domain.PPEChargeInfo{
 				Status:                  "FAILED",
@@ -74,7 +75,8 @@ func TestEcotxnChargeFailedCaptureFailedTMError(t *testing.T) {
 func TestIndividualConditions(t *testing.T) {
 	// Create the exact transaction data from the provided example
 	transactionResult := &domain.TransactionResult{
-		InputID: "fd230a01dcd04282851b7b9dd6260c93",
+		InputID:    "fd230a01dcd04282851b7b9dd6260c93",
+		CaseType:   domain.CaseNone, // Initialize to CaseNone
 		PartnerpayEngine: &domain.PartnerpayEngineInfo{
 			Charge: domain.PPEChargeInfo{
 				Status:                  "FAILED",
