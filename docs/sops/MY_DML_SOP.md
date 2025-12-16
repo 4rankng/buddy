@@ -119,3 +119,50 @@ If RPP status is ACSP or ACTC, you cannot Cancel (400). You must Resume/Republis
 
 ### Refunds
 If automatic refund fails, use the "Retry Refund" flow (upload CSV to S3) before attempting manual credit.
+
+
+
+
+
+pe_stuck_300_rpp_not_found
+
+Case: Payment Engine (PE) stuck at state 300 (stAuthCompleted) with attempt=0. Payment Core (PC) shows internal auth success (State 900). RPP/PayNet status is NOT_FOUND.
+
+Fix: Manually reject the transaction by moving PE state to 221 and injecting an error StreamMessage.
+
+SQL Deploy:
+
+UPDATE workflow_execution
+SET  state = 221, attempt = 1, `data` = JSON_SET(
+      `data`, '$.StreamMessage', 
+      JSON_OBJECT(
+         'Status', 'FAILED',  
+         'ErrorCode', "ADAPTER_ERROR", 
+         'ErrorMessage', 'Manual Rejected'
+      ),
+   '$.State', 221)
+WHERE run_id IN (
+   '72022562-BE9A-4CE9-B4EA-9D50668AEE59' -- Replace with actual run_id
+) AND 
+   state = 300 AND
+   workflow_id = 'workflow_transfer_payment';
+
+
+SQL Rollback:
+
+UPDATE workflow_execution
+SET  state = 210, attempt =0, `data` = JSON_SET(
+      `data`, '$.StreamMessage',
+      JSON_OBJECT( 
+         'TxID', 'ebf23ba301874602af8782186e61658d', -- Replace with actual TxID if known, or restore original object
+         'Status', 'SUCCESS',
+         'ErrorCode', '',
+         'ExternalID', '',
+         'ReferenceID', 'f6d0b41d4ae54b4db9e1e40ce5d1ac38',
+         'ErrorMessage', '',
+         'ValueTimestamp', '2024-12-20T14:37:12.189499Z'
+      ),
+   '$.State', 210)
+WHERE run_id IN (
+   '72022562-BE9A-4CE9-B4EA-9D50668AEE59'
+) AND workflow_id = 'workflow_transfer_payment';
