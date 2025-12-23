@@ -16,18 +16,12 @@ type EcoTxnPublisher struct {
 	client      doorman.DoormanInterface
 	PPEDeploy   strings.Builder
 	PPERollback strings.Builder
-	PCDeploy    strings.Builder
-	PCRollback  strings.Builder
-
-	// Trackers for batch processing of PC records
-	PCRunIDs []string
 }
 
 // NewEcoTxnPublisher creates a new publisher instance
 func NewEcoTxnPublisher() *EcoTxnPublisher {
 	return &EcoTxnPublisher{
-		client:   doorman.Doorman,
-		PCRunIDs: make([]string, 0),
+		client: doorman.Doorman,
 	}
 }
 
@@ -37,13 +31,9 @@ func ProcessEcoTxnPublish(transactionID, env string) error {
 
 	result := publisher.processSingleTransaction(transactionID)
 	if result.Success {
-		publisher.generatePCBatchSQL()
-
 		if err := WriteEcoTxnSQLFiles(
 			publisher.PPEDeploy.String(),
 			publisher.PPERollback.String(),
-			publisher.PCDeploy.String(),
-			publisher.PCRollback.String(),
 		); err != nil {
 			return fmt.Errorf("failed to write SQL files: %v", err)
 		}
@@ -74,15 +64,11 @@ func ProcessEcoTxnPublishBatch(filePath, env string) {
 		}
 	}
 
-	publisher.generatePCBatchSQL()
-
 	fmt.Printf("Processing completed. Success: %d, Failed: %d\n", processedCount, failedCount)
 
 	if err := WriteEcoTxnSQLFiles(
 		publisher.PPEDeploy.String(),
 		publisher.PPERollback.String(),
-		publisher.PCDeploy.String(),
-		publisher.PCRollback.String(),
 	); err != nil {
 		fmt.Printf("Error writing SQL files: %v\n", err)
 		return
@@ -101,25 +87,39 @@ func (p *EcoTxnPublisher) processSingleTransaction(transactionID string) Process
 	}
 
 	// 2. Query PC internal_transaction table to find the tx_id (run_id) and valued_at
-	pcRunID, pcValuedAt, err := p.queryInternalTransaction(transactionID, chargeRecord.CreatedAt)
+	pcValuedAt, err := p.queryInternalTransaction(transactionID, chargeRecord.CreatedAt)
 	if err != nil {
 		result.Error = fmt.Errorf("failed to query payment-core internal transaction: %w", err)
 		return result
 	}
-	p.PCRunIDs = append(p.PCRunIDs, pcRunID)
 
-	// 3. Construct ChargeStorage JSON for workflow_execution update
+	// 3. Query workflow_execution to get original state and attempt for rollback
+	originalState, originalAttempt, err := p.queryWorkflowExecutionState(transactionID)
+	if err != nil {
+		result.Error = fmt.Errorf("failed to query workflow execution state: %w", err)
+		return result
+	}
+
+	// 4. Construct ChargeStorage JSON for workflow_execution update
 	chargeStorageSQL := buildChargeStorageJSONObject(chargeRecord, pcValuedAt)
 
-	// 4. Generate PPE SQL (Deploy)
+	// 5. Generate PPE SQL (Deploy)
 	p.PPEDeploy.WriteString(fmt.Sprintf("-- Transaction: %s\n", transactionID))
-	p.PPEDeploy.WriteString(fmt.Sprintf(`UPDATE charge
+
+	// Only update charge table if valued_at is not set
+	if chargeRecord.ValuedAt == "" || chargeRecord.ValuedAt == "0000-00-00 00:00:00" || strings.HasPrefix(chargeRecord.ValuedAt, "0001-01-01") {
+		p.PPEDeploy.WriteString(fmt.Sprintf(`UPDATE charge
 SET 
     valued_at = '%s',
     updated_at = '%s'
 WHERE transaction_id = '%s';
 
-UPDATE workflow_execution
+`, pcValuedAt, chargeRecord.UpdatedAt, transactionID))
+	} else {
+		p.PPEDeploy.WriteString("-- valued_at already set, skipping charge table update\n")
+	}
+
+	p.PPEDeploy.WriteString(fmt.Sprintf(`UPDATE workflow_execution
 SET
     state = 800,
     attempt = 1,
@@ -129,54 +129,36 @@ SET
 WHERE
     run_id = '%s';
 
-`, pcValuedAt, chargeRecord.UpdatedAt, transactionID, chargeStorageSQL, transactionID))
+`, chargeStorageSQL, transactionID))
 
-	// 5. Generate PPE SQL (Rollback)
+	// 6. Generate PPE SQL (Rollback)
 	p.PPERollback.WriteString(fmt.Sprintf("-- Transaction: %s\n", transactionID))
-	p.PPERollback.WriteString(fmt.Sprintf(`UPDATE charge
+
+	// Mirror the rollback: Only update charge table if we generated an update in deploy (meaning original was unset)
+	if chargeRecord.ValuedAt == "" || chargeRecord.ValuedAt == "0000-00-00 00:00:00" || strings.HasPrefix(chargeRecord.ValuedAt, "0001-01-01") {
+		p.PPERollback.WriteString(fmt.Sprintf(`UPDATE charge
 SET 
-    valued_at = '%s',
+    valued_at = '0000-00-00T00:00:00Z',
     updated_at = '%s'
 WHERE transaction_id = '%s';
 
-UPDATE workflow_execution
+`, chargeRecord.UpdatedAt, transactionID))
+	}
+
+	p.PPERollback.WriteString(fmt.Sprintf(`UPDATE workflow_execution
 SET
-    state = 800,
-    attempt = 1,
+    state = %s,
+    attempt = %s,
     data = JSON_SET(data,
-            '$.State', 800,
+            '$.State', %s,
             '$.ChargeStorage', JSON_OBJECT())
 WHERE
     run_id = '%s';
 
-`, chargeRecord.ValuedAt, chargeRecord.UpdatedAt, transactionID, transactionID))
+`, originalState, originalAttempt, originalState, transactionID))
 
 	result.Success = true
 	return result
-}
-
-// generatePCBatchSQL generates the PC Deploy and Rollback files based on collected Run IDs
-func (p *EcoTxnPublisher) generatePCBatchSQL() {
-	if len(p.PCRunIDs) == 0 {
-		return
-	}
-
-	quotedIDs := make([]string, len(p.PCRunIDs))
-	for i, id := range p.PCRunIDs {
-		quotedIDs[i] = fmt.Sprintf("'%s'", id)
-	}
-	idList := strings.Join(quotedIDs, ", ")
-
-	p.PCDeploy.WriteString(fmt.Sprintf(`UPDATE workflow_execution SET attempt=1, state=902
-WHERE workflow_id='internal_payment_flow' 
-AND run_id in (%s) 
-AND state=900;
-`, idList))
-
-	p.PCRollback.WriteString(fmt.Sprintf(`UPDATE workflow_execution SET attempt=0, state=900
-WHERE workflow_id='internal_payment_flow' 
-AND run_id in (%s);
-`, idList))
 }
 
 // queryChargeRecord queries the charge table and populates the record
@@ -218,8 +200,8 @@ func (p *EcoTxnPublisher) queryChargeRecord(transactionID string) (*ChargeRecord
 	}, nil
 }
 
-// queryInternalTransaction finds the tx_id and ValueTimestamp in PC
-func (p *EcoTxnPublisher) queryInternalTransaction(transactionID, createdAt string) (string, string, error) {
+// queryInternalTransaction finds the ValueTimestamp in PC
+func (p *EcoTxnPublisher) queryInternalTransaction(transactionID, createdAt string) (string, error) {
 	chargeTime, _ := time.Parse("2006-01-02 15:04:05", createdAt)
 	if chargeTime.IsZero() {
 		chargeTime, _ = time.Parse(time.RFC3339, createdAt)
@@ -237,7 +219,7 @@ func (p *EcoTxnPublisher) queryInternalTransaction(transactionID, createdAt stri
 
 	rowsTx, err := p.client.QueryPaymentCore(queryTx)
 	if err != nil || len(rowsTx) == 0 {
-		return "", "", fmt.Errorf("internal_transaction not found")
+		return "", fmt.Errorf("internal_transaction not found")
 	}
 	txID := toString(rowsTx[0]["tx_id"])
 
@@ -248,11 +230,28 @@ func (p *EcoTxnPublisher) queryInternalTransaction(transactionID, createdAt stri
 
 	rowsWF, err := p.client.QueryPaymentCore(queryWF)
 	if err != nil || len(rowsWF) == 0 {
-		return txID, "", fmt.Errorf("workflow metadata not found")
+		return "", fmt.Errorf("workflow metadata not found")
 	}
 	valAt := strings.Trim(toString(rowsWF[0]["ValuedAt"]), "\"")
 
-	return txID, valAt, nil
+	return valAt, nil
+}
+
+// queryWorkflowExecutionState queries the workflow_execution table to get original state and attempt
+func (p *EcoTxnPublisher) queryWorkflowExecutionState(transactionID string) (string, string, error) {
+	query := fmt.Sprintf(`
+		SELECT state, attempt FROM workflow_execution 
+		WHERE run_id = '%s' LIMIT 1`, escapeSQL(transactionID))
+
+	rows, err := p.client.QueryPaymentCore(query)
+	if err != nil || len(rows) == 0 {
+		return "", "", fmt.Errorf("workflow_execution not found")
+	}
+
+	state := toString(rows[0]["state"])
+	attempt := toString(rows[0]["attempt"])
+
+	return state, attempt, nil
 }
 
 // buildChargeStorageJSONObject constructs the MySQL JSON_OBJECT string
@@ -354,12 +353,10 @@ func toFloat64(v interface{}) float64 {
 	return 0
 }
 
-func WriteEcoTxnSQLFiles(ppeD, ppeR, pcD, pcR string) error {
+func WriteEcoTxnSQLFiles(ppeD, ppeR string) error {
 	files := map[string]string{
 		"PPE_Deploy.sql":   ppeD,
 		"PPE_Rollback.sql": ppeR,
-		"PC_Deploy.sql":    pcD,
-		"PC_Rollback.sql":  pcR,
 	}
 	for name, content := range files {
 		if err := os.WriteFile(name, []byte(content), 0644); err != nil {

@@ -16,11 +16,13 @@ Here I provide your previous solution to fix 2 stuck transaction id
 (feel free to check charge table for more information)
 
 
+NOTE that we dont have PC_Deploy.sql or PC_Rollback.sql
+
 ############ DEPLOY ############
 
 PPE_Deploy.sql
 -- Transaction 1: 1ed87447b552420790357c2d5abe5509
-UPDATE charge
+UPDATE charge // only update if the valued_at is 0 in charge table
 SET 
     valued_at = '2025-10-24T15:30:01Z', // is taken from payment-core internal_transaction table
     updated_at = '2025-12-10T06:25:06Z' // existing updated_at in charge table, set to prevent override
@@ -65,7 +67,7 @@ WHERE
 
 
 -- Transaction 2: ef2282dcdf00458fa309d7a9442232d6
-UPDATE charge
+UPDATE charge // only update if the valued_at is 0 in charge table
 SET 
     valued_at = '2025-10-24T06:00:02Z', // is taken from payment-core internal_transaction table
     updated_at = '2025-12-10T06:25:06Z'
@@ -108,10 +110,6 @@ SET
 WHERE
     run_id = 'ef2282dcdf00458fa309d7a9442232d6';
 
-PC_Deploy.sql
-
-UPDATE workflow_execution SET attempt=1, state=902
-WHERE workflow_id='internal_payment_flow' AND run_id in ('d72d76ce474040c7970ab7438c9a234d', 'ccb3bb0f5c8845d1a0ac2bde67bbc4e9' ) AND state=900;
 
 ########### ROLLBACK #########
 
@@ -125,10 +123,10 @@ WHERE transaction_id = '1ed87447b552420790357c2d5abe5509';
 
 UPDATE workflow_execution
 SET
-    state = 800,
-    attempt = 1,
+    state = XXX, // original state value
+    attempt = X, // original attempt value
     data = JSON_SET(data,
-            '$.State', 800,
+            '$.State', XXX, // original state value
             '$.ChargeStorage', JSON_OBJECT())
 WHERE
     run_id = '1ed87447b552420790357c2d5abe5509';
@@ -137,25 +135,17 @@ WHERE
 -- Transaction 2: ef2282dcdf00458fa309d7a9442232d6
 UPDATE charge
 SET 
-    valued_at = '0000-00-00T00:00:00Z',
+    valued_at = '0000-00-00T00:00:00Z', // original charge value
     updated_at = '2025-12-10T06:25:06Z'
 WHERE transaction_id = 'ef2282dcdf00458fa309d7a9442232d6';
 
 UPDATE workflow_execution
 SET
-    state = 800,
-    attempt = 1,
+    state = XXX, // original state value
+    attempt = X, // original attempt value
     data = JSON_SET(data,
-            '$.State', 800,
+            '$.State', XXX, // original state value
             '$.ChargeStorage', JSON_OBJECT())
 WHERE
     run_id = 'ef2282dcdf00458fa309d7a9442232d6';
-
-
-PC_Rollback.sql
-
-UPDATE workflow_execution SET attempt=0, state=900
-WHERE workflow_id='internal_payment_flow' AND run_id in ('d72d76ce474040c7970ab7438c9a234d', 'ccb3bb0f5c8845d1a0ac2bde67bbc4e9' ); // group multiple txn together
-
-
 
