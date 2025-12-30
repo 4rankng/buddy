@@ -381,8 +381,45 @@ AND workflow_id IN ('wf_ct_cashout', 'wf_ct_qr_payment');`,
 			CaseType: domain.CaseRppNoResponseResume,
 		}
 	},
-
-	domain.CaseThoughtMachineFalseNegative: func(result domain.TransactionResult) *domain.DMLTicket {
+	
+		domain.CaseRppCashinValidationFailed122_0: func(result domain.TransactionResult) *domain.DMLTicket {
+			return &domain.DMLTicket{
+				Deploy: []domain.TemplateInfo{
+					{
+						TargetDB: "RPP",
+						SQLTemplate: `-- rpp_cashin_validation_failed_122_0, retry validation
+	UPDATE workflow_execution
+	SET state = 100,
+			  attempt = 1,
+			  data = JSON_SET(data, '$.State', 100)
+	WHERE run_id = %s
+	AND workflow_id = 'wf_ct_cashin'
+	AND state = 122;`,
+						Params: []domain.ParamInfo{
+							{Name: "run_id", Value: getRPPWorkflowRunID(result.RPPAdapter.Workflow), Type: "string"},
+						},
+					},
+				},
+				Rollback: []domain.TemplateInfo{
+					{
+						TargetDB: "RPP",
+						SQLTemplate: `-- RPP Rollback: Move cashin workflow back to state 122
+	UPDATE workflow_execution
+	SET state = 122,
+			  attempt = 0,
+			  data = JSON_SET(data, '$.State', 122)
+	WHERE run_id = %s
+	AND workflow_id = 'wf_ct_cashin';`,
+						Params: []domain.ParamInfo{
+							{Name: "run_id", Value: getRPPWorkflowRunID(result.RPPAdapter.Workflow), Type: "string"},
+						},
+					},
+				},
+				CaseType: domain.CaseRppCashinValidationFailed122_0,
+			}
+		},
+	
+		domain.CaseThoughtMachineFalseNegative: func(result domain.TransactionResult) *domain.DMLTicket {
 		// Get PE and PC run IDs
 		peRunID := result.PaymentEngine.Workflow.RunID
 		var pcRunID string

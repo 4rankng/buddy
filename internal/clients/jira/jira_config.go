@@ -16,9 +16,11 @@ type JiraConfig struct {
 
 // GetJiraConfig returns the JIRA configuration for the specified environment
 func GetJiraConfig(env string) JiraConfig {
+	var cfg JiraConfig
+
 	switch env {
 	case "sg":
-		return JiraConfig{
+		cfg = JiraConfig{
 			Domain: "https://gxsbank.atlassian.net",
 			Auth: JiraAuthInfo{
 				Username: config.Get("JIRA_USERNAME", ""),
@@ -29,7 +31,7 @@ func GetJiraConfig(env string) JiraConfig {
 			MaxItems: 50,
 		}
 	case "my":
-		return JiraConfig{
+		cfg = JiraConfig{
 			Domain: "https://gxbank.atlassian.net",
 			Auth: JiraAuthInfo{
 				Username: config.Get("JIRA_USERNAME", ""),
@@ -42,4 +44,6 @@ func GetJiraConfig(env string) JiraConfig {
 	default:
 		panic(fmt.Sprintf("country %s is not supported", env))
 	}
+
+	return cfg
 }

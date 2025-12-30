@@ -102,6 +102,12 @@ WHERE run_id in (
   - [DML 42880](https://doorman.infra.prd.g-bank.app/rds/dml/42880)
   - [DML 42697](https://doorman.infra.prd.g-bank.app/rds/dml/42697)
 
+### rpp_cashin_validation_failed_122_0
+- **Case**: RPP Cashin workflow stuck at state 122 (stFieldsValidationFailed) with attempt 0
+- **Fix**: Reset workflow to state 100 (stTransferPersisted) with attempt 1 to retry validation
+- **References**:
+  - [Add DML reference if available]
+
 ### user_name_change_qr_invalidation
 - **Case**: User changed name, old QR code needs to be invalidated to force generation of new one
 - **Fix**: DML to mark specific QR entry as INACTIVE

@@ -1,4 +1,4 @@
-.PHONY: build build-my build-sg deploy lint deps help
+.PHONY: build build-my build-sg deploy lint deps test help
 
 BIN_DIR := $(HOME)/bin
 

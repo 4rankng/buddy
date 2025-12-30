@@ -183,6 +183,28 @@ func getDefaultSOPRules() []CaseRule {
 			},
 		},
 		{
+			CaseType:    domain.CaseRppCashinValidationFailed122_0,
+			Description: "RPP Cashin Validation Failed at state 122 with attempt 0",
+			Country:     "my",
+			Conditions: []RuleCondition{
+				{
+					FieldPath: "RPPAdapter.Workflow.WorkflowID",
+					Operator:  "eq",
+					Value:     "wf_ct_cashin",
+				},
+				{
+					FieldPath: "RPPAdapter.Workflow.State",
+					Operator:  "eq",
+					Value:     "122",
+				},
+				{
+					FieldPath: "RPPAdapter.Workflow.Attempt",
+					Operator:  "eq",
+					Value:     0,
+				},
+			},
+		},
+		{
 			CaseType:    domain.CasePcExternalPaymentFlow201_0RPP900,
 			Description: "PC External Payment Flow 201/0 with RPP 900 (completed)",
 			Country:     "my",
