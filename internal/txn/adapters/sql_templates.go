@@ -5,6 +5,15 @@ import (
 	"buddy/internal/utils"
 )
 
+// getRPPWorkflowRunID returns the run_id of the first workflow in the slice.
+// Returns empty string if slice is empty.
+func getRPPWorkflowRunID(workflows []domain.WorkflowInfo) string {
+	if len(workflows) == 0 {
+		return ""
+	}
+	return workflows[0].RunID
+}
+
 // sqlTemplates maps SOP cases to their DML tickets
 var sqlTemplates = map[domain.Case]func(domain.TransactionResult) *domain.DMLTicket{
 	// ========================================
@@ -206,7 +215,7 @@ SET state = 222,
 WHERE run_id = %s
 AND state = 210;`,
 					Params: []domain.ParamInfo{
-						{Name: "run_id", Value: result.RPPAdapter.Workflow.RunID, Type: "string"},
+						{Name: "run_id", Value: getRPPWorkflowRunID(result.RPPAdapter.Workflow), Type: "string"},
 					},
 				},
 			},
@@ -219,7 +228,7 @@ SET state = 201,
     data = JSON_SET(data, '$.State', 201)
 WHERE run_id = %s;`,
 					Params: []domain.ParamInfo{
-						{Name: "run_id", Value: result.RPPAdapter.Workflow.RunID, Type: "string"},
+						{Name: "run_id", Value: getRPPWorkflowRunID(result.RPPAdapter.Workflow), Type: "string"},
 					},
 				},
 			},
@@ -240,7 +249,7 @@ SET state = 301,
 WHERE run_id = %s
 AND state = 900;`,
 					Params: []domain.ParamInfo{
-						{Name: "run_id", Value: result.RPPAdapter.Workflow.RunID, Type: "string"},
+						{Name: "run_id", Value: getRPPWorkflowRunID(result.RPPAdapter.Workflow), Type: "string"},
 					},
 				},
 			},
@@ -253,7 +262,7 @@ SET state = 900,
     data = JSON_SET(data, '$.State', 900)
 WHERE run_id = %s;`,
 					Params: []domain.ParamInfo{
-						{Name: "run_id", Value: result.RPPAdapter.Workflow.RunID, Type: "string"},
+						{Name: "run_id", Value: getRPPWorkflowRunID(result.RPPAdapter.Workflow), Type: "string"},
 					},
 				},
 			},
@@ -275,7 +284,7 @@ WHERE run_id = %s
 AND state = 101
 AND workflow_id = 'wf_ct_cashout';`,
 					Params: []domain.ParamInfo{
-						{Name: "run_id", Value: result.RPPAdapter.Workflow.RunID, Type: "string"},
+						{Name: "run_id", Value: getRPPWorkflowRunID(result.RPPAdapter.Workflow), Type: "string"},
 					},
 				},
 			},
@@ -290,7 +299,7 @@ SET state = 101,
 WHERE run_id = %s
 AND workflow_id = 'wf_ct_cashout';`,
 					Params: []domain.ParamInfo{
-						{Name: "run_id", Value: result.RPPAdapter.Workflow.RunID, Type: "string"},
+						{Name: "run_id", Value: getRPPWorkflowRunID(result.RPPAdapter.Workflow), Type: "string"},
 					},
 				},
 			},
@@ -312,7 +321,7 @@ WHERE run_id = %s
 AND state = 210
 AND workflow_id = 'wf_ct_qr_payment';`,
 					Params: []domain.ParamInfo{
-						{Name: "run_id", Value: result.RPPAdapter.Workflow.RunID, Type: "string"},
+						{Name: "run_id", Value: getRPPWorkflowRunID(result.RPPAdapter.Workflow), Type: "string"},
 					},
 				},
 			},
@@ -327,7 +336,7 @@ SET state = 210,
 WHERE run_id = %s
 AND workflow_id = 'wf_ct_qr_payment';`,
 					Params: []domain.ParamInfo{
-						{Name: "run_id", Value: result.RPPAdapter.Workflow.RunID, Type: "string"},
+						{Name: "run_id", Value: getRPPWorkflowRunID(result.RPPAdapter.Workflow), Type: "string"},
 					},
 				},
 			},
@@ -350,7 +359,7 @@ WHERE run_id = %s
 AND state = 210
 AND workflow_id IN ('wf_ct_cashout', 'wf_ct_qr_payment');`,
 					Params: []domain.ParamInfo{
-						{Name: "run_id", Value: result.RPPAdapter.Workflow.RunID, Type: "string"},
+						{Name: "run_id", Value: getRPPWorkflowRunID(result.RPPAdapter.Workflow), Type: "string"},
 					},
 				},
 			},
@@ -365,7 +374,7 @@ SET state = 210,
 WHERE run_id = %s
 AND workflow_id IN ('wf_ct_cashout', 'wf_ct_qr_payment');`,
 					Params: []domain.ParamInfo{
-						{Name: "run_id", Value: result.RPPAdapter.Workflow.RunID, Type: "string"},
+						{Name: "run_id", Value: getRPPWorkflowRunID(result.RPPAdapter.Workflow), Type: "string"},
 					},
 				},
 			},

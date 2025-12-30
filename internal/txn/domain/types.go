@@ -85,7 +85,7 @@ type RPPAdapterInfo struct {
 	EndToEndID  string // = payment-engine.transfers.external_id
 	Status      string // RPP status
 	CreatedAt   string // created_at timestamp
-	Workflow    WorkflowInfo
+	Workflow    []WorkflowInfo
 	Info        string // optional extra context (e.g. status reason description)
 }
 

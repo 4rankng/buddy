@@ -190,3 +190,92 @@ func TestThoughtMachineFalseNegativeTemplate(t *testing.T) {
 	assert.Contains(t, statements.PCRollbackStatements[0], "WHERE run_id = 'pc-test-run-id'")
 	assert.Contains(t, statements.PCRollbackStatements[0], "workflow_id = 'internal_payment_flow'")
 }
+
+func TestGetDMLTicketForRppResume(t *testing.T) {
+	tests := []struct {
+		name          string
+		result        domain.TransactionResult
+		wantTicket    bool
+		expectedRunID string
+	}{
+		{
+			name: "first workflow matches wf_ct_cashout",
+			result: domain.TransactionResult{
+				RPPAdapter: &domain.RPPAdapterInfo{
+					Workflow: []domain.WorkflowInfo{
+						{WorkflowID: "wf_ct_cashout", RunID: "run-001", State: "210", Attempt: 0},
+						{WorkflowID: "other_workflow", RunID: "run-002", State: "210", Attempt: 0},
+					},
+				},
+			},
+			wantTicket:    true,
+			expectedRunID: "run-001",
+		},
+		{
+			name: "second workflow matches wf_ct_qr_payment",
+			result: domain.TransactionResult{
+				RPPAdapter: &domain.RPPAdapterInfo{
+					Workflow: []domain.WorkflowInfo{
+						{WorkflowID: "other_workflow", RunID: "run-001", State: "210", Attempt: 0},
+						{WorkflowID: "wf_ct_qr_payment", RunID: "run-002", State: "210", Attempt: 0},
+					},
+				},
+			},
+			wantTicket:    true,
+			expectedRunID: "run-002",
+		},
+		{
+			name: "no matching workflow found",
+			result: domain.TransactionResult{
+				RPPAdapter: &domain.RPPAdapterInfo{
+					Workflow: []domain.WorkflowInfo{
+						{WorkflowID: "other_workflow", RunID: "run-001", State: "210", Attempt: 0},
+						{WorkflowID: "another_workflow", RunID: "run-002", State: "210", Attempt: 0},
+					},
+				},
+			},
+			wantTicket:    false,
+			expectedRunID: "",
+		},
+		{
+			name: "empty workflow slice",
+			result: domain.TransactionResult{
+				RPPAdapter: &domain.RPPAdapterInfo{
+					Workflow: []domain.WorkflowInfo{},
+				},
+			},
+			wantTicket:    false,
+			expectedRunID: "",
+		},
+		{
+			name: "case type not matching rpp_no_response_resume",
+			result: domain.TransactionResult{
+				RPPAdapter: &domain.RPPAdapterInfo{
+					Workflow: []domain.WorkflowInfo{
+						{WorkflowID: "wf_ct_cashout", RunID: "run-001", State: "210", Attempt: 0},
+					},
+				},
+				CaseType: domain.CaseNone,
+			},
+			wantTicket:    false,
+			expectedRunID: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ticket := GetDMLTicketForRppResume(tt.result)
+
+			if tt.wantTicket {
+				require.NotNil(t, ticket)
+				require.Equal(t, domain.CaseRppNoResponseResume, ticket.CaseType)
+				require.Len(t, ticket.Deploy, 1)
+				require.Len(t, ticket.Rollback, 1)
+				assert.Equal(t, tt.expectedRunID, ticket.Deploy[0].Params[0].Value)
+				assert.Equal(t, tt.expectedRunID, ticket.Rollback[0].Params[0].Value)
+			} else {
+				assert.Nil(t, ticket)
+			}
+		})
+	}
+}

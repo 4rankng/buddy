@@ -47,9 +47,9 @@ deploy: build
 lint:
 	@echo "Running linters..."
 	@echo "Running gofmt..."
-	@if [ "$(shell gofmt -s -l . | wc -l)" -gt 0 ]; then \
+	@if [ "$$(gofmt -s -l . | grep -v '^vendor/' | wc -l)" -gt 0 ]; then \
 		echo "gofmt found issues:"; \
-		gofmt -s -l .; \
+		gofmt -s -l . | grep -v '^vendor/'; \
 		exit 1; \
 	fi
 	@echo "Running go vet..."

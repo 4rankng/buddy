@@ -57,10 +57,12 @@ func TestEvaluateRule_PeStuck300RppNotFound(t *testing.T) {
 					},
 				},
 				RPPAdapter: &domain.RPPAdapterInfo{
-					Workflow: domain.WorkflowInfo{
-						WorkflowID: "wf_ct_qr_payment",
-						State:      "210",
-						Attempt:    0,
+					Workflow: []domain.WorkflowInfo{
+						{
+							WorkflowID: "wf_ct_qr_payment",
+							State:      "210",
+							Attempt:    0,
+						},
 					},
 				},
 			},

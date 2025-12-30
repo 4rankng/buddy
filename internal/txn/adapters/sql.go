@@ -48,6 +48,18 @@ func GetDMLTicketForRppResume(result domain.TransactionResult) *domain.DMLTicket
 		return nil
 	}
 
+	var runID string
+	for _, wf := range result.RPPAdapter.Workflow {
+		if wf.WorkflowID == "wf_ct_cashout" || wf.WorkflowID == "wf_ct_qr_payment" {
+			runID = wf.RunID
+			break
+		}
+	}
+
+	if runID == "" {
+		return nil
+	}
+
 	return &domain.DMLTicket{
 		Deploy: []domain.TemplateInfo{
 			{
@@ -62,7 +74,7 @@ WHERE run_id = %s
 AND state = 210
 AND workflow_id IN ('wf_ct_cashout', 'wf_ct_qr_payment');`,
 				Params: []domain.ParamInfo{
-					{Name: "run_id", Value: result.RPPAdapter.Workflow.RunID, Type: "string"},
+					{Name: "run_id", Value: runID, Type: "string"},
 				},
 			},
 		},
@@ -77,7 +89,7 @@ SET state = 210,
 WHERE run_id = %s
 AND workflow_id IN ('wf_ct_cashout', 'wf_ct_qr_payment');`,
 				Params: []domain.ParamInfo{
-					{Name: "run_id", Value: result.RPPAdapter.Workflow.RunID, Type: "string"},
+					{Name: "run_id", Value: runID, Type: "string"},
 				},
 			},
 		},

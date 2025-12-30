@@ -320,22 +320,25 @@ func displayRPPAdapterSection(w io.Writer, ra domain.RPPAdapterInfo, isE2EID boo
 				fmt.Printf("Warning: failed to write partner tx id: %v\n", err)
 			}
 		}
-		if ra.Workflow.RunID != "" {
-			if _, err := fmt.Fprintf(w, "%s:\n", ra.Workflow.WorkflowID); err != nil {
-				fmt.Printf("Warning: failed to write rpp workflow header: %v\n", err)
-			}
-			if _, err := fmt.Fprintf(w, "   state=%s attempt=%d\n", ra.Workflow.GetFormattedState(), ra.Workflow.Attempt); err != nil {
-				fmt.Printf("Warning: failed to write rpp workflow state: %v\n", err)
-			}
-			if _, err := fmt.Fprintf(w, "   run_id=%s\n", ra.Workflow.RunID); err != nil {
-				fmt.Printf("Warning: failed to write rpp workflow run id: %v\n", err)
+		// Display all workflows
+		for _, wf := range ra.Workflow {
+			if wf.RunID != "" {
+				if _, err := fmt.Fprintf(w, "%s:\n", wf.WorkflowID); err != nil {
+					fmt.Printf("Warning: failed to write rpp workflow header: %v\n", err)
+				}
+				if _, err := fmt.Fprintf(w, "   state=%s attempt=%d\n", wf.GetFormattedState(), wf.Attempt); err != nil {
+					fmt.Printf("Warning: failed to write rpp workflow state: %v\n", err)
+				}
+				if _, err := fmt.Fprintf(w, "   run_id=%s\n", wf.RunID); err != nil {
+					fmt.Printf("Warning: failed to write rpp workflow run id: %v\n", err)
+				}
 			}
 		}
 		return nil
 	}
 
 	// For non-E2E IDs, check if we have data
-	hasData := ra.Workflow.RunID != "" || ra.ReqBizMsgID != "" || ra.PartnerTxID != "" || ra.Info != ""
+	hasData := len(ra.Workflow) > 0 || ra.ReqBizMsgID != "" || ra.PartnerTxID != "" || ra.Info != ""
 	if !hasData {
 		return nil
 	}
@@ -356,15 +359,18 @@ func displayRPPAdapterSection(w io.Writer, ra domain.RPPAdapterInfo, isE2EID boo
 			fmt.Printf("Warning: failed to write partner tx id: %v\n", err)
 		}
 	}
-	if ra.Workflow.RunID != "" {
-		if _, err := fmt.Fprintf(w, "%s:\n", ra.Workflow.WorkflowID); err != nil {
-			fmt.Printf("Warning: failed to write rpp workflow header: %v\n", err)
-		}
-		if _, err := fmt.Fprintf(w, "   state=%s attempt=%d\n", ra.Workflow.GetFormattedState(), ra.Workflow.Attempt); err != nil {
-			fmt.Printf("Warning: failed to write rpp workflow state: %v\n", err)
-		}
-		if _, err := fmt.Fprintf(w, "   run_id=%s\n", ra.Workflow.RunID); err != nil {
-			fmt.Printf("Warning: failed to write rpp workflow run id: %v\n", err)
+	// Display all workflows
+	for _, wf := range ra.Workflow {
+		if wf.RunID != "" {
+			if _, err := fmt.Fprintf(w, "%s:\n", wf.WorkflowID); err != nil {
+				fmt.Printf("Warning: failed to write rpp workflow header: %v\n", err)
+			}
+			if _, err := fmt.Fprintf(w, "   state=%s attempt=%d\n", wf.GetFormattedState(), wf.Attempt); err != nil {
+				fmt.Printf("Warning: failed to write rpp workflow state: %v\n", err)
+			}
+			if _, err := fmt.Fprintf(w, "   run_id=%s\n", wf.RunID); err != nil {
+				fmt.Printf("Warning: failed to write rpp workflow run id: %v\n", err)
+			}
 		}
 	}
 	if ra.Info != "" {

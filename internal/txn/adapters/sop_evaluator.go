@@ -34,6 +34,11 @@ func (r *SOPRepository) evaluateCondition(condition RuleCondition, result *domai
 		return condition.Operator == "eq" && condition.Value == ""
 	}
 
+	// Handle slice values: check if ANY element in slice matches condition
+	if r.isSliceValue(fieldValue) {
+		return r.evaluateSliceCondition(condition, fieldValue)
+	}
+
 	switch condition.Operator {
 	case "eq":
 		// Special handling for nil comparison
@@ -185,4 +190,89 @@ func (r *SOPRepository) containsValue(value, substr interface{}) bool {
 	valueStr := fmt.Sprintf("%v", value)
 	substrStr := fmt.Sprintf("%v", substr)
 	return strings.Contains(valueStr, substrStr)
+}
+
+// evaluateSliceCondition evaluates a condition against a slice value.
+// Returns true if ANY element in slice matches condition.
+func (r *SOPRepository) evaluateSliceCondition(condition RuleCondition, sliceValue interface{}) bool {
+	sliceVal := reflect.ValueOf(sliceValue)
+	if sliceVal.Kind() != reflect.Slice {
+		return false
+	}
+
+	// Empty slice handling
+	if sliceVal.Len() == 0 {
+		if condition.Operator == "eq" && condition.Value == "" {
+			return true
+		}
+		if condition.Operator == "ne" && condition.Value != "" {
+			return true
+		}
+		return false
+	}
+
+	// Check if ANY element matches condition
+	for i := 0; i < sliceVal.Len(); i++ {
+		element := sliceVal.Index(i).Interface()
+		if r.evaluateConditionWithElement(condition, element) {
+			return true
+		}
+	}
+	return false
+}
+
+// evaluateConditionWithElement evaluates a condition against a single element value.
+func (r *SOPRepository) evaluateConditionWithElement(condition RuleCondition, element interface{}) bool {
+	switch condition.Operator {
+	case "eq":
+		if condition.Value == nil {
+			return element == nil
+		}
+		if element == nil {
+			return false
+		}
+		// Handle string-to-int conversion for numeric comparisons
+		if conditionStr, ok := condition.Value.(string); ok {
+			if elementStr, ok := element.(string); ok {
+				if conditionInt, err1 := strconv.Atoi(conditionStr); err1 == nil {
+					if elementInt, err2 := strconv.Atoi(elementStr); err2 == nil {
+						return conditionInt == elementInt
+					}
+				}
+			}
+		}
+		return reflect.DeepEqual(element, condition.Value)
+
+	case "ne":
+		// Handle string-to-int conversion for numeric comparisons
+		if conditionStr, ok := condition.Value.(string); ok {
+			if elementStr, ok := element.(string); ok {
+				if conditionInt, err1 := strconv.Atoi(conditionStr); err1 == nil {
+					if elementInt, err2 := strconv.Atoi(elementStr); err2 == nil {
+						return conditionInt != elementInt
+					}
+				}
+			}
+		}
+		return !reflect.DeepEqual(element, condition.Value)
+
+	case "in":
+		return r.isInSlice(element, condition.Value)
+	case "not_in":
+		return !r.isInSlice(element, condition.Value)
+	case "regex":
+		return r.matchRegex(element, condition.Value)
+	case "contains":
+		return r.containsValue(element, condition.Value)
+	default:
+		return false
+	}
+}
+
+// isSliceValue checks if a value is a slice type.
+func (r *SOPRepository) isSliceValue(value interface{}) bool {
+	if value == nil {
+		return false
+	}
+	return reflect.TypeOf(value).Kind() == reflect.Slice
 }
