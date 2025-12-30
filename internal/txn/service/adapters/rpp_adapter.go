@@ -38,7 +38,12 @@ func (r *RPPAdapter) QueryByE2EID(externalID string) (*domain.RPPAdapterInfo, er
 		CreatedAt:   utils.GetStringValue(row, "created_at"),
 	}
 
-	// Query workflows using new pattern: time window + req_biz_msg_id filter
+	// Query workflows using dual approach:
+	// 1. wf_process_registry: time window + req_biz_msg_id filter
+	// 2. Other RPP workflows: direct run_id lookup using partner_tx_id
+	info.Workflow = make([]domain.WorkflowInfo, 0)
+
+	// Query wf_process_registry workflow
 	if info.ReqBizMsgID != "" && info.CreatedAt != "" {
 		createdAt, err := time.Parse(time.RFC3339Nano, info.CreatedAt)
 		if err == nil {
@@ -57,7 +62,6 @@ func (r *RPPAdapter) QueryByE2EID(externalID string) (*domain.RPPAdapterInfo, er
 			)
 
 			if workflowRows, err := r.client.QueryRppAdapter(workflowQuery); err == nil && len(workflowRows) > 0 {
-				info.Workflow = make([]domain.WorkflowInfo, 0, len(workflowRows))
 				for _, workflow := range workflowRows {
 					wf := domain.WorkflowInfo{}
 					if runID, ok := workflow["run_id"]; ok {
@@ -88,6 +92,48 @@ func (r *RPPAdapter) QueryByE2EID(externalID string) (*domain.RPPAdapterInfo, er
 					}
 					info.Workflow = append(info.Workflow, wf)
 				}
+			}
+		}
+	}
+
+	// Query other RPP workflows using partner_tx_id as run_id
+	if info.PartnerTxID != "" {
+		workflowQuery := fmt.Sprintf(
+			"SELECT run_id, workflow_id, state, attempt, prev_trans_id, data FROM workflow_execution "+
+				"WHERE run_id = '%s'",
+			info.PartnerTxID,
+		)
+
+		if workflowRows, err := r.client.QueryRppAdapter(workflowQuery); err == nil && len(workflowRows) > 0 {
+			for _, workflow := range workflowRows {
+				wf := domain.WorkflowInfo{}
+				if runID, ok := workflow["run_id"]; ok {
+					wf.RunID = fmt.Sprintf("%v", runID)
+				}
+				if workflowID, ok := workflow["workflow_id"]; ok {
+					wf.WorkflowID = fmt.Sprintf("%v", workflowID)
+				}
+				if state, ok := workflow["state"]; ok {
+					if stateInt, ok := state.(float64); ok {
+						wf.State = fmt.Sprintf("%d", int(stateInt))
+					} else {
+						wf.State = fmt.Sprintf("%v", state)
+					}
+				}
+				if attempt, ok := workflow["attempt"]; ok {
+					if attemptFloat, ok := attempt.(float64); ok {
+						wf.Attempt = int(attemptFloat)
+					}
+				}
+				if prevTransID, ok := workflow["prev_trans_id"]; ok {
+					wf.PrevTransID = fmt.Sprintf("%v", prevTransID)
+				}
+				if data, ok := workflow["data"]; ok {
+					if dataStr, ok := data.(string); ok {
+						wf.Data = dataStr
+					}
+				}
+				info.Workflow = append(info.Workflow, wf)
 			}
 		}
 	}

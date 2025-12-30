@@ -475,7 +475,7 @@ func writeResult(w io.Writer, result domain.TransactionResult, index int) {
 	}
 
 	if result.RPPAdapter != nil {
-		if err := displayRPPAdapterSection(w, *result.RPPAdapter, false, result.InputID); err != nil {
+		if err := displayRPPAdapterSection(w, *result.RPPAdapter, domain.IsRppE2EID(result.InputID), result.InputID); err != nil {
 			fmt.Printf("Warning: failed to display RPP adapter section: %v\n", err)
 		}
 		if _, err := fmt.Fprintln(w); err != nil {
