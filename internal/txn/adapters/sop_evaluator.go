@@ -96,11 +96,12 @@ func (r *SOPRepository) evaluateCondition(condition RuleCondition, result *domai
 // - If a pointer along the path is nil, it returns (nil, false)
 // - If a field name doesn't exist, it returns (nil, false)
 // - If the path is valid but the final value is a nil pointer, it returns (nil, true)
+// - If the final value is a slice, it returns the slice (not an element)
 func (r *SOPRepository) getFieldValue(fieldPath string, result *domain.TransactionResult) (interface{}, bool) {
 	parts := strings.Split(fieldPath, ".")
 	current := reflect.ValueOf(result)
 
-	for _, part := range parts {
+	for i, part := range parts {
 		// Dereference pointers safely
 		if current.Kind() == reflect.Ptr {
 			if current.IsNil() {
@@ -116,6 +117,12 @@ func (r *SOPRepository) getFieldValue(fieldPath string, result *domain.Transacti
 		field := current.FieldByName(part)
 		if !field.IsValid() {
 			return nil, false
+		}
+
+		// If this is the last part and the field is a slice, return the slice
+		// This allows slice evaluation logic to work with RPPAdapter.Workflow
+		if i == len(parts)-1 && field.Kind() == reflect.Slice {
+			return field.Interface(), true
 		}
 
 		current = field
