@@ -119,10 +119,16 @@ func (r *SOPRepository) getFieldValue(fieldPath string, result *domain.Transacti
 			return nil, false
 		}
 
-		// If this is the last part and the field is a slice, return the slice
-		// This allows slice evaluation logic to work with RPPAdapter.Workflow
-		if i == len(parts)-1 && field.Kind() == reflect.Slice {
-			return field.Interface(), true
+		// If the field is a slice, handle it specially
+		if field.Kind() == reflect.Slice {
+			// If this is the last part, return the slice for element-wise evaluation
+			if i == len(parts)-1 {
+				return field.Interface(), true
+			}
+			// If there are more parts after the slice, extract the field from each element
+			// This handles cases like RPPAdapter.Workflow.WorkflowID
+			remainingPath := strings.Join(parts[i+1:], ".")
+			return r.extractFieldFromSliceElements(field, remainingPath)
 		}
 
 		current = field
@@ -137,6 +143,71 @@ func (r *SOPRepository) getFieldValue(fieldPath string, result *domain.Transacti
 	}
 
 	return current.Interface(), true
+}
+
+// extractFieldFromSliceElements extracts a nested field from each element in a slice.
+// For example, given a slice of WorkflowInfo and path "WorkflowID",
+// it returns a slice of WorkflowID values from all elements.
+func (r *SOPRepository) extractFieldFromSliceElements(sliceValue reflect.Value, fieldPath string) (interface{}, bool) {
+	if sliceValue.Kind() != reflect.Slice {
+		return nil, false
+	}
+
+	parts := strings.Split(fieldPath, ".")
+	result := make([]interface{}, 0)
+
+	for i := 0; i < sliceValue.Len(); i++ {
+		element := sliceValue.Index(i)
+
+		// Dereference pointer if needed
+		if element.Kind() == reflect.Ptr {
+			if element.IsNil() {
+				continue // Skip nil elements
+			}
+			element = element.Elem()
+		}
+
+		// Navigate to the nested field
+		current := element
+		found := true
+		for _, part := range parts {
+			if current.Kind() == reflect.Ptr {
+				if current.IsNil() {
+					found = false
+					break
+				}
+				current = current.Elem()
+			}
+
+			if current.Kind() != reflect.Struct {
+				found = false
+				break
+			}
+
+			field := current.FieldByName(part)
+			if !field.IsValid() {
+				found = false
+				break
+			}
+
+			current = field
+		}
+
+		if found {
+			// Extract the final value
+			if current.Kind() == reflect.Ptr {
+				if current.IsNil() {
+					result = append(result, nil)
+				} else {
+					result = append(result, current.Elem().Interface())
+				}
+			} else {
+				result = append(result, current.Interface())
+			}
+		}
+	}
+
+	return result, len(result) > 0
 }
 
 // compareValues compares two numeric or string values.
