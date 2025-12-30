@@ -334,7 +334,7 @@ func toInt(v interface{}) int {
 		return int(i)
 	case string:
 		var res int
-		fmt.Sscanf(i, "%d", &res)
+		_, _ = fmt.Sscanf(i, "%d", &res)
 		return res
 	}
 	return 0

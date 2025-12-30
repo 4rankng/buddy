@@ -11,6 +11,7 @@ import (
 //   - workflowID: workflow_id to match (empty string means any workflow_id)
 //   - state: state to match (empty string means any state)
 //   - attempt: attempt number to match (-1 means any attempt)
+//
 // Returns empty string if no matching workflow is found.
 func getRPPWorkflowRunIDByCriteria(workflows []domain.WorkflowInfo, workflowID, state string, attempt int) string {
 	for _, wf := range workflows {
@@ -481,28 +482,28 @@ AND state = 902;`,
 		}
 	},
 
-		domain.CaseRppCashinValidationFailed122_0: func(result domain.TransactionResult) *domain.DMLTicket {
-			if result.RPPAdapter == nil {
-				return nil
-			}
+	domain.CaseRppCashinValidationFailed122_0: func(result domain.TransactionResult) *domain.DMLTicket {
+		if result.RPPAdapter == nil {
+			return nil
+		}
 
-			// Find the specific workflow matching the case criteria
-			runID := getRPPWorkflowRunIDByCriteria(
-				result.RPPAdapter.Workflow,
-				"wf_ct_cashin",
-				"122",
-				0,
-			)
+		// Find the specific workflow matching the case criteria
+		runID := getRPPWorkflowRunIDByCriteria(
+			result.RPPAdapter.Workflow,
+			"wf_ct_cashin",
+			"122",
+			0,
+		)
 
-			if runID == "" {
-				return nil // No matching workflow found
-			}
+		if runID == "" {
+			return nil // No matching workflow found
+		}
 
-			return &domain.DMLTicket{
-				Deploy: []domain.TemplateInfo{
-					{
-						TargetDB: "RPP",
-						SQLTemplate: `-- rpp_cashin_validation_failed_122_0, retry validation
+		return &domain.DMLTicket{
+			Deploy: []domain.TemplateInfo{
+				{
+					TargetDB: "RPP",
+					SQLTemplate: `-- rpp_cashin_validation_failed_122_0, retry validation
 	UPDATE workflow_execution
 	SET state = 100,
 			  attempt = 1,
@@ -510,31 +511,31 @@ AND state = 902;`,
 	WHERE run_id = %s
 	AND workflow_id = 'wf_ct_cashin'
 	AND state = 122;`,
-						Params: []domain.ParamInfo{
-							{Name: "run_id", Value: runID, Type: "string"},
-						},
+					Params: []domain.ParamInfo{
+						{Name: "run_id", Value: runID, Type: "string"},
 					},
 				},
-				Rollback: []domain.TemplateInfo{
-					{
-						TargetDB: "RPP",
-						SQLTemplate: `-- RPP Rollback: Move cashin workflow back to state 122
+			},
+			Rollback: []domain.TemplateInfo{
+				{
+					TargetDB: "RPP",
+					SQLTemplate: `-- RPP Rollback: Move cashin workflow back to state 122
 	UPDATE workflow_execution
 	SET state = 122,
 			  attempt = 0,
 			  data = JSON_SET(data, '$.State', 122)
 	WHERE run_id = %s
 	AND workflow_id = 'wf_ct_cashin';`,
-						Params: []domain.ParamInfo{
-							{Name: "run_id", Value: runID, Type: "string"},
-						},
+					Params: []domain.ParamInfo{
+						{Name: "run_id", Value: runID, Type: "string"},
 					},
 				},
-				CaseType: domain.CaseRppCashinValidationFailed122_0,
-			}
-		},
+			},
+			CaseType: domain.CaseRppCashinValidationFailed122_0,
+		}
+	},
 
-		domain.CaseThoughtMachineFalseNegative: func(result domain.TransactionResult) *domain.DMLTicket {
+	domain.CaseThoughtMachineFalseNegative: func(result domain.TransactionResult) *domain.DMLTicket {
 		// Get PE and PC run IDs
 		peRunID := result.PaymentEngine.Workflow.RunID
 		var pcRunID string
