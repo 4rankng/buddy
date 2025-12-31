@@ -67,6 +67,11 @@ deps:
 	go mod download
 	go mod tidy
 
+# Run all unit tests
+test:
+	@echo "Running unit tests..."
+	go test -v ./...
+
 # Help target
 help:
 	@echo "Available targets:"
@@ -76,4 +81,5 @@ help:
 	@echo "  deploy     - Build and install binaries to ~/.local/bin for system-wide use"
 	@echo "  lint       - Run Go linters (gofmt, go vet, golangci-lint)"
 	@echo "  deps       - Download and tidy dependencies"
+	@echo "  test       - Run all unit tests"
 	@echo "  help       - Show this help message"
