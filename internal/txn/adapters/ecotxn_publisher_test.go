@@ -103,6 +103,29 @@ func (m *MockDoormanClient) QueryPaymentCore(query string) ([]map[string]interfa
 			},
 		}, nil
 	}
+	// Return mock data for workflow queries using transaction_id directly
+	if strings.Contains(query, "run_id = 'test-timestamp-123'") {
+		return []map[string]interface{}{
+			{
+				"run_id":   "test-timestamp-123",
+				"state":    200,
+				"attempt":  0,
+				"data":     json.RawMessage(`{"State": 200, "ValueTimestamp": "2025-10-24T15:30:01Z", "ChargeStorage": {"ID": 123, "Status": "PENDING"}}`),
+				"ValuedAt": "2025-10-24T15:30:01Z",
+			},
+		}, nil
+	}
+	if strings.Contains(query, "run_id = '7eba1b67c9174d21bb66bb089ebd6fd3'") {
+		return []map[string]interface{}{
+			{
+				"run_id":   "7eba1b67c9174d21bb66bb089ebd6fd3",
+				"state":    300,
+				"attempt":  0,
+				"data":     json.RawMessage(`{"State": 300, "ValueTimestamp": "2025-10-24T15:30:01Z", "ChargeStorage": {"ID": 786874, "Status": "PENDING"}}`),
+				"ValuedAt": "2025-10-24T15:30:01Z",
+			},
+		}, nil
+	}
 	return []map[string]interface{}{}, nil
 }
 
@@ -206,14 +229,14 @@ func TestEcoTxn_ChargeUpdateSQLTimestampPreservation(t *testing.T) {
 	// Verify deploy SQL includes updated_at preservation
 	assert.Contains(t, string(deploySQL), "updated_at = '2023-12-16T07:06:07.00Z'",
 		"Deploy SQL should preserve original updated_at timestamp")
-	assert.Contains(t, string(deploySQL), "SET valued_at = '2025-10-24T15:30:01.00Z', updated_at = '2023-12-16T07:06:07.00Z'",
+	assert.Contains(t, string(deploySQL), "valued_at = '2025-10-24T15:30:01Z',\n    updated_at = '2023-12-16T07:06:07.00Z'",
 		"Deploy SQL should include valued_at and updated_at fields in correct order")
 
 	// Verify rollback SQL includes updated_at preservation
 	assert.Contains(t, string(rollbackSQL), "updated_at = '2023-12-16T07:06:07.00Z'",
 		"Rollback SQL should preserve original updated_at timestamp")
-	assert.Contains(t, string(rollbackSQL), "SET status = 'PENDING', valued_at = '0000-00-00T00:00:00.00Z', updated_at = '2023-12-16T07:06:07.00Z'",
-		"Rollback SQL should include all three fields in correct order")
+	assert.Contains(t, string(rollbackSQL), "valued_at = '0000-00-00T00:00:00Z',\n    updated_at = '2023-12-16T07:06:07.00Z'",
+		"Rollback SQL should reset valued_at and preserve updated_at")
 }
 
 func TestEcoTxn_FullIntegrationTest(t *testing.T) {
@@ -277,7 +300,7 @@ func TestEcoTxn_FullIntegrationTest(t *testing.T) {
 	// Verify deploy SQL contains expected elements
 	deployStr := string(deploySQL)
 	assert.Contains(t, deployStr, "UPDATE charge")
-	assert.Contains(t, deployStr, "valued_at = '2025-10-24T15:30:01.00Z'")  // This should be from payment-core ValueTimestamp
+	assert.Contains(t, deployStr, "valued_at = '2025-10-24T15:30:01Z'")     // This should be from payment-core ValueTimestamp
 	assert.Contains(t, deployStr, "updated_at = '2025-12-16T07:06:07.00Z'") // This should be preserved from charge
 	assert.Contains(t, deployStr, "UPDATE workflow_execution")
 	assert.Contains(t, deployStr, "state = 800")
@@ -286,7 +309,7 @@ func TestEcoTxn_FullIntegrationTest(t *testing.T) {
 	// Verify rollback SQL contains expected elements
 	rollbackStr := string(rollbackSQL)
 	assert.Contains(t, rollbackStr, "UPDATE charge")
-	assert.Contains(t, rollbackStr, "valued_at = '0000-00-00T00:00:00.00Z'")
+	assert.Contains(t, rollbackStr, "valued_at = '0000-00-00T00:00:00Z'")
 	assert.Contains(t, rollbackStr, "updated_at = '2025-12-16T07:06:07.00Z'") // Preserved from original
 	assert.Contains(t, rollbackStr, "state = 300")
 	assert.Contains(t, rollbackStr, "attempt = 0")

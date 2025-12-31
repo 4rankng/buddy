@@ -107,7 +107,7 @@ func (p *EcoTxnPublisher) processSingleTransaction(transactionID string) Process
 	p.PPEDeploy.WriteString(fmt.Sprintf("-- Transaction: %s\n", transactionID))
 
 	// Only update charge table if valued_at is not set
-	if chargeRecord.ValuedAt == "" || chargeRecord.ValuedAt == "0000-00-00 00:00:00" || strings.HasPrefix(chargeRecord.ValuedAt, "0001-01-01") {
+	if chargeRecord.ValuedAt == "" || chargeRecord.ValuedAt == "0000-00-00 00:00:00" || chargeRecord.ValuedAt == "0000-00-00T00:00:00.00Z" || strings.HasPrefix(chargeRecord.ValuedAt, "0001-01-01") {
 		p.PPEDeploy.WriteString(fmt.Sprintf(`UPDATE charge
 SET 
     valued_at = '%s',
@@ -135,7 +135,7 @@ WHERE
 	p.PPERollback.WriteString(fmt.Sprintf("-- Transaction: %s\n", transactionID))
 
 	// Mirror the rollback: Only update charge table if we generated an update in deploy (meaning original was unset)
-	if chargeRecord.ValuedAt == "" || chargeRecord.ValuedAt == "0000-00-00 00:00:00" || strings.HasPrefix(chargeRecord.ValuedAt, "0001-01-01") {
+	if chargeRecord.ValuedAt == "" || chargeRecord.ValuedAt == "0000-00-00 00:00:00" || chargeRecord.ValuedAt == "0000-00-00T00:00:00.00Z" || strings.HasPrefix(chargeRecord.ValuedAt, "0001-01-01") {
 		p.PPERollback.WriteString(fmt.Sprintf(`UPDATE charge
 SET 
     valued_at = '0000-00-00T00:00:00Z',
