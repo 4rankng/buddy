@@ -534,6 +534,83 @@ AND state = 902;`,
 			CaseType: domain.CaseRppCashinValidationFailed122_0,
 		}
 	},
+	domain.CaseRppRtpCashinStuck200_0: func(result domain.TransactionResult) *domain.DMLTicket {
+		if result.RPPAdapter == nil {
+			return nil
+		}
+
+		// Find workflow matching case criteria
+		runID := getRPPWorkflowRunIDByCriteria(
+			result.RPPAdapter.Workflow,
+			"wf_ct_rtp_cashin",
+			"200",
+			0,
+		)
+
+		if runID == "" {
+			return nil
+		}
+
+		// Get partner_tx_id for PPE SQL
+		partnerTxID := result.RPPAdapter.PartnerTxID
+		if partnerTxID == "" {
+			return nil
+		}
+
+		return &domain.DMLTicket{
+			Deploy: []domain.TemplateInfo{
+				{
+					TargetDB: "PPE",
+					SQLTemplate: `-- rpp_rtp_cashin_stuck_200_0
+UPDATE intent SET status = 'UPDATED'
+WHERE intent_id = %s
+AND status = 'CONFIRMED';`,
+					Params: []domain.ParamInfo{
+						{Name: "intent_id", Value: partnerTxID, Type: "string"},
+					},
+				},
+				{
+					TargetDB: "RPP",
+					SQLTemplate: `-- rpp_rtp_cashin_stuck_200_0
+UPDATE workflow_execution
+SET state = 110,
+	   attempt = 1,
+	   data = JSON_SET(data, '$.State', 110)
+WHERE run_id = %s
+AND state = 200
+AND workflow_id = 'wf_ct_rtp_cashin';`,
+					Params: []domain.ParamInfo{
+						{Name: "run_id", Value: runID, Type: "string"},
+					},
+				},
+			},
+			Rollback: []domain.TemplateInfo{
+				{
+					TargetDB: "PPE",
+					SQLTemplate: `-- rpp_rtp_cashin_stuck_200_0 Rollback
+UPDATE intent SET status = 'CONFIRMED'
+WHERE intent_id = %s;`,
+					Params: []domain.ParamInfo{
+						{Name: "intent_id", Value: partnerTxID, Type: "string"},
+					},
+				},
+				{
+					TargetDB: "RPP",
+					SQLTemplate: `-- rpp_rtp_cashin_stuck_200_0 Rollback
+UPDATE workflow_execution
+SET state = 200,
+	   attempt = 0,
+	   data = JSON_SET(data, '$.State', 200)
+WHERE run_id = %s
+AND workflow_id = 'wf_ct_rtp_cashin';`,
+					Params: []domain.ParamInfo{
+						{Name: "run_id", Value: runID, Type: "string"},
+					},
+				},
+			},
+			CaseType: domain.CaseRppRtpCashinStuck200_0,
+		}
+	},
 
 	domain.CaseThoughtMachineFalseNegative: func(result domain.TransactionResult) *domain.DMLTicket {
 		// Get PE and PC run IDs
@@ -561,7 +638,7 @@ AND state = 902;`,
 					SQLTemplate: `-- thought_machine_false_negative - PE Deploy
 UPDATE workflow_execution
 SET state = 230,
-    prev_trans_id = JSON_EXTRACT(data, '$.StreamMessage.ReferenceID'),
+    prev_trans_id = data->>'$.StreamMessage.ReferenceID',
     data = JSON_SET(data, '$.State', 230)
 WHERE run_id = %s
 AND state = 701;`,

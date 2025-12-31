@@ -97,3 +97,18 @@ AND workflow_id IN ('wf_ct_cashout', 'wf_ct_qr_payment');`,
 	}
 
 }
+
+// GetDMLTicketForRppRtpCashinStuck200_0 returns a DML ticket for the RTP cashin stuck at 200 case
+func GetDMLTicketForRppRtpCashinStuck200_0(result domain.TransactionResult) *domain.DMLTicket {
+	sopRepo := SOPRepo
+	sopRepo.IdentifyCase(&result, "my")
+	if result.CaseType != domain.CaseRppRtpCashinStuck200_0 {
+		return nil
+	}
+
+	// Use sqlTemplates map to generate ticket
+	if templateFunc, exists := sqlTemplates[domain.CaseRppRtpCashinStuck200_0]; exists {
+		return templateFunc(result)
+	}
+	return nil
+}

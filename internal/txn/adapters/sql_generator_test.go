@@ -279,3 +279,112 @@ func TestGetDMLTicketForRppResume(t *testing.T) {
 		})
 	}
 }
+
+func TestGetDMLTicketForRppRtpCashinStuck200_0(t *testing.T) {
+	tests := []struct {
+		name    string
+		result  domain.TransactionResult
+		wantNil bool
+	}{
+		{
+			name: "valid RTP cashin stuck at 200/0",
+			result: domain.TransactionResult{
+				InputID: "20251229BIMBMYKL070ORB53488076",
+				RPPAdapter: &domain.RPPAdapterInfo{
+					PartnerTxID: "0f20cdcbc8dd44a7915e6803c7542778",
+					EndToEndID:  "20251229BIMBMYKL070ORB53488076",
+					Workflow: []domain.WorkflowInfo{
+						{
+							WorkflowID: "wf_ct_rtp_cashin",
+							State:      "200",
+							Attempt:    0,
+							RunID:      "52eaa330045138178bf0b0e6e33dde87",
+						},
+					},
+				},
+			},
+			wantNil: false,
+		},
+		{
+			name: "wrong state",
+			result: domain.TransactionResult{
+				InputID: "20251229BIMBMYKL070ORB53488076",
+				RPPAdapter: &domain.RPPAdapterInfo{
+					PartnerTxID: "0f20cdcbc8dd44a7915e6803c7542778",
+					EndToEndID:  "20251229BIMBMYKL070ORB53488076",
+					Workflow: []domain.WorkflowInfo{
+						{
+							WorkflowID: "wf_ct_rtp_cashin",
+							State:      "210",
+							Attempt:    0,
+							RunID:      "52eaa330045138178bf0b0e6e33dde87",
+						},
+					},
+				},
+			},
+			wantNil: true,
+		},
+		{
+			name: "nil RPP adapter",
+			result: domain.TransactionResult{
+				InputID:    "20251229BIMBMYKL070ORB53488076",
+				RPPAdapter: nil,
+			},
+			wantNil: true,
+		},
+		{
+			name: "empty partner tx id",
+			result: domain.TransactionResult{
+				InputID: "20251229BIMBMYKL070ORB53488076",
+				RPPAdapter: &domain.RPPAdapterInfo{
+					PartnerTxID: "",
+					EndToEndID:  "20251229BIMBMYKL070ORB53488076",
+					Workflow: []domain.WorkflowInfo{
+						{
+							WorkflowID: "wf_ct_rtp_cashin",
+							State:      "200",
+							Attempt:    0,
+							RunID:      "52eaa330045138178bf0b0e6e33dde87",
+						},
+					},
+				},
+			},
+			wantNil: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Debug: print case type before calling function
+			t.Logf("Before: CaseType=%s", tt.result.CaseType)
+			
+			ticket := GetDMLTicketForRppRtpCashinStuck200_0(tt.result)
+			
+			// Debug: print case type after calling function
+			t.Logf("After: CaseType=%s", tt.result.CaseType)
+			t.Logf("Ticket: %v", ticket)
+
+			if tt.wantNil {
+				if ticket != nil {
+					t.Errorf("expected nil ticket, got %v", ticket)
+				}
+				return
+			}
+
+			if ticket == nil {
+				t.Fatal("expected non-nil ticket")
+			}
+
+			if ticket.CaseType != domain.CaseRppRtpCashinStuck200_0 {
+				t.Errorf("expected case type %s, got %s", domain.CaseRppRtpCashinStuck200_0, ticket.CaseType)
+			}
+
+			if len(ticket.Deploy) < 2 {
+				t.Error("expected at least 2 deploy statements (PPE and RPP)")
+			}
+			if len(ticket.Rollback) < 2 {
+				t.Error("expected at least 2 rollback statements (PPE and RPP)")
+			}
+		})
+	}
+}
