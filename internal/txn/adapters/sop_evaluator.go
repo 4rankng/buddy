@@ -59,6 +59,12 @@ func (r *SOPRepository) evaluateCondition(condition RuleCondition, result *domai
 				}
 			}
 		}
+		// Handle int-to-int comparison
+		if conditionInt, ok := condition.Value.(int); ok {
+			if fieldInt, ok := fieldValue.(int); ok {
+				return conditionInt == fieldInt
+			}
+		}
 		return reflect.DeepEqual(fieldValue, condition.Value)
 
 	case "ne":
@@ -70,6 +76,12 @@ func (r *SOPRepository) evaluateCondition(condition RuleCondition, result *domai
 						return conditionInt != fieldInt
 					}
 				}
+			}
+		}
+		// Handle int-to-int comparison
+		if conditionInt, ok := condition.Value.(int); ok {
+			if fieldInt, ok := fieldValue.(int); ok {
+				return conditionInt != fieldInt
 			}
 		}
 		return !reflect.DeepEqual(fieldValue, condition.Value)
@@ -319,6 +331,12 @@ func (r *SOPRepository) evaluateConditionWithElement(condition RuleCondition, el
 				}
 			}
 		}
+		// Handle int-to-int comparison
+		if conditionInt, ok := condition.Value.(int); ok {
+			if elementInt, ok := element.(int); ok {
+				return conditionInt == elementInt
+			}
+		}
 		return reflect.DeepEqual(element, condition.Value)
 
 	case "ne":
@@ -330,6 +348,12 @@ func (r *SOPRepository) evaluateConditionWithElement(condition RuleCondition, el
 						return conditionInt != elementInt
 					}
 				}
+			}
+		}
+		// Handle int-to-int comparison
+		if conditionInt, ok := condition.Value.(int); ok {
+			if elementInt, ok := element.(int); ok {
+				return conditionInt != elementInt
 			}
 		}
 		return !reflect.DeepEqual(element, condition.Value)
