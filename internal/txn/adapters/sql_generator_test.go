@@ -357,9 +357,9 @@ func TestGetDMLTicketForRppRtpCashinStuck200_0(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Debug: print case type before calling function
 			t.Logf("Before: CaseType=%s", tt.result.CaseType)
-			
+
 			ticket := GetDMLTicketForRppRtpCashinStuck200_0(tt.result)
-			
+
 			// Debug: print case type after calling function
 			t.Logf("After: CaseType=%s", tt.result.CaseType)
 			t.Logf("Ticket: %v", ticket)
