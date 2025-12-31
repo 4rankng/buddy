@@ -19,10 +19,10 @@ func NewSOPRepository() *SOPRepository {
 	}
 }
 
-// IdentifyCase identifies the SOP case for a transaction result
+// IdentifyCase identifies SOP case for a transaction result
 func (r *SOPRepository) IdentifyCase(result *domain.TransactionResult, env string) domain.Case {
-	// Check if we've already identified the case
-	if result.CaseType != domain.CaseNone {
+	// Check if we've already identified case
+	if result.CaseType != domain.CaseNone && result.CaseType != "" {
 		return result.CaseType
 	}
 
