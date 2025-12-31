@@ -15,6 +15,7 @@ Useful for managing workflows in the RPP adapter system.`,
 
 	// Add subcommands
 	cmd.AddCommand(NewRppResumeCmd(appCtx))
+	cmd.AddCommand(NewRppRtpCashinCmd(appCtx))
 
 	return cmd
 }
