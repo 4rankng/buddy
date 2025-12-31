@@ -136,6 +136,7 @@ const (
 	CaseRppQrPaymentReject210_0                      Case = "rpp_qr_payment_reject_210_0"
 	CaseRppNoResponseResume                          Case = "rpp_no_response_resume"
 	CaseRppCashinValidationFailed122_0               Case = "rpp_cashin_validation_failed_122_0"
+	CaseRppRtpCashinStuck200_0                       Case = "rpp_rtp_cashin_stuck_200_0"
 	CasePe2200FastCashinFailed                       Case = "pe_220_0_fast_cashin_failed"
 	CaseThoughtMachineFalseNegative                  Case = "thought_machine_false_negative"
 	CasePeCaptureProcessingPcCaptureFailedRppSuccess Case = "pe_capture_processing_pc_capture_failed_rpp_success"
@@ -158,6 +159,7 @@ func GetCaseSummaryOrder() []Case {
 		CaseRppQrPaymentReject210_0,
 		CaseRppNoResponseResume,
 		CaseRppCashinValidationFailed122_0,
+		CaseRppRtpCashinStuck200_0,
 		CaseEcotxnChargeFailedCaptureFailedTMError,
 		CasePeStuck300RppNotFound,
 	}
@@ -254,6 +256,21 @@ var WorkflowStateMaps = map[string]map[int]string{
 		900: "stSuccess",
 	},
 	"wf_ct_cashin": {
+		100: "stTransferPersisted",
+		110: "stRequestToPayUpdated",
+		111: "stRequestToPayUpdateFailed",
+		121: "stOriginalTransferValidated",
+		122: "stFieldsValidationFailed",
+		200: "stTransferProcessing",
+		201: "stTransferStreamPersisted",
+		210: "stTransferUpdated",
+		220: "stTransferRespPrepared",
+		700: "stCashInFailed",
+		701: "stCashInToRefund",
+		900: "stCashInCompleted",
+		901: "stCashInCompletedWithRefund",
+	},
+	"wf_ct_rtp_cashin": {
 		100: "stTransferPersisted",
 		110: "stRequestToPayUpdated",
 		111: "stRequestToPayUpdateFailed",
