@@ -23,58 +23,6 @@ func getDefaultSOPRules() []CaseRule {
 	return []CaseRule{
 		// 1. Complex Rules (PE + PC + RPP)
 		{
-			CaseType:    domain.CaseRpp210Pe220Pc201Acsp,
-			Description: "RPP 210, PE 220, PC 201. No response from RPP. Move to 222 to resume. ACSP",
-			Country:     "my",
-			Conditions: []RuleCondition{
-				{
-					FieldPath: "PaymentEngine.Workflow.WorkflowID",
-					Operator:  "eq",
-					Value:     "workflow_transfer_payment",
-				},
-				{
-					FieldPath: "PaymentEngine.Workflow.State",
-					Operator:  "eq",
-					Value:     "220",
-				},
-				{
-					FieldPath: "PaymentEngine.Workflow.Attempt",
-					Operator:  "eq",
-					Value:     0,
-				},
-				{
-					FieldPath: "PaymentCore.ExternalTransfer.Workflow.WorkflowID",
-					Operator:  "eq",
-					Value:     "external_payment_flow",
-				},
-				{
-					FieldPath: "PaymentCore.ExternalTransfer.Workflow.State",
-					Operator:  "eq",
-					Value:     "201",
-				},
-				{
-					FieldPath: "PaymentCore.ExternalTransfer.Workflow.Attempt",
-					Operator:  "eq",
-					Value:     0,
-				},
-				{
-					FieldPath: "RPPAdapter.Workflow.WorkflowID",
-					Operator:  "eq",
-					Value:     "wf_ct_qr_payment",
-				},
-				{
-					FieldPath: "RPPAdapter.Workflow.State",
-					Operator:  "eq",
-					Value:     "210",
-				},
-				{
-					FieldPath: "RPPAdapter.Workflow.Attempt",
-					Operator:  "eq",
-					Value:     0,
-				},
-			},
-		},
-		{
 			CaseType:    domain.CasePcExternalPaymentFlow201_0RPP900,
 			Description: "PC External Payment Flow 201/0 with RPP 900 (completed)",
 			Country:     "my",
@@ -249,6 +197,7 @@ func getDefaultSOPRules() []CaseRule {
 		{
 			CaseType:    domain.CaseCashoutPe220Pc201Reject,
 			Description: "Cashout PE 220/0, PC 201/0, RPP PROCESSING - manual reject",
+			Country:     "sg",
 			Conditions: []RuleCondition{
 				{
 					FieldPath: "PaymentEngine.Workflow.WorkflowID",
@@ -325,7 +274,7 @@ func getDefaultSOPRules() []CaseRule {
 				{
 					FieldPath: "RPPAdapter.Workflow.WorkflowID",
 					Operator:  "in",
-					Value:     []string{"wf_process_registry", "wf_ct_cashout"},
+					Value:     []string{"wf_process_registry", "wf_ct_cashout", "wf_ct_qr_payment"},
 				},
 				{
 					FieldPath: "RPPAdapter.Workflow.State",
@@ -336,6 +285,60 @@ func getDefaultSOPRules() []CaseRule {
 					FieldPath: "RPPAdapter.Workflow.Attempt",
 					Operator:  "eq",
 					Value:     0,
+				},
+			},
+		},
+		{
+			CaseType:    domain.CaseRpp210Pe220Pc201Accept,
+			Description: "RPP 210, PE 220, PC 201 - Manual Accept",
+			Country:     "my",
+			Conditions: []RuleCondition{
+				{
+					FieldPath: "PaymentEngine.Workflow.State",
+					Operator:  "eq",
+					Value:     "220",
+				},
+				{
+					FieldPath: "PaymentCore.ExternalTransfer.Workflow.State",
+					Operator:  "eq",
+					Value:     "201",
+				},
+				{
+					FieldPath: "RPPAdapter.Workflow.State",
+					Operator:  "eq",
+					Value:     "210",
+				},
+				{
+					FieldPath: "RPPAdapter.Workflow.WorkflowID",
+					Operator:  "in",
+					Value:     []string{"wf_ct_cashout", "wf_ct_qr_payment"},
+				},
+			},
+		},
+		{
+			CaseType:    domain.CaseRpp210Pe220Pc201Reject,
+			Description: "RPP 210, PE 220, PC 201 - Manual Reject",
+			Country:     "my",
+			Conditions: []RuleCondition{
+				{
+					FieldPath: "PaymentEngine.Workflow.State",
+					Operator:  "eq",
+					Value:     "220",
+				},
+				{
+					FieldPath: "PaymentCore.ExternalTransfer.Workflow.State",
+					Operator:  "eq",
+					Value:     "201",
+				},
+				{
+					FieldPath: "RPPAdapter.Workflow.State",
+					Operator:  "eq",
+					Value:     "210",
+				},
+				{
+					FieldPath: "RPPAdapter.Workflow.WorkflowID",
+					Operator:  "in",
+					Value:     []string{"wf_ct_cashout", "wf_ct_qr_payment"},
 				},
 			},
 		},

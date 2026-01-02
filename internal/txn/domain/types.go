@@ -163,7 +163,6 @@ const (
 	CaseEcotxnChargeFailedCaptureFailedTMError       Case = "ecotxn_ChargeFailed_CaptureFailed_TMError"
 	CasePeStuck300RppNotFound                        Case = "pe_stuck_300_rpp_not_found"
 	CaseCashoutPe220Pc201Reject                      Case = "cashout_pe220_pc201_reject"
-	CaseRpp210Pe220Pc201Acsp                         Case = "rpp210_pe220_pc201"
 	CaseCashoutRpp210Pe220Pc201                      Case = "cashout_rpp210_pe220_pc201"
 	CaseRpp210Pe220Pc201Accept                       Case = "rpp210_pe220_pc201_accept"
 	CaseRpp210Pe220Pc201Reject                       Case = "rpp210_pe220_pc201_reject"
@@ -189,7 +188,6 @@ func GetCaseSummaryOrder() []Case {
 		CaseEcotxnChargeFailedCaptureFailedTMError,
 		CasePeStuck300RppNotFound,
 		CaseCashoutPe220Pc201Reject,
-		CaseRpp210Pe220Pc201Acsp,
 		CaseCashoutRpp210Pe220Pc201,
 	}
 }

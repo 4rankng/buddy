@@ -107,6 +107,7 @@ AND workflow_id IN ('wf_ct_cashout', 'wf_ct_qr_payment');`,
 func GetDMLTicketForCashoutRpp210Pe220Pc201(result domain.TransactionResult) *domain.DMLTicket {
 	sopRepo := SOPRepo
 	sopRepo.IdentifyCase(&result, "my")
+	
 	if result.CaseType != domain.CaseCashoutRpp210Pe220Pc201 {
 		return nil
 	}
