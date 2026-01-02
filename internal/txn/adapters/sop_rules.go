@@ -21,99 +21,16 @@ type RuleCondition struct {
 // getDefaultSOPRules returns the default SOP case rules
 func getDefaultSOPRules() []CaseRule {
 	return []CaseRule{
+		// 1. Complex Rules (PE + PC + RPP)
 		{
-			CaseType:    domain.CasePcExternalPaymentFlow200_11,
-			Description: "PC External Payment Flow stuck at state 200 with attempt 11",
-			Conditions: []RuleCondition{
-				{
-					FieldPath: "PaymentCore.ExternalTransfer.Workflow.State",
-					Operator:  "eq",
-					Value:     "200",
-				},
-				{
-					FieldPath: "PaymentCore.ExternalTransfer.Workflow.Attempt",
-					Operator:  "eq",
-					Value:     11,
-				},
-			},
-		},
-		{
-			CaseType:    domain.CasePeTransferPayment210_0,
-			Description: "PE Transfer Payment stuck at state 210 with attempt 0",
-			Conditions: []RuleCondition{
-				{
-					FieldPath: "PaymentEngine.Workflow.State",
-					Operator:  "eq",
-					Value:     "210",
-				},
-				{
-					FieldPath: "PaymentEngine.Workflow.WorkflowID",
-					Operator:  "eq",
-					Value:     "workflow_transfer_payment",
-				},
-				{
-					FieldPath: "PaymentEngine.Workflow.Attempt",
-					Operator:  "eq",
-					Value:     0,
-				},
-			},
-		},
-		{
-			CaseType:    domain.CasePeStuckAtLimitCheck102,
-			Description: "PE stuck at state 102 (stTransactionLimitChecked)",
-			Conditions: []RuleCondition{
-				{
-					FieldPath: "PaymentEngine.Workflow.State",
-					Operator:  "eq",
-					Value:     "102",
-				},
-				{
-					FieldPath: "PaymentEngine.Workflow.WorkflowID",
-					Operator:  "eq",
-					Value:     "workflow_transfer_payment",
-				},
-			},
-		},
-		{
-			CaseType:    domain.CasePeStuck230RepublishPC,
-			Description: "PE stuck at state 230 (capture) requires PC republish",
+			CaseType:    domain.CaseRpp210Pe220Pc201Acsp,
+			Description: "RPP 210, PE 220, PC 201. No response from RPP. Move to 222 to resume. ACSP",
 			Country:     "my",
 			Conditions: []RuleCondition{
 				{
 					FieldPath: "PaymentEngine.Workflow.WorkflowID",
 					Operator:  "eq",
 					Value:     "workflow_transfer_payment",
-				},
-				{
-					FieldPath: "PaymentEngine.Workflow.State",
-					Operator:  "eq",
-					Value:     "230",
-				},
-				{
-					FieldPath: "PaymentEngine.Workflow.Attempt",
-					Operator:  "eq",
-					Value:     0,
-				},
-				{
-					FieldPath: "PaymentCore.InternalCapture.Workflow.State",
-					Operator:  "eq",
-					Value:     "900",
-				},
-				{
-					FieldPath: "PaymentCore.InternalCapture.Workflow.Attempt",
-					Operator:  "eq",
-					Value:     0,
-				},
-			},
-		},
-		{
-			CaseType:    domain.CasePe2200FastCashinFailed,
-			Description: "PE Transfer Collection at state 220 with attempt 0 and Fast Adapter failed",
-			Conditions: []RuleCondition{
-				{
-					FieldPath: "PaymentEngine.Workflow.WorkflowID",
-					Operator:  "eq",
-					Value:     "workflow_transfer_collection",
 				},
 				{
 					FieldPath: "PaymentEngine.Workflow.State",
@@ -126,39 +43,20 @@ func getDefaultSOPRules() []CaseRule {
 					Value:     0,
 				},
 				{
-					FieldPath: "FastAdapter.Status",
+					FieldPath: "PaymentCore.ExternalTransfer.Workflow.WorkflowID",
 					Operator:  "eq",
-					Value:     "FAILED",
-				},
-			},
-		},
-		{
-			CaseType:    domain.CaseRppCashoutReject101_19,
-			Description: "RPP Cashout Reject at state 101 with attempt 19",
-			Country:     "my",
-			Conditions: []RuleCondition{
-				{
-					FieldPath: "RPPAdapter.Workflow.WorkflowID",
-					Operator:  "eq",
-					Value:     "wf_ct_cashout",
+					Value:     "external_payment_flow",
 				},
 				{
-					FieldPath: "RPPAdapter.Workflow.State",
+					FieldPath: "PaymentCore.ExternalTransfer.Workflow.State",
 					Operator:  "eq",
-					Value:     "101",
+					Value:     "201",
 				},
 				{
-					FieldPath: "RPPAdapter.Workflow.Attempt",
+					FieldPath: "PaymentCore.ExternalTransfer.Workflow.Attempt",
 					Operator:  "eq",
-					Value:     19,
+					Value:     0,
 				},
-			},
-		},
-		{
-			CaseType:    domain.CaseRppQrPaymentReject210_0,
-			Description: "RPP QR Payment Reject at state 210 with attempt 0",
-			Country:     "my",
-			Conditions: []RuleCondition{
 				{
 					FieldPath: "RPPAdapter.Workflow.WorkflowID",
 					Operator:  "eq",
@@ -168,72 +66,6 @@ func getDefaultSOPRules() []CaseRule {
 					FieldPath: "RPPAdapter.Workflow.State",
 					Operator:  "eq",
 					Value:     "210",
-				},
-				{
-					FieldPath: "RPPAdapter.Workflow.Attempt",
-					Operator:  "eq",
-					Value:     0,
-				},
-			},
-		},
-		{
-			CaseType:    domain.CaseRppNoResponseResume,
-			Description: "RPP No Response Resume (timeout scenario)",
-			Country:     "my",
-			Conditions: []RuleCondition{
-				{
-					FieldPath: "RPPAdapter.Workflow.State",
-					Operator:  "eq",
-					Value:     "210",
-				},
-				{
-					FieldPath: "RPPAdapter.Workflow.Attempt",
-					Operator:  "eq",
-					Value:     0,
-				},
-				{
-					FieldPath: "RPPAdapter.Workflow.WorkflowID",
-					Operator:  "in",
-					Value:     []string{"wf_ct_cashout", "wf_ct_qr_payment"},
-				},
-			},
-		},
-		{
-			CaseType:    domain.CaseRppRtpCashinStuck200_0,
-			Description: "RPP RTP Cashin stuck at state 200 with attempt 0",
-			Country:     "my",
-			Conditions: []RuleCondition{
-				{
-					FieldPath: "RPPAdapter.Workflow.WorkflowID",
-					Operator:  "eq",
-					Value:     "wf_ct_rtp_cashin",
-				},
-				{
-					FieldPath: "RPPAdapter.Workflow.State",
-					Operator:  "eq",
-					Value:     "200",
-				},
-				{
-					FieldPath: "RPPAdapter.Workflow.Attempt",
-					Operator:  "eq",
-					Value:     0,
-				},
-			},
-		},
-		{
-			CaseType:    domain.CaseRppCashinValidationFailed122_0,
-			Description: "RPP Cashin Validation Failed at state 122 with attempt 0",
-			Country:     "my",
-			Conditions: []RuleCondition{
-				{
-					FieldPath: "RPPAdapter.Workflow.WorkflowID",
-					Operator:  "eq",
-					Value:     "wf_ct_cashin",
-				},
-				{
-					FieldPath: "RPPAdapter.Workflow.State",
-					Operator:  "eq",
-					Value:     "122",
 				},
 				{
 					FieldPath: "RPPAdapter.Workflow.Attempt",
@@ -317,43 +149,6 @@ func getDefaultSOPRules() []CaseRule {
 			},
 		},
 		{
-			CaseType:    domain.CaseThoughtMachineFalseNegative,
-			Description: "Thought Machine returning errors/false negatives, but transaction was successful",
-			Country:     "my",
-			Conditions: []RuleCondition{
-				{
-					FieldPath: "PaymentEngine.Workflow.WorkflowID",
-					Operator:  "eq",
-					Value:     "workflow_transfer_payment",
-				},
-				{
-					FieldPath: "PaymentEngine.Workflow.State",
-					Operator:  "eq",
-					Value:     "701", // stCaptureFailed
-				},
-				{
-					FieldPath: "PaymentEngine.Workflow.Attempt",
-					Operator:  "eq",
-					Value:     0,
-				},
-				{
-					FieldPath: "PaymentCore.InternalCapture.Workflow.WorkflowID",
-					Operator:  "eq",
-					Value:     "internal_payment_flow",
-				},
-				{
-					FieldPath: "PaymentCore.InternalCapture.Workflow.State",
-					Operator:  "eq",
-					Value:     "500", // stFailed
-				},
-				{
-					FieldPath: "PaymentCore.InternalCapture.Workflow.Attempt",
-					Operator:  "eq",
-					Value:     0,
-				},
-			},
-		},
-		{
 			CaseType:    domain.CasePeCaptureProcessingPcCaptureFailedRppSuccess,
 			Description: "PE capture processing, PC capture failed, but RPP succeeded",
 			Country:     "my",
@@ -410,52 +205,6 @@ func getDefaultSOPRules() []CaseRule {
 				},
 				{
 					FieldPath: "RPPAdapter.Workflow.Attempt",
-					Operator:  "eq",
-					Value:     0,
-				},
-			},
-		},
-		{
-			CaseType:    domain.CaseEcotxnChargeFailedCaptureFailedTMError,
-			Description: "Ecotxn Charge Failed Capture Failed with TMError",
-			Conditions: []RuleCondition{
-				{
-					FieldPath: "PartnerpayEngine.Workflow.WorkflowID",
-					Operator:  "eq",
-					Value:     "workflow_charge",
-				},
-				{
-					FieldPath: "PartnerpayEngine.Workflow.State",
-					Operator:  "eq",
-					Value:     "502",
-				},
-				{
-					FieldPath: "PartnerpayEngine.Workflow.Attempt",
-					Operator:  "eq",
-					Value:     0,
-				},
-				{
-					FieldPath: "PartnerpayEngine.Charge.StatusReason",
-					Operator:  "eq",
-					Value:     "SYSTEM_ERROR",
-				},
-				{
-					FieldPath: "PartnerpayEngine.Charge.StatusReasonDescription",
-					Operator:  "eq",
-					Value:     "error occurred in Thought Machine.",
-				},
-				{
-					FieldPath: "PaymentCore.InternalCapture.Workflow.WorkflowID",
-					Operator:  "eq",
-					Value:     "internal_payment_flow",
-				},
-				{
-					FieldPath: "PaymentCore.InternalCapture.Workflow.State",
-					Operator:  "eq",
-					Value:     "500",
-				},
-				{
-					FieldPath: "PaymentCore.InternalCapture.Workflow.Attempt",
 					Operator:  "eq",
 					Value:     0,
 				},
@@ -538,15 +287,131 @@ func getDefaultSOPRules() []CaseRule {
 				},
 			},
 		},
+
+		// 2. Medium Complexity (PE + PC or Partnerpay + PC)
 		{
-			CaseType:    domain.CaseRpp210Pe220Pc201Acsp,
-			Description: "RPP 210, PE 220, PC 201. No response from RPP. Move to 222 to resume. ACSP",
+			CaseType:    domain.CaseThoughtMachineFalseNegative,
+			Description: "Thought Machine returning errors/false negatives, but transaction was successful",
 			Country:     "my",
 			Conditions: []RuleCondition{
 				{
 					FieldPath: "PaymentEngine.Workflow.WorkflowID",
 					Operator:  "eq",
 					Value:     "workflow_transfer_payment",
+				},
+				{
+					FieldPath: "PaymentEngine.Workflow.State",
+					Operator:  "eq",
+					Value:     "701", // stCaptureFailed
+				},
+				{
+					FieldPath: "PaymentEngine.Workflow.Attempt",
+					Operator:  "eq",
+					Value:     0,
+				},
+				{
+					FieldPath: "PaymentCore.InternalCapture.Workflow.WorkflowID",
+					Operator:  "eq",
+					Value:     "internal_payment_flow",
+				},
+				{
+					FieldPath: "PaymentCore.InternalCapture.Workflow.State",
+					Operator:  "eq",
+					Value:     "500", // stFailed
+				},
+				{
+					FieldPath: "PaymentCore.InternalCapture.Workflow.Attempt",
+					Operator:  "eq",
+					Value:     0,
+				},
+			},
+		},
+		{
+			CaseType:    domain.CaseEcotxnChargeFailedCaptureFailedTMError,
+			Description: "Ecotxn Charge Failed Capture Failed with TMError",
+			Conditions: []RuleCondition{
+				{
+					FieldPath: "PartnerpayEngine.Workflow.WorkflowID",
+					Operator:  "eq",
+					Value:     "workflow_charge",
+				},
+				{
+					FieldPath: "PartnerpayEngine.Workflow.State",
+					Operator:  "eq",
+					Value:     "502",
+				},
+				{
+					FieldPath: "PartnerpayEngine.Workflow.Attempt",
+					Operator:  "eq",
+					Value:     0,
+				},
+				{
+					FieldPath: "PartnerpayEngine.Charge.StatusReason",
+					Operator:  "eq",
+					Value:     "SYSTEM_ERROR",
+				},
+				{
+					FieldPath: "PartnerpayEngine.Charge.StatusReasonDescription",
+					Operator:  "eq",
+					Value:     "error occurred in Thought Machine.",
+				},
+				{
+					FieldPath: "PaymentCore.InternalCapture.Workflow.WorkflowID",
+					Operator:  "eq",
+					Value:     "internal_payment_flow",
+				},
+				{
+					FieldPath: "PaymentCore.InternalCapture.Workflow.State",
+					Operator:  "eq",
+					Value:     "500",
+				},
+				{
+					FieldPath: "PaymentCore.InternalCapture.Workflow.Attempt",
+					Operator:  "eq",
+					Value:     0,
+				},
+			},
+		},
+		{
+			CaseType:    domain.CasePeStuck230RepublishPC,
+			Description: "PE stuck at state 230 (capture) requires PC republish",
+			Country:     "my",
+			Conditions: []RuleCondition{
+				{
+					FieldPath: "PaymentEngine.Workflow.WorkflowID",
+					Operator:  "eq",
+					Value:     "workflow_transfer_payment",
+				},
+				{
+					FieldPath: "PaymentEngine.Workflow.State",
+					Operator:  "eq",
+					Value:     "230",
+				},
+				{
+					FieldPath: "PaymentEngine.Workflow.Attempt",
+					Operator:  "eq",
+					Value:     0,
+				},
+				{
+					FieldPath: "PaymentCore.InternalCapture.Workflow.State",
+					Operator:  "eq",
+					Value:     "900",
+				},
+				{
+					FieldPath: "PaymentCore.InternalCapture.Workflow.Attempt",
+					Operator:  "eq",
+					Value:     0,
+				},
+			},
+		},
+		{
+			CaseType:    domain.CasePe2200FastCashinFailed,
+			Description: "PE Transfer Collection at state 220 with attempt 0 and Fast Adapter failed",
+			Conditions: []RuleCondition{
+				{
+					FieldPath: "PaymentEngine.Workflow.WorkflowID",
+					Operator:  "eq",
+					Value:     "workflow_transfer_collection",
 				},
 				{
 					FieldPath: "PaymentEngine.Workflow.State",
@@ -559,29 +424,147 @@ func getDefaultSOPRules() []CaseRule {
 					Value:     0,
 				},
 				{
-					FieldPath: "PaymentCore.ExternalTransfer.Workflow.WorkflowID",
+					FieldPath: "FastAdapter.Status",
 					Operator:  "eq",
-					Value:     "external_payment_flow",
+					Value:     "FAILED",
 				},
+			},
+		},
+
+		// 3. Simple Rules (Single Domain)
+		{
+			CaseType:    domain.CasePeTransferPayment210_0,
+			Description: "PE Transfer Payment stuck at state 210 with attempt 0",
+			Conditions: []RuleCondition{
+				{
+					FieldPath: "PaymentEngine.Workflow.State",
+					Operator:  "eq",
+					Value:     "210",
+				},
+				{
+					FieldPath: "PaymentEngine.Workflow.WorkflowID",
+					Operator:  "eq",
+					Value:     "workflow_transfer_payment",
+				},
+				{
+					FieldPath: "PaymentEngine.Workflow.Attempt",
+					Operator:  "eq",
+					Value:     0,
+				},
+			},
+		},
+		{
+			CaseType:    domain.CasePcExternalPaymentFlow200_11,
+			Description: "PC External Payment Flow stuck at state 200 with attempt 11",
+			Conditions: []RuleCondition{
 				{
 					FieldPath: "PaymentCore.ExternalTransfer.Workflow.State",
 					Operator:  "eq",
-					Value:     "201",
+					Value:     "200",
 				},
 				{
 					FieldPath: "PaymentCore.ExternalTransfer.Workflow.Attempt",
+					Operator:  "eq",
+					Value:     11,
+				},
+			},
+		},
+		{
+			CaseType:    domain.CasePeStuckAtLimitCheck102,
+			Description: "PE stuck at state 102 (stTransactionLimitChecked)",
+			Conditions: []RuleCondition{
+				{
+					FieldPath: "PaymentEngine.Workflow.State",
+					Operator:  "eq",
+					Value:     "102",
+				},
+				{
+					FieldPath: "PaymentEngine.Workflow.WorkflowID",
+					Operator:  "eq",
+					Value:     "workflow_transfer_payment",
+				},
+			},
+		},
+		{
+			CaseType:    domain.CaseRppNoResponseResume,
+			Description: "RPP No Response Resume (timeout scenario)",
+			Country:     "my",
+			Conditions: []RuleCondition{
+				{
+					FieldPath: "RPPAdapter.Workflow.State",
+					Operator:  "eq",
+					Value:     "210",
+				},
+				{
+					FieldPath: "RPPAdapter.Workflow.Attempt",
 					Operator:  "eq",
 					Value:     0,
 				},
 				{
 					FieldPath: "RPPAdapter.Workflow.WorkflowID",
+					Operator:  "in",
+					Value:     []string{"wf_ct_cashout", "wf_ct_qr_payment"},
+				},
+			},
+		},
+		{
+			CaseType:    domain.CaseRppCashoutReject101_19,
+			Description: "RPP Cashout Reject at state 101 with attempt 19",
+			Country:     "my",
+			Conditions: []RuleCondition{
+				{
+					FieldPath: "RPPAdapter.Workflow.WorkflowID",
 					Operator:  "eq",
-					Value:     "wf_ct_qr_payment",
+					Value:     "wf_ct_cashout",
 				},
 				{
 					FieldPath: "RPPAdapter.Workflow.State",
 					Operator:  "eq",
-					Value:     "210",
+					Value:     "101",
+				},
+				{
+					FieldPath: "RPPAdapter.Workflow.Attempt",
+					Operator:  "eq",
+					Value:     19,
+				},
+			},
+		},
+		{
+			CaseType:    domain.CaseRppRtpCashinStuck200_0,
+			Description: "RPP RTP Cashin stuck at state 200 with attempt 0",
+			Country:     "my",
+			Conditions: []RuleCondition{
+				{
+					FieldPath: "RPPAdapter.Workflow.WorkflowID",
+					Operator:  "eq",
+					Value:     "wf_ct_rtp_cashin",
+				},
+				{
+					FieldPath: "RPPAdapter.Workflow.State",
+					Operator:  "eq",
+					Value:     "200",
+				},
+				{
+					FieldPath: "RPPAdapter.Workflow.Attempt",
+					Operator:  "eq",
+					Value:     0,
+				},
+			},
+		},
+		{
+			CaseType:    domain.CaseRppCashinValidationFailed122_0,
+			Description: "RPP Cashin Validation Failed at state 122 with attempt 0",
+			Country:     "my",
+			Conditions: []RuleCondition{
+				{
+					FieldPath: "RPPAdapter.Workflow.WorkflowID",
+					Operator:  "eq",
+					Value:     "wf_ct_cashin",
+				},
+				{
+					FieldPath: "RPPAdapter.Workflow.State",
+					Operator:  "eq",
+					Value:     "122",
 				},
 				{
 					FieldPath: "RPPAdapter.Workflow.Attempt",
