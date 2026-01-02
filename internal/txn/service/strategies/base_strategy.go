@@ -105,7 +105,6 @@ func (s *BasePopulationStrategy) populateAdaptersFromPaymentEngine(result *domai
 	}
 
 	if env == "my" && result.RPPAdapter == nil && s.adapterPopulator != nil {
-		// First try: Query RPP adapter using external_id if available
 		if result.PaymentEngine.Transfers.ExternalID != "" {
 			adapterData, err := s.adapterPopulator.QueryByInputID(
 				result.PaymentEngine.Transfers.ExternalID,
@@ -118,7 +117,6 @@ func (s *BasePopulationStrategy) populateAdaptersFromPaymentEngine(result *domai
 			}
 		}
 
-		// Fallback: Query by source/destination account IDs and timestamp
 		if result.PaymentEngine.Transfers.SourceAccountID != "" &&
 			result.PaymentEngine.Transfers.DestinationAccountID != "" &&
 			result.PaymentEngine.Transfers.CreatedAt != "" {
@@ -136,7 +134,6 @@ func (s *BasePopulationStrategy) populateAdaptersFromPaymentEngine(result *domai
 			}
 		}
 	}
-	// For Singapore, Fast adapter is handled in the concrete strategy implementation
 
 	return nil
 }

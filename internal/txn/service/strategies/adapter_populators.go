@@ -23,6 +23,10 @@ func (r *rppAdapterPopulator) GetAdapterType() string {
 	return "RPP"
 }
 
+func (r *rppAdapterPopulator) QueryByAccountsAndTimestamp(sourceAccountID, destinationAccountID, timestamp string) (*domain.RPPAdapterInfo, error) {
+	return r.port.QueryByAccountsAndTimestamp(sourceAccountID, destinationAccountID, timestamp)
+}
+
 // Fast Adapter Populator (Singapore)
 type fastAdapterPopulator struct {
 	port ports.FastAdapterPort

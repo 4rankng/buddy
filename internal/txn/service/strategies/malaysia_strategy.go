@@ -34,9 +34,7 @@ func (s *MalaysiaPopulationStrategy) Populate(input string) (*domain.Transaction
 		SetInputID(input).
 		Build()
 
-	// Step 1: Determine input type and populate primary data
 	if domain.IsRppE2EID(input) && s.adapterPopulator != nil {
-		// E2E ID: Query RPP adapter first
 		adapterData, err := s.adapterPopulator.QueryByInputID(input)
 		if err == nil && adapterData != nil {
 			if rppInfo, ok := adapterData.(*domain.RPPAdapterInfo); ok {
@@ -44,7 +42,6 @@ func (s *MalaysiaPopulationStrategy) Populate(input string) (*domain.Transaction
 			}
 		}
 	} else {
-		// Transaction ID: Query PaymentEngine directly
 		peInfo, err := s.pePopulator.QueryByTransactionID(input)
 		if err != nil {
 			result.Error = fmt.Sprintf("failed to query payment engine: %v", err)
@@ -53,7 +50,6 @@ func (s *MalaysiaPopulationStrategy) Populate(input string) (*domain.Transaction
 		result.PaymentEngine = peInfo
 	}
 
-	// Step 2: Ensure PaymentEngine is populated
 	if result.PaymentEngine == nil {
 		if err := s.populatePaymentEngineFromAdapters(result, "my"); err != nil {
 			result.Error = err.Error()
@@ -61,17 +57,14 @@ func (s *MalaysiaPopulationStrategy) Populate(input string) (*domain.Transaction
 		}
 	}
 
-	// Step 3: Ensure PaymentCore is populated
 	if result.PaymentCore == nil && result.PaymentEngine != nil {
 		_ = s.populatePaymentCore(result)
 	}
 
-	// Step 4: Ensure adapters are populated from PaymentEngine
 	if result.PaymentEngine != nil {
 		_ = s.populateAdaptersFromPaymentEngine(result, "my")
 	}
 
-	// Step 5: Identify SOP case
 	s.identifyCase(result)
 
 	return result, nil

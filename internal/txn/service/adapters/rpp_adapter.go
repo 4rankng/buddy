@@ -38,12 +38,8 @@ func (r *RPPAdapter) QueryByE2EID(externalID string) (*domain.RPPAdapterInfo, er
 		CreatedAt:   utils.GetStringValue(row, "created_at"),
 	}
 
-	// Query workflows using dual approach:
-	// 1. wf_process_registry: time window + req_biz_msg_id filter
-	// 2. Other RPP workflows: direct run_id lookup using partner_tx_id
 	info.Workflow = make([]domain.WorkflowInfo, 0)
 
-	// Query wf_process_registry workflow
 	if info.ReqBizMsgID != "" && info.CreatedAt != "" {
 		createdAt, err := time.Parse(time.RFC3339Nano, info.CreatedAt)
 		if err == nil {
@@ -96,7 +92,6 @@ func (r *RPPAdapter) QueryByE2EID(externalID string) (*domain.RPPAdapterInfo, er
 		}
 	}
 
-	// Query other RPP workflows using partner_tx_id as run_id
 	if info.PartnerTxID != "" {
 		workflowQuery := fmt.Sprintf(
 			"SELECT run_id, workflow_id, state, attempt, prev_trans_id, data FROM workflow_execution "+
