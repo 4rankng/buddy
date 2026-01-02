@@ -92,6 +92,13 @@ func (p *pePopulator) populateTransferInfo(info *domain.PaymentEngineInfo, trans
 		info.Transfers.TransactionID = txID
 	}
 
+	// Extract amount (in cents)
+	if amount, ok := transfer["amount"].(float64); ok {
+		info.Transfers.Amount = amount
+	} else if amountInt, ok := transfer["amount"].(int64); ok {
+		info.Transfers.Amount = float64(amountInt)
+	}
+
 	// Extract other fields using utils.GetStringValue
 	info.Transfers.ReferenceID = utils.GetStringValue(transfer, "reference_id")
 	info.Transfers.CreatedAt = utils.GetStringValue(transfer, "created_at")

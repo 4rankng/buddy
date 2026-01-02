@@ -7,7 +7,7 @@ import (
 	"buddy/internal/txn/domain"
 )
 
-func TestRPPAdapterQueryByE2EID(t *testing.T) {
+func TestRPPAdapterQuery(t *testing.T) {
 	tests := []struct {
 		name       string
 		mockClient *mockClient
@@ -220,11 +220,11 @@ func TestRPPAdapterQueryByE2EID(t *testing.T) {
 				inputID = "dummy_id"
 			}
 
-			got, err := adapter.QueryByE2EID(inputID)
+			got, err := adapter.Query(domain.RPPQueryParams{EndToEndID: inputID})
 
 			if tt.wantErr {
 				if err == nil {
-					t.Errorf("QueryByE2EID() expected error, got nil")
+					t.Errorf("Query() expected error, got nil")
 				}
 				return
 			}
@@ -232,13 +232,13 @@ func TestRPPAdapterQueryByE2EID(t *testing.T) {
 			// For cases where want is nil (no results expected), just check that got is nil
 			if tt.want == nil {
 				if got != nil {
-					t.Errorf("QueryByE2EID() expected nil result, got %v", got)
+					t.Errorf("Query() expected nil result, got %v", got)
 				}
 				return
 			}
 
 			if err != nil {
-				t.Errorf("QueryByE2EID() unexpected error: %v", err)
+				t.Errorf("Query() unexpected error: %v", err)
 				return
 			}
 

@@ -21,19 +21,19 @@ func NewFastAdapter(client ports.ClientPort) *FastAdapter {
 	}
 }
 
-func (f *FastAdapter) QueryByInstructionID(instructionID, createdAt string) (*domain.FastAdapterInfo, error) {
+func (f *FastAdapter) Query(params domain.FastQueryParams) (*domain.FastAdapterInfo, error) {
 	if f.client == nil {
-		return nil, fmt.Errorf("QueryByInstructionID: database client is not initialized")
+		return nil, fmt.Errorf("Query: database client is not initialized")
 	}
-	if instructionID == "" {
+	if params.InstructionID == "" {
 		return nil, nil
 	}
-	query := fmt.Sprintf("SELECT type, instruction_id, status, cancel_reason_code, reject_reason_code, created_at FROM transactions WHERE instruction_id = '%s'", instructionID)
-	if createdAt != "" {
-		startTime, err := time.Parse(time.RFC3339, createdAt)
+	query := fmt.Sprintf("SELECT type, instruction_id, status, cancel_reason_code, reject_reason_code, created_at FROM transactions WHERE instruction_id = '%s'", params.InstructionID)
+	if params.Timestamp != "" {
+		startTime, err := time.Parse(time.RFC3339, params.Timestamp)
 		if err == nil {
 			endTime := startTime.Add(1 * time.Hour)
-			query += fmt.Sprintf(" AND created_at >= '%s' AND created_at <= '%s'", createdAt, endTime.Format(time.RFC3339))
+			query += fmt.Sprintf(" AND created_at >= '%s' AND created_at <= '%s'", params.Timestamp, endTime.Format(time.RFC3339))
 		}
 	}
 	query += " LIMIT 1"

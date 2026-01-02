@@ -117,20 +117,17 @@ func (s *BasePopulationStrategy) populateAdaptersFromPaymentEngine(result *domai
 			}
 		}
 
-		if result.PaymentEngine.Transfers.SourceAccountID != "" &&
-			result.PaymentEngine.Transfers.DestinationAccountID != "" &&
-			result.PaymentEngine.Transfers.CreatedAt != "" {
-			if rppPort, ok := s.adapterPopulator.(interface {
-				QueryByAccountsAndTimestamp(sourceAccountID, destinationAccountID, timestamp string) (*domain.RPPAdapterInfo, error)
-			}); ok {
-				rppInfo, err := rppPort.QueryByAccountsAndTimestamp(
-					result.PaymentEngine.Transfers.SourceAccountID,
-					result.PaymentEngine.Transfers.DestinationAccountID,
-					result.PaymentEngine.Transfers.CreatedAt,
-				)
-				if err == nil && rppInfo != nil {
-					result.RPPAdapter = rppInfo
-				}
+		if rppPort, ok := s.adapterPopulator.(*rppAdapterPopulator); ok {
+			params := domain.RPPQueryParams{
+				PartnerTxID:          result.PaymentEngine.Transfers.TransactionID,
+				SourceAccountID:      result.PaymentEngine.Transfers.SourceAccountID,
+				DestinationAccountID: result.PaymentEngine.Transfers.DestinationAccountID,
+				Amount:               result.PaymentEngine.Transfers.Amount,
+				Timestamp:            result.PaymentEngine.Transfers.CreatedAt,
+			}
+			rppInfo, err := rppPort.port.Query(params)
+			if err == nil && rppInfo != nil {
+				result.RPPAdapter = rppInfo
 			}
 		}
 	}

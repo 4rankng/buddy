@@ -6,11 +6,6 @@ import (
 	"fmt"
 )
 
-// FastAdapterPort defines the interface for Fast adapter queries
-type FastAdapterPort interface {
-	QueryByInstructionID(instructionID, createdAt string) (*domain.FastAdapterInfo, error)
-}
-
 // SingaporePopulationStrategy implements the population strategy for Singapore
 type SingaporePopulationStrategy struct {
 	*BasePopulationStrategy
@@ -48,7 +43,9 @@ func (s *SingaporePopulationStrategy) Populate(input string) (*domain.Transactio
 	if domain.IsRppE2EID(input) && s.adapterPopulator != nil {
 		// E2E ID: Query Fast adapter first
 		if s.fastAdapterPort != nil {
-			fastInfo, err := s.fastAdapterPort.QueryByInstructionID(input, "")
+			fastInfo, err := s.fastAdapterPort.Query(domain.FastQueryParams{
+				InstructionID: input,
+			})
 			if err == nil && fastInfo != nil {
 				result.FastAdapter = fastInfo
 			}
@@ -83,10 +80,10 @@ func (s *SingaporePopulationStrategy) Populate(input string) (*domain.Transactio
 		// Special handling for Fast adapter in Singapore
 		if result.FastAdapter == nil && s.fastAdapterPort != nil {
 			if result.PaymentEngine.Transfers.ExternalID != "" {
-				fastInfo, err := s.fastAdapterPort.QueryByInstructionID(
-					result.PaymentEngine.Transfers.ExternalID,
-					result.PaymentEngine.Transfers.CreatedAt,
-				)
+				fastInfo, err := s.fastAdapterPort.Query(domain.FastQueryParams{
+					InstructionID: result.PaymentEngine.Transfers.ExternalID,
+					Timestamp:     result.PaymentEngine.Transfers.CreatedAt,
+				})
 				if err == nil && fastInfo != nil {
 					result.FastAdapter = fastInfo
 				}

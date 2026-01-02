@@ -16,15 +16,11 @@ func NewRPPAdapterPopulator(port ports.RPPAdapterPort) AdapterPopulator {
 }
 
 func (r *rppAdapterPopulator) QueryByInputID(inputID string) (interface{}, error) {
-	return r.port.QueryByE2EID(inputID)
+	return r.port.Query(domain.RPPQueryParams{EndToEndID: inputID})
 }
 
 func (r *rppAdapterPopulator) GetAdapterType() string {
 	return "RPP"
-}
-
-func (r *rppAdapterPopulator) QueryByAccountsAndTimestamp(sourceAccountID, destinationAccountID, timestamp string) (*domain.RPPAdapterInfo, error) {
-	return r.port.QueryByAccountsAndTimestamp(sourceAccountID, destinationAccountID, timestamp)
 }
 
 // Fast Adapter Populator (Singapore)
@@ -38,7 +34,6 @@ func NewFastAdapterPopulator(port ports.FastAdapterPort) AdapterPopulator {
 }
 
 func (f *fastAdapterPopulator) QueryByInputID(inputID string) (interface{}, error) {
-	// Fast adapter requires created_at, will be handled in strategy
 	return nil, nil
 }
 
@@ -46,7 +41,12 @@ func (f *fastAdapterPopulator) GetAdapterType() string {
 	return "Fast"
 }
 
-// FastAdapterPortWrapper wraps FastAdapterPort to satisfy the interface
+// FastAdapterPort wrapper for strategies
+type FastAdapterPort interface {
+	Query(params domain.FastQueryParams) (*domain.FastAdapterInfo, error)
+}
+
+// FastAdapterPortWrapper wraps ports.FastAdapterPort
 type FastAdapterPortWrapper struct {
 	port ports.FastAdapterPort
 }
@@ -56,6 +56,6 @@ func NewFastAdapterPortWrapper(port ports.FastAdapterPort) FastAdapterPort {
 	return &FastAdapterPortWrapper{port: port}
 }
 
-func (w *FastAdapterPortWrapper) QueryByInstructionID(instructionID, createdAt string) (*domain.FastAdapterInfo, error) {
-	return w.port.QueryByInstructionID(instructionID, createdAt)
+func (w *FastAdapterPortWrapper) Query(params domain.FastQueryParams) (*domain.FastAdapterInfo, error) {
+	return w.port.Query(params)
 }

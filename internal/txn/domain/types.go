@@ -7,16 +7,17 @@ import (
 
 // PETransfersInfo contains payment-engine transfer information
 type PETransfersInfo struct {
-	Type                 string // payment-engine transfers.type
-	TxnSubtype           string // payment-engine transfers.txn_subtype
-	TxnDomain            string // payment-engine transfers.txn_domain
-	TransactionID        string // payment-engine transfers.transaction_id
-	ReferenceID          string // payment-engine transfers.reference_id
-	Status               string // payment-engine transfers.status
-	ExternalID           string // payment-engine transfers.external_id
-	SourceAccountID      string // payment-engine transfers.source_account_id
-	DestinationAccountID string // payment-engine transfers.destination_account_id
-	CreatedAt            string // payment-engine transfers.created_at
+	Type                 string  // payment-engine transfers.type
+	TxnSubtype           string  // payment-engine transfers.txn_subtype
+	TxnDomain            string  // payment-engine transfers.txn_domain
+	TransactionID        string  // payment-engine transfers.transaction_id
+	ReferenceID          string  // payment-engine transfers.reference_id
+	Status               string  // payment-engine transfers.status
+	ExternalID           string  // payment-engine transfers.external_id
+	SourceAccountID      string  // payment-engine transfers.source_account_id
+	DestinationAccountID string  // payment-engine transfers.destination_account_id
+	Amount               float64 // payment-engine transfers.amount (in cents)
+	CreatedAt            string  // payment-engine transfers.created_at
 }
 
 // WorkflowInfo contains information about a specific workflow execution
@@ -69,6 +70,12 @@ type PaymentCoreInfo struct {
 	ExternalTransfer PCExternalInfo // when TxType is TRANSFER
 }
 
+// FastQueryParams contains parameters for querying Fast adapter
+type FastQueryParams struct {
+	InstructionID string
+	Timestamp     string
+}
+
 // FastAdapterInfo contains fast adapter related information
 type FastAdapterInfo struct {
 	InstructionID    string // instruction_id or external_id
@@ -78,6 +85,16 @@ type FastAdapterInfo struct {
 	CancelReasonCode string // cancel_reason_code
 	RejectReasonCode string // reject_reason_code
 	CreatedAt        string // created_at timestamp
+}
+
+// RPPQueryParams contains parameters for querying RPP adapter
+type RPPQueryParams struct {
+	EndToEndID           string
+	PartnerTxID          string
+	SourceAccountID      string
+	DestinationAccountID string
+	Amount               float64
+	Timestamp            string
 }
 
 // RPPAdapterInfo contains RPP adapter related information
