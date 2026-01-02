@@ -152,10 +152,11 @@ func GetDMLTicketForCashoutRpp210Pe220Pc201(result domain.TransactionResult) *do
 	}
 
 	// Handle "Apply to All" options
-	if choice == 3 {
+	switch choice {
+	case 3:
 		autoChoices[result.CaseType] = 1
 		choice = 1
-	} else if choice == 4 {
+	case 4:
 		autoChoices[result.CaseType] = 2
 		choice = 2
 	}

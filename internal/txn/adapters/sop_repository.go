@@ -38,7 +38,7 @@ func (r *SOPRepository) IdentifyCase(result *domain.TransactionResult, env strin
 			return result.CaseType
 		}
 	}
-	
+
 	result.CaseType = domain.CaseNone
 	return result.CaseType
 }
