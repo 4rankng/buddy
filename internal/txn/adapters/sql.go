@@ -4,11 +4,22 @@ import (
 	"buddy/internal/txn/domain"
 	"fmt"
 	"os"
+	"strings"
 )
+
+var autoChoices = make(map[domain.Case]int)
+
+// ResetAutoChoices clears any saved user choices for "Apply to All"
+func ResetAutoChoices() {
+	autoChoices = make(map[domain.Case]int)
+}
 
 // GenerateSQLStatements generates SQL statements for all supported cases using templates.
 func GenerateSQLStatements(results []domain.TransactionResult) domain.SQLStatements {
 	statements := domain.SQLStatements{}
+
+	// Reset auto-choices for "Apply to All" at the start of each batch
+	ResetAutoChoices()
 
 	for i := range results {
 		// Populate index for use in interactive prompts
@@ -116,14 +127,22 @@ func GetDMLTicketForCashoutRpp210Pe220Pc201(result domain.TransactionResult) *do
 		return nil
 	}
 
-	// Display transaction summary first
+	// Check if we already have an auto-choice for this case
+	if choice, exists := autoChoices[result.CaseType]; exists {
+		return handleChoice(choice, result)
+	}
+
+	// Display visual divider and transaction summary
+	fmt.Println("\n" + strings.Repeat("=", 80))
 	WriteResult(os.Stdout, result, result.Index)
 
 	// Prompt user for option
 	fmt.Println("\nChoose an option:")
-	fmt.Println("1. Resume to Success (Manual Success) - Move RPP to state 222 to resume")
-	fmt.Println("2. Reject/Fail (Manual Rejection) - Move PE to state 221 with failure details")
-	fmt.Print("\nEnter your choice (1 or 2): ")
+	fmt.Println("1. Resume to Success (Manual Success) - This once")
+	fmt.Println("2. Reject/Fail (Manual Rejection) - This once")
+	fmt.Println("3. Resume to Success (Manual Success) - Apply to all similar")
+	fmt.Println("4. Reject/Fail (Manual Rejection) - Apply to all similar")
+	fmt.Print("\nEnter your choice (1, 2, 3, or 4): ")
 
 	var choice int
 	_, err := fmt.Scanln(&choice)
@@ -132,6 +151,20 @@ func GetDMLTicketForCashoutRpp210Pe220Pc201(result domain.TransactionResult) *do
 		return nil
 	}
 
+	// Handle "Apply to All" options
+	if choice == 3 {
+		autoChoices[result.CaseType] = 1
+		choice = 1
+	} else if choice == 4 {
+		autoChoices[result.CaseType] = 2
+		choice = 2
+	}
+
+	return handleChoice(choice, result)
+}
+
+// handleChoice processes the selected option for a given result
+func handleChoice(choice int, result domain.TransactionResult) *domain.DMLTicket {
 	// Generate DML ticket based on user's choice
 	switch choice {
 	case 1:
@@ -145,7 +178,7 @@ func GetDMLTicketForCashoutRpp210Pe220Pc201(result domain.TransactionResult) *do
 			return templateFunc(result)
 		}
 	default:
-		result.Error = fmt.Sprintf("invalid choice: %d (must be 1 or 2)", choice)
+		result.Error = fmt.Sprintf("invalid choice: %d (must be 1-4)", choice)
 		return nil
 	}
 	return nil
