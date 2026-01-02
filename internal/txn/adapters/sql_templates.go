@@ -133,7 +133,7 @@ AND workflow_id = 'workflow_transfer_payment';`,
 			CaseType: domain.CasePeTransferPayment210_0,
 		}
 	},
-	domain.CasePeStuckAtLimitCheck102_4: func(result domain.TransactionResult) *domain.DMLTicket {
+	domain.CasePeStuckAtLimitCheck102: func(result domain.TransactionResult) *domain.DMLTicket {
 		return &domain.DMLTicket{
 			Deploy: []domain.TemplateInfo{
 				{
@@ -911,6 +911,47 @@ AND workflow_id = 'workflow_transfer_payment';`,
 					},
 				},
 				CaseType: domain.CasePeStuck300RppNotFound,
+			}
+		}
+		return nil
+	},
+	domain.CaseCashoutPe220Pc201Reject: func(result domain.TransactionResult) *domain.DMLTicket {
+		if runID := result.PaymentEngine.Workflow.RunID; runID != "" {
+			return &domain.DMLTicket{
+				Deploy: []domain.TemplateInfo{
+					{
+						TargetDB: "PE",
+						SQLTemplate: "-- cashout_pe220_pc201_reject\n" +
+							"UPDATE workflow_execution\n" +
+							"SET state = 221, attempt = 1, `data` = JSON_SET(\n" +
+							"      `data`, '$.StreamMessage',\n" +
+							"      JSON_OBJECT(\n" +
+							"         'Status', 'FAILED',\n" +
+							"         'ErrorCode', \"ADAPTER_ERROR\",\n" +
+							"         'ErrorMessage', 'Manual Rejected'\n" +
+							"      ),\n" +
+							"   '$.State', 221)\n" +
+							"WHERE run_id IN (%s) AND state = 220 AND workflow_id = 'workflow_transfer_payment';",
+						Params: []domain.ParamInfo{
+							{Name: "run_id", Value: runID, Type: "string"},
+						},
+					},
+				},
+				Rollback: []domain.TemplateInfo{
+					{
+						TargetDB: "PE",
+						SQLTemplate: "UPDATE workflow_execution\n" +
+							"SET state = 220, attempt = 1, `data` = JSON_SET(\n" +
+							"      `data`, '$.StreamMessage',\n" +
+							"      JSON_OBJECT(),\n" +
+							"   '$.State', 220)\n" +
+							"WHERE run_id IN (%s);",
+						Params: []domain.ParamInfo{
+							{Name: "run_id", Value: runID, Type: "string"},
+						},
+					},
+				},
+				CaseType: domain.CaseCashoutPe220Pc201Reject,
 			}
 		}
 		return nil

@@ -143,6 +143,7 @@ const (
 	CasePeCaptureProcessingPcCaptureFailedRppSuccess Case = "pe_capture_processing_pc_capture_failed_rpp_success"
 	CaseEcotxnChargeFailedCaptureFailedTMError       Case = "ecotxn_ChargeFailed_CaptureFailed_TMError"
 	CasePeStuck300RppNotFound                        Case = "pe_stuck_300_rpp_not_found"
+	CaseCashoutPe220Pc201Reject                      Case = "cashout_pe220_pc201_reject"
 )
 
 // GetCaseSummaryOrder returns the order in which SOP cases should be displayed in summaries
@@ -163,6 +164,7 @@ func GetCaseSummaryOrder() []Case {
 		CaseRppRtpCashinStuck200_0,
 		CaseEcotxnChargeFailedCaptureFailedTMError,
 		CasePeStuck300RppNotFound,
+		CaseCashoutPe220Pc201Reject,
 	}
 }
 

@@ -59,8 +59,8 @@ func getDefaultSOPRules() []CaseRule {
 			},
 		},
 		{
-			CaseType:    domain.CasePeStuckAtLimitCheck102_4,
-			Description: "PE stuck at state 102 (stTransactionLimitChecked) with attempt 4",
+			CaseType:    domain.CasePeStuckAtLimitCheck102,
+			Description: "PE stuck at state 102 (stTransactionLimitChecked)",
 			Conditions: []RuleCondition{
 				{
 					FieldPath: "PaymentEngine.Workflow.State",
@@ -71,11 +71,6 @@ func getDefaultSOPRules() []CaseRule {
 					FieldPath: "PaymentEngine.Workflow.WorkflowID",
 					Operator:  "eq",
 					Value:     "workflow_transfer_payment",
-				},
-				{
-					FieldPath: "PaymentEngine.Workflow.Attempt",
-					Operator:  "eq",
-					Value:     4,
 				},
 			},
 		},
@@ -499,6 +494,47 @@ func getDefaultSOPRules() []CaseRule {
 					FieldPath: "RPPAdapter.Workflow.WorkflowID",
 					Operator:  "eq",
 					Value:     "", // Checks for nil/empty RPPAdapter
+				},
+			},
+		},
+		{
+			CaseType:    domain.CaseCashoutPe220Pc201Reject,
+			Description: "Cashout PE 220/0, PC 201/0, RPP PROCESSING - manual reject",
+			Conditions: []RuleCondition{
+				{
+					FieldPath: "PaymentEngine.Workflow.WorkflowID",
+					Operator:  "eq",
+					Value:     "workflow_transfer_payment",
+				},
+				{
+					FieldPath: "PaymentEngine.Workflow.State",
+					Operator:  "eq",
+					Value:     "220",
+				},
+				{
+					FieldPath: "PaymentEngine.Workflow.Attempt",
+					Operator:  "eq",
+					Value:     0,
+				},
+				{
+					FieldPath: "PaymentCore.ExternalTransfer.Workflow.WorkflowID",
+					Operator:  "eq",
+					Value:     "external_payment_flow",
+				},
+				{
+					FieldPath: "PaymentCore.ExternalTransfer.Workflow.State",
+					Operator:  "eq",
+					Value:     "201",
+				},
+				{
+					FieldPath: "PaymentCore.ExternalTransfer.Workflow.Attempt",
+					Operator:  "eq",
+					Value:     0,
+				},
+				{
+					FieldPath: "RPPAdapter.Status",
+					Operator:  "eq",
+					Value:     "PROCESSING",
 				},
 			},
 		},
