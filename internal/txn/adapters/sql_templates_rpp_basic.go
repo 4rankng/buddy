@@ -48,7 +48,7 @@ AND workflow_id = 'wf_ct_cashout';`,
 		Rollback: []domain.TemplateInfo{
 			{
 				TargetDB: "RPP",
-				SQLTemplate: `-- RPP Rollback: Move workflows back to state 101
+				SQLTemplate: `-- rpp_cashout_reject_101_19_rollback
 UPDATE workflow_execution
 SET state = 101,
     attempt = 0,
@@ -102,7 +102,7 @@ AND workflow_id = 'wf_ct_qr_payment';`,
 		Rollback: []domain.TemplateInfo{
 			{
 				TargetDB: "RPP",
-				SQLTemplate: `-- RPP Rollback: Move qr_payment workflows back to state 210
+				SQLTemplate: `-- rpp_qr_payment_reject_210_0_rollback
 UPDATE workflow_execution
 SET state = 210,
     attempt = 0,
@@ -157,7 +157,7 @@ AND workflow_id IN ('wf_ct_cashout', 'wf_ct_qr_payment');`,
 		Rollback: []domain.TemplateInfo{
 			{
 				TargetDB: "RPP",
-				SQLTemplate: `-- RPP Rollback: Move workflows back to state 210
+				SQLTemplate: `-- rpp_no_response_resume_rollback
 UPDATE workflow_execution
 SET state = 210,
     attempt = 0,
@@ -211,7 +211,7 @@ AND state = 122;`,
 		Rollback: []domain.TemplateInfo{
 			{
 				TargetDB: "RPP",
-				SQLTemplate: `-- RPP Rollback: Move cashin workflow back to state 122
+				SQLTemplate: `-- rpp_cashin_validation_failed_122_0_rollback
 UPDATE workflow_execution
 SET state = 122,
 	  attempt = 0,

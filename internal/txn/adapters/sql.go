@@ -84,7 +84,7 @@ AND workflow_id IN ('wf_ct_cashout', 'wf_ct_qr_payment');`,
 		Rollback: []domain.TemplateInfo{
 			{
 				TargetDB: "RPP",
-				SQLTemplate: `-- RPP Rollback: Move workflows back to state 210
+				SQLTemplate: `-- rpp_no_response_resume_acsp_rollback
 UPDATE workflow_execution
 SET state = 210,
     attempt = 0,

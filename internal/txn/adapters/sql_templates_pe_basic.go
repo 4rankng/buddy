@@ -80,7 +80,7 @@ func peStuckAtLimitCheck102(result domain.TransactionResult) *domain.DMLTicket {
 		Rollback: []domain.TemplateInfo{
 			{
 				TargetDB: "PE",
-				SQLTemplate: "-- Rollback: Revert the transaction to its original state\n" +
+				SQLTemplate: "-- cashout_pe102_reject_rollback\n" +
 					"UPDATE workflow_execution\n" +
 					"SET  state = 102, attempt = 4, `data` = JSON_SET(\n" +
 					"      `data`, '$.StreamMessage',\n" +
