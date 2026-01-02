@@ -10,6 +10,7 @@ func registerPEAdvancedTemplates(templates map[domain.Case]TemplateFunc) {
 	templates[domain.CasePeStuck230RepublishPC] = peStuck230RepublishPC
 	templates[domain.CasePeStuck300RppNotFound] = peStuck300RppNotFound
 	templates[domain.CaseCashoutPe220Pc201Reject] = cashoutPe220Pc201Reject
+	templates[domain.CaseRpp210Pe220Pc201Reject] = rpp210Pe220Pc201Reject
 }
 
 // peStuck230RepublishPC handles PE stuck at 230 - republish to PC
@@ -146,6 +147,50 @@ func cashoutPe220Pc201Reject(result domain.TransactionResult) *domain.DMLTicket 
 				},
 			},
 			CaseType: domain.CaseCashoutPe220Pc201Reject,
+		}
+	}
+	return nil
+}
+
+// rpp210Pe220Pc201Reject handles RPP 210, PE 220, PC 201 - manual rejection
+// Updates PE workflow_transfer_payment to state 221 with failure details
+func rpp210Pe220Pc201Reject(result domain.TransactionResult) *domain.DMLTicket {
+	if runID := result.PaymentEngine.Workflow.RunID; runID != "" {
+		return &domain.DMLTicket{
+			Deploy: []domain.TemplateInfo{
+				{
+					TargetDB: "PE",
+					SQLTemplate: "-- rpp210_pe220_pc201_reject\n" +
+						"UPDATE workflow_execution\n" +
+						"SET state = 221, attempt = 1, `data` = JSON_SET(\n" +
+						"      `data`, '$.StreamMessage',\n" +
+						"      JSON_OBJECT(\n" +
+						"         'Status', 'FAILED',\n" +
+						"         'ErrorCode', \"ADAPTER_ERROR\",\n" +
+						"         'ErrorMessage', 'Manual Rejected'\n" +
+						"      ),\n" +
+						"   '$.State', 221)\n" +
+						"WHERE run_id IN (%s) AND state = 220 AND workflow_id = 'workflow_transfer_payment';",
+					Params: []domain.ParamInfo{
+						{Name: "run_id", Value: runID, Type: "string"},
+					},
+				},
+			},
+			Rollback: []domain.TemplateInfo{
+				{
+					TargetDB: "PE",
+					SQLTemplate: "UPDATE workflow_execution\n" +
+						"SET state = 220, attempt = 1, `data` = JSON_SET(\n" +
+						"      `data`, '$.StreamMessage',\n" +
+						"      JSON_OBJECT(),\n" +
+						"   '$.State', 220)\n" +
+						"WHERE run_id IN (%s);",
+					Params: []domain.ParamInfo{
+						{Name: "run_id", Value: runID, Type: "string"},
+					},
+				},
+			},
+			CaseType: domain.CaseRpp210Pe220Pc201Reject,
 		}
 	}
 	return nil

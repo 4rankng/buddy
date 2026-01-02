@@ -2,6 +2,7 @@ package adapters
 
 import (
 	"buddy/internal/txn/domain"
+	"fmt"
 )
 
 // GenerateSQLStatements generates SQL statements for all supported cases using templates.
@@ -99,6 +100,47 @@ AND workflow_id IN ('wf_ct_cashout', 'wf_ct_qr_payment');`,
 		CaseType: domain.CaseRppNoResponseResume,
 	}
 
+}
+
+// GetDMLTicketForCashoutRpp210Pe220Pc201 returns a DML ticket for the cashout RPP 210, PE 220, PC 201 case
+// Prompts the user to choose between accept (resume to success) or reject (manual rejection)
+func GetDMLTicketForCashoutRpp210Pe220Pc201(result domain.TransactionResult) *domain.DMLTicket {
+	sopRepo := SOPRepo
+	sopRepo.IdentifyCase(&result, "my")
+	if result.CaseType != domain.CaseCashoutRpp210Pe220Pc201 {
+		return nil
+	}
+
+	// Prompt user for option
+	fmt.Println("\nChoose an option:")
+	fmt.Println("1. Resume to Success (Manual Success) - Move RPP to state 222 to resume")
+	fmt.Println("2. Reject/Fail (Manual Rejection) - Move PE to state 221 with failure details")
+	fmt.Print("\nEnter your choice (1 or 2): ")
+
+	var choice int
+	_, err := fmt.Scanln(&choice)
+	if err != nil {
+		result.Error = fmt.Sprintf("failed to read user choice: %v", err)
+		return nil
+	}
+
+	// Generate DML ticket based on user's choice
+	switch choice {
+	case 1:
+		// Option 1: Resume to Success
+		if templateFunc, exists := sqlTemplates[domain.CaseRpp210Pe220Pc201Accept]; exists {
+			return templateFunc(result)
+		}
+	case 2:
+		// Option 2: Reject/Fail
+		if templateFunc, exists := sqlTemplates[domain.CaseRpp210Pe220Pc201Reject]; exists {
+			return templateFunc(result)
+		}
+	default:
+		result.Error = fmt.Sprintf("invalid choice: %d (must be 1 or 2)", choice)
+		return nil
+	}
+	return nil
 }
 
 // GetDMLTicketForRppRtpCashinStuck200_0 returns a DML ticket for the RTP cashin stuck at 200 case

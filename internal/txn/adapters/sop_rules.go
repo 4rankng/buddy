@@ -287,6 +287,58 @@ func getDefaultSOPRules() []CaseRule {
 				},
 			},
 		},
+		{
+			CaseType:    domain.CaseCashoutRpp210Pe220Pc201,
+			Description: "Cashout PE 220/0, PC 201/0, RPP process registry 0/0, RPP cashout 210/0 - manual intervention required",
+			Country:     "my",
+			Conditions: []RuleCondition{
+				{
+					FieldPath: "PaymentEngine.Workflow.WorkflowID",
+					Operator:  "eq",
+					Value:     "workflow_transfer_payment",
+				},
+				{
+					FieldPath: "PaymentEngine.Workflow.State",
+					Operator:  "eq",
+					Value:     "220",
+				},
+				{
+					FieldPath: "PaymentEngine.Workflow.Attempt",
+					Operator:  "eq",
+					Value:     0,
+				},
+				{
+					FieldPath: "PaymentCore.ExternalTransfer.Workflow.WorkflowID",
+					Operator:  "eq",
+					Value:     "external_payment_flow",
+				},
+				{
+					FieldPath: "PaymentCore.ExternalTransfer.Workflow.State",
+					Operator:  "eq",
+					Value:     "201",
+				},
+				{
+					FieldPath: "PaymentCore.ExternalTransfer.Workflow.Attempt",
+					Operator:  "eq",
+					Value:     0,
+				},
+				{
+					FieldPath: "RPPAdapter.Workflow.WorkflowID",
+					Operator:  "in",
+					Value:     []string{"wf_process_registry", "wf_ct_cashout"},
+				},
+				{
+					FieldPath: "RPPAdapter.Workflow.State",
+					Operator:  "in",
+					Value:     []string{"0", "210"},
+				},
+				{
+					FieldPath: "RPPAdapter.Workflow.Attempt",
+					Operator:  "eq",
+					Value:     0,
+				},
+			},
+		},
 
 		// 2. Medium Complexity (PE + PC or Partnerpay + PC)
 		{

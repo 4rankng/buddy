@@ -7,6 +7,7 @@ func registerRPPAdvancedTemplates(templates map[domain.Case]TemplateFunc) {
 	templates[domain.CasePcExternalPaymentFlow201_0RPP210] = pcExternalPaymentFlow201_0RPP210
 	templates[domain.CasePcExternalPaymentFlow201_0RPP900] = pcExternalPaymentFlow201_0RPP900
 	templates[domain.CaseRppRtpCashinStuck200_0] = rppRtpCashinStuck200_0
+	templates[domain.CaseRpp210Pe220Pc201Accept] = rpp210Pe220Pc201Accept
 }
 
 // pcExternalPaymentFlow201_0RPP210 handles PC 201, RPP 210 - no response from RPP
@@ -189,5 +190,58 @@ AND workflow_id = 'wf_ct_rtp_cashin';`,
 			},
 		},
 		CaseType: domain.CaseRppRtpCashinStuck200_0,
+	}
+}
+
+// rpp210Pe220Pc201Accept handles RPP 210, PE 220, PC 201 - resume to success
+// Updates RPP wf_ct_cashout to state 222 (stTransferManualResumeReceived)
+func rpp210Pe220Pc201Accept(result domain.TransactionResult) *domain.DMLTicket {
+	if result.RPPAdapter == nil {
+		return nil
+	}
+
+	// Find workflow with state 210 and workflow_id = wf_ct_cashout
+	runID := getRPPWorkflowRunIDByCriteria(
+		result.RPPAdapter.Workflow,
+		"wf_ct_cashout",
+		"210",
+		0,
+	)
+
+	if runID == "" {
+		return nil
+	}
+
+	return &domain.DMLTicket{
+		Deploy: []domain.TemplateInfo{
+			{
+				TargetDB: "RPP",
+				SQLTemplate: `-- rpp210_pe220_pc201_accept - RPP did not respond in time, ACSP status at Paynet. Move to 222 to resume.
+UPDATE workflow_execution
+SET state = 222,
+		  attempt = 1,
+		  data = JSON_SET(data, '$.State', 222)
+WHERE run_id = %s
+AND state = 210
+AND workflow_id = 'wf_ct_cashout';`,
+				Params: []domain.ParamInfo{
+					{Name: "run_id", Value: runID, Type: "string"},
+				},
+			},
+		},
+		Rollback: []domain.TemplateInfo{
+			{
+				TargetDB: "RPP",
+				SQLTemplate: `UPDATE workflow_execution
+SET state = 210,
+		  attempt = 0,
+		  data = JSON_SET(data, '$.State', 210)
+WHERE run_id = %s;`,
+				Params: []domain.ParamInfo{
+					{Name: "run_id", Value: runID, Type: "string"},
+				},
+			},
+		},
+		CaseType: domain.CaseRpp210Pe220Pc201Accept,
 	}
 }
