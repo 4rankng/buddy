@@ -1,0 +1,228 @@
+package adapters
+
+import "buddy/internal/txn/domain"
+
+// registerRPPBasicTemplates registers basic RPP (Real-time Payment Processing) templates
+func registerRPPBasicTemplates(templates map[domain.Case]TemplateFunc) {
+	templates[domain.CaseRppCashoutReject101_19] = rppCashoutReject101_19
+	templates[domain.CaseRppQrPaymentReject210_0] = rppQrPaymentReject210_0
+	templates[domain.CaseRppNoResponseResume] = rppNoResponseResume
+	templates[domain.CaseRppCashinValidationFailed122_0] = rppCashinValidationFailed122_0
+}
+
+// rppCashoutReject101_19 handles RPP cashout reject at state 101, attempt 19
+func rppCashoutReject101_19(result domain.TransactionResult) *domain.DMLTicket {
+	if result.RPPAdapter == nil {
+		return nil
+	}
+
+	// Find specific workflow matching the case criteria
+	runID := getRPPWorkflowRunIDByCriteria(
+		result.RPPAdapter.Workflow,
+		"wf_ct_cashout",
+		"101",
+		19,
+	)
+
+	if runID == "" {
+		return nil
+	}
+
+	return &domain.DMLTicket{
+		Deploy: []domain.TemplateInfo{
+			{
+				TargetDB: "RPP",
+				SQLTemplate: `-- rpp_cashout_reject_101_19, manual reject
+UPDATE workflow_execution
+SET state = 221,
+    attempt = 1,
+    data = JSON_SET(data, '$.State', 221)
+WHERE run_id = %s
+AND state = 101
+AND workflow_id = 'wf_ct_cashout';`,
+				Params: []domain.ParamInfo{
+					{Name: "run_id", Value: runID, Type: "string"},
+				},
+			},
+		},
+		Rollback: []domain.TemplateInfo{
+			{
+				TargetDB: "RPP",
+				SQLTemplate: `-- RPP Rollback: Move workflows back to state 101
+UPDATE workflow_execution
+SET state = 101,
+    attempt = 0,
+    data = JSON_SET(data, '$.State', 101)
+WHERE run_id = %s
+AND workflow_id = 'wf_ct_cashout';`,
+				Params: []domain.ParamInfo{
+					{Name: "run_id", Value: runID, Type: "string"},
+				},
+			},
+		},
+		CaseType: domain.CaseRppCashoutReject101_19,
+	}
+}
+
+// rppQrPaymentReject210_0 handles RPP QR payment reject at state 210, attempt 0
+func rppQrPaymentReject210_0(result domain.TransactionResult) *domain.DMLTicket {
+	if result.RPPAdapter == nil {
+		return nil
+	}
+
+	// Find specific workflow matching the case criteria
+	runID := getRPPWorkflowRunIDByCriteria(
+		result.RPPAdapter.Workflow,
+		"wf_ct_qr_payment",
+		"210",
+		0,
+	)
+
+	if runID == "" {
+		return nil
+	}
+
+	return &domain.DMLTicket{
+		Deploy: []domain.TemplateInfo{
+			{
+				TargetDB: "RPP",
+				SQLTemplate: `-- rpp_qr_payment_reject_210_0, manual reject
+UPDATE workflow_execution
+SET state = 221,
+    attempt = 1,
+    data = JSON_SET(data, '$.State', 221)
+WHERE run_id = %s
+AND state = 210
+AND workflow_id = 'wf_ct_qr_payment';`,
+				Params: []domain.ParamInfo{
+					{Name: "run_id", Value: runID, Type: "string"},
+				},
+			},
+		},
+		Rollback: []domain.TemplateInfo{
+			{
+				TargetDB: "RPP",
+				SQLTemplate: `-- RPP Rollback: Move qr_payment workflows back to state 210
+UPDATE workflow_execution
+SET state = 210,
+    attempt = 0,
+    data = JSON_SET(data, '$.State', 210)
+WHERE run_id = %s
+AND workflow_id = 'wf_ct_qr_payment';`,
+				Params: []domain.ParamInfo{
+					{Name: "run_id", Value: runID, Type: "string"},
+				},
+			},
+		},
+		CaseType: domain.CaseRppQrPaymentReject210_0,
+	}
+}
+
+// rppNoResponseResume handles RPP no response - resume transaction
+func rppNoResponseResume(result domain.TransactionResult) *domain.DMLTicket {
+	if result.RPPAdapter == nil {
+		return nil
+	}
+
+	// Find workflow with state 210 and attempt 0 (either wf_ct_cashout or wf_ct_qr_payment)
+	runID := getRPPWorkflowRunIDByCriteria(
+		result.RPPAdapter.Workflow,
+		"", // any workflow_id
+		"210",
+		0,
+	)
+
+	if runID == "" {
+		return nil
+	}
+
+	return &domain.DMLTicket{
+		Deploy: []domain.TemplateInfo{
+			{
+				TargetDB: "RPP",
+				SQLTemplate: `-- rpp_no_response_resume_acsp
+-- RPP did not respond in time, but status at Paynet is ACSP (Accepted Settlement in Process) or ACTC (Accepted Technical Validation)
+UPDATE workflow_execution
+SET state = 222,
+    attempt = 1,
+    data = JSON_SET(data, '$.State', 222)
+WHERE run_id = %s
+AND state = 210
+AND workflow_id IN ('wf_ct_cashout', 'wf_ct_qr_payment');`,
+				Params: []domain.ParamInfo{
+					{Name: "run_id", Value: runID, Type: "string"},
+				},
+			},
+		},
+		Rollback: []domain.TemplateInfo{
+			{
+				TargetDB: "RPP",
+				SQLTemplate: `-- RPP Rollback: Move workflows back to state 210
+UPDATE workflow_execution
+SET state = 210,
+    attempt = 0,
+    data = JSON_SET(data, '$.State', 210)
+WHERE run_id = %s
+AND workflow_id IN ('wf_ct_cashout', 'wf_ct_qr_payment');`,
+				Params: []domain.ParamInfo{
+					{Name: "run_id", Value: runID, Type: "string"},
+				},
+			},
+		},
+		CaseType: domain.CaseRppNoResponseResume,
+	}
+}
+
+// rppCashinValidationFailed122_0 handles RPP cashin validation failed at state 122, attempt 0
+func rppCashinValidationFailed122_0(result domain.TransactionResult) *domain.DMLTicket {
+	if result.RPPAdapter == nil {
+		return nil
+	}
+
+	// Find the specific workflow matching the case criteria
+	runID := getRPPWorkflowRunIDByCriteria(
+		result.RPPAdapter.Workflow,
+		"wf_ct_cashin",
+		"122",
+		0,
+	)
+
+	if runID == "" {
+		return nil // No matching workflow found
+	}
+
+	return &domain.DMLTicket{
+		Deploy: []domain.TemplateInfo{
+			{
+				TargetDB: "RPP",
+				SQLTemplate: `-- rpp_cashin_validation_failed_122_0, retry validation
+UPDATE workflow_execution
+SET state = 100,
+	  attempt = 1,
+	  data = JSON_SET(data, '$.State', 100)
+WHERE run_id = %s
+AND workflow_id = 'wf_ct_cashin'
+AND state = 122;`,
+				Params: []domain.ParamInfo{
+					{Name: "run_id", Value: runID, Type: "string"},
+				},
+			},
+		},
+		Rollback: []domain.TemplateInfo{
+			{
+				TargetDB: "RPP",
+				SQLTemplate: `-- RPP Rollback: Move cashin workflow back to state 122
+UPDATE workflow_execution
+SET state = 122,
+	  attempt = 0,
+	  data = JSON_SET(data, '$.State', 122)
+WHERE run_id = %s
+AND workflow_id = 'wf_ct_cashin';`,
+				Params: []domain.ParamInfo{
+					{Name: "run_id", Value: runID, Type: "string"},
+				},
+			},
+		},
+		CaseType: domain.CaseRppCashinValidationFailed122_0,
+	}
+}
