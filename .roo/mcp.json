@@ -7,6 +7,14 @@
         "--repository",
         "/Users/frank.nguyen/Documents/buddy"
       ]
+    },
+    "filesystem": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-filesystem",
+        "/Users/frank.nguyen/Documents/buddy"
+      ]
     }
   }
 }
