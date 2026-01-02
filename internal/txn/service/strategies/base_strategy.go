@@ -100,18 +100,39 @@ func (s *BasePopulationStrategy) populatePaymentEngineFromAdapters(result *domai
 
 // populateAdaptersFromPaymentEngine populates adapters from PaymentEngine
 func (s *BasePopulationStrategy) populateAdaptersFromPaymentEngine(result *domain.TransactionResult, env string) error {
-	if result.PaymentEngine == nil || result.PaymentEngine.Transfers.ExternalID == "" {
+	if result.PaymentEngine == nil {
 		return nil
 	}
 
 	if env == "my" && result.RPPAdapter == nil && s.adapterPopulator != nil {
-		// Query RPP adapter using external_id
-		adapterData, err := s.adapterPopulator.QueryByInputID(
-			result.PaymentEngine.Transfers.ExternalID,
-		)
-		if err == nil && adapterData != nil {
-			if rppInfo, ok := adapterData.(*domain.RPPAdapterInfo); ok {
-				result.RPPAdapter = rppInfo
+		// First try: Query RPP adapter using external_id if available
+		if result.PaymentEngine.Transfers.ExternalID != "" {
+			adapterData, err := s.adapterPopulator.QueryByInputID(
+				result.PaymentEngine.Transfers.ExternalID,
+			)
+			if err == nil && adapterData != nil {
+				if rppInfo, ok := adapterData.(*domain.RPPAdapterInfo); ok {
+					result.RPPAdapter = rppInfo
+					return nil
+				}
+			}
+		}
+
+		// Fallback: Query by source/destination account IDs and timestamp
+		if result.PaymentEngine.Transfers.SourceAccountID != "" &&
+			result.PaymentEngine.Transfers.DestinationAccountID != "" &&
+			result.PaymentEngine.Transfers.CreatedAt != "" {
+			if rppPort, ok := s.adapterPopulator.(interface {
+				QueryByAccountsAndTimestamp(sourceAccountID, destinationAccountID, timestamp string) (*domain.RPPAdapterInfo, error)
+			}); ok {
+				rppInfo, err := rppPort.QueryByAccountsAndTimestamp(
+					result.PaymentEngine.Transfers.SourceAccountID,
+					result.PaymentEngine.Transfers.DestinationAccountID,
+					result.PaymentEngine.Transfers.CreatedAt,
+				)
+				if err == nil && rppInfo != nil {
+					result.RPPAdapter = rppInfo
+				}
 			}
 		}
 	}

@@ -99,6 +99,8 @@ func (p *pePopulator) populateTransferInfo(info *domain.PaymentEngineInfo, trans
 	info.Transfers.TxnSubtype = utils.GetStringValue(transfer, "txn_subtype")
 	info.Transfers.TxnDomain = utils.GetStringValue(transfer, "txn_domain")
 	info.Transfers.ExternalID = utils.GetStringValue(transfer, "external_id")
+	info.Transfers.SourceAccountID = utils.GetStringValue(transfer, "source_account_id")
+	info.Transfers.DestinationAccountID = utils.GetStringValue(transfer, "destination_account_id")
 }
 
 // populateWorkflowInfo extracts workflow data from map to PaymentEngineInfo

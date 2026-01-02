@@ -7,14 +7,16 @@ import (
 
 // PETransfersInfo contains payment-engine transfer information
 type PETransfersInfo struct {
-	Type          string // payment-engine transfers.type
-	TxnSubtype    string // payment-engine transfers.txn_subtype
-	TxnDomain     string // payment-engine transfers.txn_domain
-	TransactionID string // payment-engine transfers.transaction_id
-	ReferenceID   string // payment-engine transfers.reference_id
-	Status        string // payment-engine transfers.status
-	ExternalID    string // payment-engine transfers.external_id
-	CreatedAt     string // payment-engine transfers.created_at
+	Type                 string // payment-engine transfers.type
+	TxnSubtype           string // payment-engine transfers.txn_subtype
+	TxnDomain            string // payment-engine transfers.txn_domain
+	TransactionID        string // payment-engine transfers.transaction_id
+	ReferenceID          string // payment-engine transfers.reference_id
+	Status               string // payment-engine transfers.status
+	ExternalID           string // payment-engine transfers.external_id
+	SourceAccountID      string // payment-engine transfers.source_account_id
+	DestinationAccountID string // payment-engine transfers.destination_account_id
+	CreatedAt            string // payment-engine transfers.created_at
 }
 
 // WorkflowInfo contains information about a specific workflow execution

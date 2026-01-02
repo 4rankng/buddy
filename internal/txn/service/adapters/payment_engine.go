@@ -22,7 +22,7 @@ func (p *PaymentEngineAdapter) QueryTransfer(transactionID string) (map[string]i
 	if p.client == nil {
 		return nil, fmt.Errorf("QueryTransfer: database client is not initialized")
 	}
-	query := fmt.Sprintf("SELECT transaction_id, status, reference_id, created_at, updated_at, type, txn_subtype, txn_domain, external_id FROM transfer WHERE transaction_id='%s'", transactionID)
+	query := fmt.Sprintf("SELECT transaction_id, status, reference_id, created_at, updated_at, type, txn_subtype, txn_domain, external_id, source_account_id, destination_account_id FROM transfer WHERE transaction_id='%s'", transactionID)
 	if p.client == nil {
 		return nil, fmt.Errorf("database client is not initialized")
 	}
@@ -64,7 +64,7 @@ func (p *PaymentEngineAdapter) QueryTransferByExternalID(externalID, createdAt s
 	endTime := parsedTime.Add(30 * time.Minute)
 
 	query := fmt.Sprintf(
-		"SELECT transaction_id, status, reference_id, created_at, updated_at, type, txn_subtype, txn_domain, external_id "+
+		"SELECT transaction_id, status, reference_id, created_at, updated_at, type, txn_subtype, txn_domain, external_id, source_account_id, destination_account_id "+
 			"FROM transfer "+
 			"WHERE external_id='%s' "+
 			"AND created_at >= '%s' "+
