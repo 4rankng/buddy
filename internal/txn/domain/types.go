@@ -131,6 +131,7 @@ const (
 	CasePcExternalPaymentFlow201_0RPP210             Case = "pc_external_payment_flow_201_0_RPP_210"
 	CasePcExternalPaymentFlow201_0RPP900             Case = "pc_external_payment_flow_201_0_RPP_900"
 	CasePeTransferPayment210_0                       Case = "pe_transfer_payment_210_0"
+	CasePeStuckAtLimitCheck102_4                     Case = "pe_stuck_at_limit_check_102_4"
 	CasePeStuck230RepublishPC                        Case = "pe_stuck_230_republish_pc"
 	CaseRppCashoutReject101_19                       Case = "rpp_cashout_reject_101_19"
 	CaseRppQrPaymentReject210_0                      Case = "rpp_qr_payment_reject_210_0"

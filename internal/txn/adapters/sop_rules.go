@@ -59,6 +59,27 @@ func getDefaultSOPRules() []CaseRule {
 			},
 		},
 		{
+			CaseType:    domain.CasePeStuckAtLimitCheck102_4,
+			Description: "PE stuck at state 102 (stTransactionLimitChecked) with attempt 4",
+			Conditions: []RuleCondition{
+				{
+					FieldPath: "PaymentEngine.Workflow.State",
+					Operator:  "eq",
+					Value:     "102",
+				},
+				{
+					FieldPath: "PaymentEngine.Workflow.WorkflowID",
+					Operator:  "eq",
+					Value:     "workflow_transfer_payment",
+				},
+				{
+					FieldPath: "PaymentEngine.Workflow.Attempt",
+					Operator:  "eq",
+					Value:     4,
+				},
+			},
+		},
+		{
 			CaseType:    domain.CasePeStuck230RepublishPC,
 			Description: "PE stuck at state 230 (capture) requires PC republish",
 			Country:     "my",
