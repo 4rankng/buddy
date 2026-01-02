@@ -190,6 +190,7 @@ func GetCaseSummaryOrder() []Case {
 // WorkflowStateMaps contains state mappings for different workflow types
 var WorkflowStateMaps = map[string]map[int]string{
 	"workflow_transfer_payment": {
+		0:   "stInit",
 		100: "stTransferPersisted",
 		101: "stProcessingPublished",
 		102: "stTransactionLimitChecked",
@@ -224,6 +225,7 @@ var WorkflowStateMaps = map[string]map[int]string{
 		912: "stRewardRedeemCompleted",
 	},
 	"internal_payment_flow": {
+		0:   "stInit",
 		100: "stPending",
 		101: "stStreamPersisted",
 		900: "stSuccess",
@@ -233,6 +235,7 @@ var WorkflowStateMaps = map[string]map[int]string{
 		501: "stPrepareFailurePublish",
 	},
 	"external_payment_flow": {
+		0:   "stInit",
 		200: "stSubmitted",
 		201: "stProcessing",
 		202: "stRespReceived",
@@ -242,6 +245,7 @@ var WorkflowStateMaps = map[string]map[int]string{
 		501: "stPrepareFailurePublish",
 	},
 	"wf_ct_cashout": {
+		0:   "stInit",
 		101: "stCreditTransferPersisted",
 		111: "stCreditorDetailUpdated",
 		120: "stPrepareCreditorInquiry",
@@ -260,6 +264,7 @@ var WorkflowStateMaps = map[string]map[int]string{
 		900: "stSuccess",
 	},
 	"wf_ct_qr_payment": {
+		0:   "stInit",
 		101: "stCreditTransferPersisted",
 		111: "stCreditorDetailUpdated",
 		120: "stPrepareCreditorInquiry",
@@ -278,6 +283,7 @@ var WorkflowStateMaps = map[string]map[int]string{
 		900: "stSuccess",
 	},
 	"wf_ct_cashin": {
+		0:   "stInit",
 		100: "stTransferPersisted",
 		110: "stRequestToPayUpdated",
 		111: "stRequestToPayUpdateFailed",
@@ -293,6 +299,7 @@ var WorkflowStateMaps = map[string]map[int]string{
 		901: "stCashInCompletedWithRefund",
 	},
 	"wf_ct_rtp_cashin": {
+		0:   "stInit",
 		100: "stTransferPersisted",
 		110: "stRequestToPayUpdated",
 		111: "stRequestToPayUpdateFailed",
@@ -308,6 +315,7 @@ var WorkflowStateMaps = map[string]map[int]string{
 		901: "stCashInCompletedWithRefund",
 	},
 	"workflow_charge": {
+		0:   "stInit",
 		100: "stProcessingPublished",
 		101: "stPrepareAuth",
 		102: "stPrepareTransfer",
@@ -333,6 +341,7 @@ var WorkflowStateMaps = map[string]map[int]string{
 		502: "stFailureNotified",
 	},
 	"workflow_transfer_collection": {
+		0:   "stInit",
 		100: "stTransferPersisted",
 		101: "stProcessingPublished",
 		102: "stPreTransactionLimitCheck",
@@ -369,6 +378,7 @@ var WorkflowStateMaps = map[string]map[int]string{
 		910: "stCompletedNotified",
 	},
 	"wf_process_registry": {
+		0:   "stInit",
 		100: "stRppMsgPersisted",
 		201: "stRppMsgVerified",
 		202: "stRppMsgVerifyFailed",
