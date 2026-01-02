@@ -61,7 +61,7 @@ func peStuckAtLimitCheck102(result domain.TransactionResult) *domain.DMLTicket {
 		Deploy: []domain.TemplateInfo{
 			{
 				TargetDB: "PE",
-				SQLTemplate: "-- Fix: Manually reject the transaction by moving PE state to 221 and injecting an error StreamMessage\n" +
+				SQLTemplate: "-- cashout_pe102_reject\n" +
 					"UPDATE workflow_execution\n" +
 					"SET  state = 221, attempt = 1, `data` = JSON_SET(\n" +
 					"      `data`, '$.StreamMessage',\n" +
