@@ -3,6 +3,7 @@ package adapters
 import (
 	"buddy/internal/txn/domain"
 	"fmt"
+	"os"
 )
 
 // GenerateSQLStatements generates SQL statements for all supported cases using templates.
@@ -10,6 +11,9 @@ func GenerateSQLStatements(results []domain.TransactionResult) domain.SQLStateme
 	statements := domain.SQLStatements{}
 
 	for i := range results {
+		// Populate index for use in interactive prompts
+		results[i].Index = i + 1
+
 		// SOP cases should already be identified by Identifydomain.Cases
 		caseType := results[i].CaseType
 
@@ -107,10 +111,13 @@ AND workflow_id IN ('wf_ct_cashout', 'wf_ct_qr_payment');`,
 func GetDMLTicketForCashoutRpp210Pe220Pc201(result domain.TransactionResult) *domain.DMLTicket {
 	sopRepo := SOPRepo
 	sopRepo.IdentifyCase(&result, "my")
-	
+
 	if result.CaseType != domain.CaseCashoutRpp210Pe220Pc201 {
 		return nil
 	}
+
+	// Display transaction summary first
+	WriteResult(os.Stdout, result, result.Index)
 
 	// Prompt user for option
 	fmt.Println("\nChoose an option:")

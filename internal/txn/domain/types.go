@@ -128,6 +128,7 @@ type PartnerpayEngineInfo struct {
 
 // TransactionResult represents the result of a transaction query
 type TransactionResult struct {
+	Index            int
 	InputID          string
 	PaymentEngine    *PaymentEngineInfo
 	PartnerpayEngine *PartnerpayEngineInfo
