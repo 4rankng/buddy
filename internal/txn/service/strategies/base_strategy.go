@@ -73,7 +73,16 @@ func (s *BasePopulationStrategy) populatePaymentEngineFromAdapters(result *domai
 
 	if env == "my" && result.RPPAdapter != nil {
 		// Use RPP adapter data
-		if result.RPPAdapter.EndToEndID != "" && result.RPPAdapter.CreatedAt != "" {
+		// Payment-engine stores RPP PartnerTxID in transaction_id column, not EndToEndID in external_id
+		if result.RPPAdapter.PartnerTxID != "" {
+			peInfo, err := s.pePopulator.QueryByTransactionID(
+				result.RPPAdapter.PartnerTxID,
+			)
+			if err == nil && peInfo != nil {
+				result.PaymentEngine = peInfo
+			}
+		} else if result.RPPAdapter.EndToEndID != "" && result.RPPAdapter.CreatedAt != "" {
+			// Fallback: use EndToEndID to search when PartnerTxID is empty
 			peInfo, err := s.pePopulator.QueryByExternalID(
 				result.RPPAdapter.EndToEndID,
 				result.RPPAdapter.CreatedAt,

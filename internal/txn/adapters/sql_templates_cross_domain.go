@@ -6,6 +6,7 @@ import "buddy/internal/txn/domain"
 func registerCrossDomainTemplates(templates map[domain.Case]TemplateFunc) {
 	templates[domain.CaseThoughtMachineFalseNegative] = thoughtMachineFalseNegative
 	templates[domain.CasePeCaptureProcessingPcCaptureFailedRppSuccess] = peCaptureProcessingPcCaptureFailedRppSuccess
+	templates[domain.CaseRpp210Pe220Pc201Acsp] = rpp210Pe220Pc201Acsp
 }
 
 // thoughtMachineFalseNegative handles ThoughtMachine false negative case (PE + PC)
@@ -157,5 +158,59 @@ AND workflow_id = 'internal_payment_flow';`,
 			},
 		},
 		CaseType: domain.CasePeCaptureProcessingPcCaptureFailedRppSuccess,
+	}
+}
+
+// rpp210Pe220Pc201Acsp handles RPP 210, PE 220, PC 201 ACSP case - resume transaction
+func rpp210Pe220Pc201Acsp(result domain.TransactionResult) *domain.DMLTicket {
+	// Validate that we have RPP data
+	if result.RPPAdapter == nil {
+		return nil
+	}
+
+	// Find RPP workflow with wf_ct_qr_payment, state 210, attempt 0
+	rppRunID := getRPPWorkflowRunIDByCriteria(
+		result.RPPAdapter.Workflow,
+		"wf_ct_qr_payment",
+		"210",
+		0,
+	)
+
+	if rppRunID == "" {
+		return nil // No matching RPP workflow found
+	}
+
+	return &domain.DMLTicket{
+		Deploy: []domain.TemplateInfo{
+			{
+				TargetDB: "RPP",
+				SQLTemplate: `-- rpp210_pe220_pc201 - RPP did not respond in time, ACSP status at Paynet. Move to 222 to resume.
+UPDATE workflow_execution
+SET state = 222,
+    attempt = 1,
+    data = JSON_SET(data, '$.State', 222)
+WHERE run_id = %s
+AND state = 210
+AND workflow_id = 'wf_ct_qr_payment';`,
+				Params: []domain.ParamInfo{
+					{Name: "run_id", Value: rppRunID, Type: "string"},
+				},
+			},
+		},
+		Rollback: []domain.TemplateInfo{
+			{
+				TargetDB: "RPP",
+				SQLTemplate: `-- rpp210_pe220_pc201_rollback
+UPDATE workflow_execution
+SET state = 210,
+    attempt = 0,
+    data = JSON_SET(data, '$.State', 210)
+WHERE run_id = %s;`,
+				Params: []domain.ParamInfo{
+					{Name: "run_id", Value: rppRunID, Type: "string"},
+				},
+			},
+		},
+		CaseType: domain.CaseRpp210Pe220Pc201Acsp,
 	}
 }

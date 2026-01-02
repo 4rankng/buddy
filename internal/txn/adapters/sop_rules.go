@@ -538,5 +538,57 @@ func getDefaultSOPRules() []CaseRule {
 				},
 			},
 		},
+		{
+			CaseType:    domain.CaseRpp210Pe220Pc201Acsp,
+			Description: "RPP 210, PE 220, PC 201. No response from RPP. Move to 222 to resume. ACSP",
+			Country:     "my",
+			Conditions: []RuleCondition{
+				{
+					FieldPath: "PaymentEngine.Workflow.WorkflowID",
+					Operator:  "eq",
+					Value:     "workflow_transfer_payment",
+				},
+				{
+					FieldPath: "PaymentEngine.Workflow.State",
+					Operator:  "eq",
+					Value:     "220",
+				},
+				{
+					FieldPath: "PaymentEngine.Workflow.Attempt",
+					Operator:  "eq",
+					Value:     0,
+				},
+				{
+					FieldPath: "PaymentCore.ExternalTransfer.Workflow.WorkflowID",
+					Operator:  "eq",
+					Value:     "external_payment_flow",
+				},
+				{
+					FieldPath: "PaymentCore.ExternalTransfer.Workflow.State",
+					Operator:  "eq",
+					Value:     "201",
+				},
+				{
+					FieldPath: "PaymentCore.ExternalTransfer.Workflow.Attempt",
+					Operator:  "eq",
+					Value:     0,
+				},
+				{
+					FieldPath: "RPPAdapter.Workflow.WorkflowID",
+					Operator:  "eq",
+					Value:     "wf_ct_qr_payment",
+				},
+				{
+					FieldPath: "RPPAdapter.Workflow.State",
+					Operator:  "eq",
+					Value:     "210",
+				},
+				{
+					FieldPath: "RPPAdapter.Workflow.Attempt",
+					Operator:  "eq",
+					Value:     0,
+				},
+			},
+		},
 	}
 }
