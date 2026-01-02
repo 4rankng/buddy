@@ -138,6 +138,8 @@ func printBatchSummary(filename string, summary BatchSummary, outputPath string)
 
 	// Print case types in the specific order from the documentation
 	for _, caseType := range domain.GetCaseSummaryOrder() {
-		fmt.Printf("  %s: %d\n", string(caseType), summary.CaseTypes[caseType])
+		if count := summary.CaseTypes[caseType]; count > 0 {
+			fmt.Printf("  %s: %d\n", string(caseType), count)
+		}
 	}
 }

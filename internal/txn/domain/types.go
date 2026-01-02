@@ -172,6 +172,7 @@ func GetCaseSummaryOrder() []Case {
 		CasePcExternalPaymentFlow201_0RPP210,
 		CasePcExternalPaymentFlow201_0RPP900,
 		CasePeTransferPayment210_0,
+		CasePeStuckAtLimitCheck102,
 		CasePeStuck230RepublishPC,
 		CaseThoughtMachineFalseNegative,
 		CasePeCaptureProcessingPcCaptureFailedRppSuccess,
