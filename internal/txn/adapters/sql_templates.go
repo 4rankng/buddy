@@ -175,7 +175,7 @@ AND workflow_id = 'workflow_transfer_payment';`,
 					},
 				},
 			},
-			CaseType: domain.CasePeStuckAtLimitCheck102_4,
+			CaseType: domain.CasePeStuckAtLimitCheck102,
 		}
 	},
 	domain.CasePe2200FastCashinFailed: func(result domain.TransactionResult) *domain.DMLTicket {
