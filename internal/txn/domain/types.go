@@ -351,6 +351,13 @@ var WorkflowStateMaps = map[string]map[int]string{
 		905: "stCompletedPublished",
 		910: "stCompletedNotified",
 	},
+	"wf_process_registry": {
+		100: "stRppMsgPersisted",
+		201: "stRppMsgVerified",
+		202: "stRppMsgVerifyFailed",
+		700: "stFailed",
+		900: "stSuccess",
+	},
 }
 
 // FastAdapterStateMaps contains state mappings for fast adapter types
