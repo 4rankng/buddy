@@ -7,60 +7,75 @@ import (
 	"os"
 )
 
+// ClearSQLFiles removes all existing SQL files before batch processing
+func ClearSQLFiles() {
+	sqlFiles := []string{
+		"PC_Deploy.sql", "PC_Rollback.sql",
+		"PE_Deploy.sql", "PE_Rollback.sql",
+		"PPE_Deploy.sql", "PPE_Rollback.sql",
+		"RPP_Deploy.sql", "RPP_Rollback.sql",
+	}
+	for _, file := range sqlFiles {
+		if err := os.Remove(file); err != nil && !os.IsNotExist(err) {
+			fmt.Printf("Warning: failed to remove %s: %v\n", file, err)
+		}
+	}
+}
+
 // WriteSQLFiles writes the SQL statements to database-specific Deploy.sql and Rollback.sql files
 func WriteSQLFiles(statements domain.SQLStatements, basePath string) error {
-	// Write PC files (always append to fixed filenames)
+	// Write PC files (always overwrite fixed filenames)
 	if len(statements.PCDeployStatements) > 0 {
 		deployPath := "PC_Deploy.sql"
-		if err := AppendSQLFile(deployPath, statements.PCDeployStatements); err != nil {
+		if err := WriteSQLFile(deployPath, statements.PCDeployStatements); err != nil {
 			return err
 		}
 	}
 	if len(statements.PCRollbackStatements) > 0 {
 		rollbackPath := "PC_Rollback.sql"
-		if err := AppendSQLFile(rollbackPath, statements.PCRollbackStatements); err != nil {
+		if err := WriteSQLFile(rollbackPath, statements.PCRollbackStatements); err != nil {
 			return err
 		}
 	}
 
-	// Write PE files (always append to fixed filenames)
+	// Write PE files (always overwrite fixed filenames)
 	if len(statements.PEDeployStatements) > 0 {
 		deployPath := "PE_Deploy.sql"
-		if err := AppendSQLFile(deployPath, statements.PEDeployStatements); err != nil {
+		if err := WriteSQLFile(deployPath, statements.PEDeployStatements); err != nil {
 			return err
 		}
 	}
 	if len(statements.PERollbackStatements) > 0 {
 		rollbackPath := "PE_Rollback.sql"
-		if err := AppendSQLFile(rollbackPath, statements.PERollbackStatements); err != nil {
+		if err := WriteSQLFile(rollbackPath, statements.PERollbackStatements); err != nil {
 			return err
 		}
 	}
 
-	// Write PPE files (always append to fixed filenames)
+	// Write PPE files (always overwrite fixed filenames)
 	if len(statements.PPEDeployStatements) > 0 {
 		deployPath := "PPE_Deploy.sql"
-		if err := AppendSQLFile(deployPath, statements.PPEDeployStatements); err != nil {
+		if err := WriteSQLFile(deployPath, statements.PPEDeployStatements); err != nil {
 			return err
 		}
 	}
 	if len(statements.PPERollbackStatements) > 0 {
 		rollbackPath := "PPE_Rollback.sql"
-		if err := AppendSQLFile(rollbackPath, statements.PPERollbackStatements); err != nil {
+		if err := WriteSQLFile(rollbackPath, statements.PPERollbackStatements); err != nil {
 			return err
 		}
 	}
 
-	// Write RPP files (always append to fixed filenames)
+	// Write RPP files (always overwrite fixed filenames)
 	if len(statements.RPPDeployStatements) > 0 {
 		deployPath := "RPP_Deploy.sql"
-		if err := AppendSQLFile(deployPath, statements.RPPDeployStatements); err != nil {
+		if err := WriteSQLFile(deployPath, statements.RPPDeployStatements); err != nil {
 			return err
 		}
 	}
 	if len(statements.RPPRollbackStatements) > 0 {
 		rollbackPath := "RPP_Rollback.sql"
-		if err := AppendSQLFile(rollbackPath, statements.RPPRollbackStatements); err != nil {
+		if err := WriteSQLFile(rollbackPath, statements.RPPRollbackStatements); err != nil {
 			return err
 		}
 	}

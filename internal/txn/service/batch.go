@@ -65,6 +65,9 @@ func processBatchFileWithEnv(filePath, env string) {
 	// Generate SQL statements
 	statements := adapters.GenerateSQLStatements(results)
 
+	// Clear existing SQL files before writing (for batch mode, always start fresh)
+	adapters.ClearSQLFiles()
+
 	// Write SQL files
 	sqlBasePath := strings.TrimSuffix(outputPath, "-output.txt")
 	if err := adapters.WriteSQLFiles(statements, sqlBasePath); err != nil {
