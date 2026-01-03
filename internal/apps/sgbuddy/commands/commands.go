@@ -2,13 +2,15 @@ package sgbuddy
 
 import (
 	"buddy/internal/apps/common"
+	"buddy/internal/di"
+
 	"github.com/spf13/cobra"
 )
 
-func GetCommands(appCtx *common.Context) []*cobra.Command {
+func GetCommands(appCtx *common.Context, clients *di.ClientSet) []*cobra.Command {
 	return []*cobra.Command{
-		NewTxnCmd(appCtx),
-		NewJiraCmd(appCtx),
-		NewEcoTxnCmd(appCtx),
+		NewTxnCmd(appCtx, clients),
+		NewJiraCmd(appCtx, clients),
+		NewEcoTxnCmd(appCtx, clients),
 	}
 }

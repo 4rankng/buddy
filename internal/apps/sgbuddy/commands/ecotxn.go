@@ -5,13 +5,14 @@ import (
 	"os"
 
 	"buddy/internal/apps/common"
+	"buddy/internal/di"
 	"buddy/internal/txn/adapters"
 	"buddy/internal/txn/utils"
 
 	"github.com/spf13/cobra"
 )
 
-func NewEcoTxnCmd(appCtx *common.Context) *cobra.Command {
+func NewEcoTxnCmd(appCtx *common.Context, clients *di.ClientSet) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "ecotxn [command]",
 		Short: "Ecosystem transaction commands for Singapore environment",

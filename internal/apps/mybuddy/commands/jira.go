@@ -7,12 +7,13 @@ import (
 	"buddy/internal/apps/common"
 	"buddy/internal/apps/common/jira"
 	clients "buddy/internal/clients/jira"
+	"buddy/internal/di"
 	"buddy/internal/ui"
 
 	"github.com/spf13/cobra"
 )
 
-func NewJiraCmd(appCtx *common.Context) *cobra.Command {
+func NewJiraCmd(appCtx *common.Context, clients *di.ClientSet) *cobra.Command {
 	jiraCmd := &cobra.Command{
 		Use:   "jira",
 		Short: "JIRA ticket operations",

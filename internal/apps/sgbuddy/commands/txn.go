@@ -4,6 +4,7 @@ import (
 	"os"
 
 	"buddy/internal/apps/common"
+	"buddy/internal/di"
 	"buddy/internal/txn/adapters"
 	"buddy/internal/txn/service"
 	"buddy/internal/txn/utils"
@@ -11,7 +12,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func NewTxnCmd(appCtx *common.Context) *cobra.Command {
+func NewTxnCmd(appCtx *common.Context, clients *di.ClientSet) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "txn [transaction-id-or-file-path]",
 		Short: "Query Singapore transaction status from payment systems",

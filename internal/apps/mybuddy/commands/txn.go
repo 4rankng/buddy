@@ -5,14 +5,15 @@ import (
 	"os"
 
 	"buddy/internal/apps/common"
+	"buddy/internal/apps/common/batch"
+	"buddy/internal/di"
 	"buddy/internal/txn/adapters"
 	"buddy/internal/txn/domain"
-	"buddy/internal/txn/service"
 
 	"github.com/spf13/cobra"
 )
 
-func NewTxnCmd(appCtx *common.Context) *cobra.Command {
+func NewTxnCmd(appCtx *common.Context, clients *di.ClientSet) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "txn [transaction-id-or-e2e-id-or-file]",
 		Short: "Query transaction status and generate remediation SQL",
@@ -22,29 +23,27 @@ and file paths containing multiple transaction IDs.`,
 		Args: cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			input := args[0]
-			processInput(appCtx, input)
+			processInput(appCtx, clients, input)
 		},
 	}
 
 	return cmd
 }
 
-func processInput(appCtx *common.Context, input string) {
+func processInput(appCtx *common.Context, clients *di.ClientSet, input string) {
 	// Check if input is a file
 	if _, err := os.Stat(input); err == nil {
-		// Process as batch file
-		// Note: ProcessBatchFile in service package now handles batch processing
-		fmt.Printf("%sProcessing batch file: %s\n", appCtx.GetPrefix(), input)
-		service.ProcessBatchFile(input)
+		// Process as batch file using the new batch processor
+		batch.ProcessTransactionFile(appCtx, clients, input)
 	} else {
 		// Process as single transaction ID
-		processSingleTransaction(appCtx, input)
+		processSingleTransaction(appCtx, clients, input)
 	}
 }
 
-func processSingleTransaction(appCtx *common.Context, transactionID string) {
-	// Get the TransactionService singleton
-	txnService := service.GetTransactionQueryService()
+func processSingleTransaction(appCtx *common.Context, clients *di.ClientSet, transactionID string) {
+	// Use the injected transaction service
+	txnService := clients.TxnSvc
 
 	// 1. Query transaction
 	result := txnService.QueryTransactionWithEnv(transactionID, "my")

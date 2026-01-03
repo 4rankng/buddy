@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"buddy/internal/apps/common"
+	"buddy/internal/di"
 	"buddy/internal/txn/adapters"
 	"buddy/internal/txn/domain"
 	"buddy/internal/txn/service"
@@ -24,7 +25,7 @@ func isEmptyStatements(statements domain.SQLStatements) bool {
 		len(statements.RPPRollbackStatements) == 0
 }
 
-func NewEcoTxnCmd(appCtx *common.Context) *cobra.Command {
+func NewEcoTxnCmd(appCtx *common.Context, clients *di.ClientSet) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "ecotxn [run-id]",
 		Short: "Query partnerpay-engine transaction status by run_id",

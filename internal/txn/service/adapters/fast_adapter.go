@@ -61,8 +61,8 @@ func (f *FastAdapter) Query(params domain.FastQueryParams) (*domain.FastAdapterI
 			statusNum = int(fnum)
 		}
 
-		// Look up status name from domain.FastAdapterStateMaps
-		if stateMap, exists := domain.FastAdapterStateMaps[info.Type]; exists {
+		// Look up status name using domain formatter
+		if stateMap, exists := domain.GetFastAdapterStateMap(info.Type); exists {
 			if statusName, found := stateMap[statusNum]; found {
 				info.Status = statusName
 			} else {

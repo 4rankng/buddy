@@ -2,8 +2,17 @@ package domain
 
 import (
 	"fmt"
+	"slices"
 	"testing"
+
+	"buddy/internal/config"
 )
+
+func init() {
+	// Initialize config loader for tests with a test config directory
+	// This will fail gracefully if config files don't exist
+	_ = config.InitializeConfigLoader("../../../config")
+}
 
 func TestRppE2EIDPattern(t *testing.T) {
 	// Test valid RPP E2E IDs
@@ -157,7 +166,7 @@ func TestWorkflowTransferCollectionStates(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			var result string
-			if stateMap, exists := WorkflowStateMaps["workflow_transfer_collection"]; exists {
+			if stateMap, exists := GetWorkflowStateMap("workflow_transfer_collection"); exists {
 				if stateName, exists := stateMap[tc.state]; exists {
 					result = stateName
 				} else {
@@ -167,7 +176,7 @@ func TestWorkflowTransferCollectionStates(t *testing.T) {
 				result = fmt.Sprintf("stUnknown_%d", tc.state)
 			}
 			if result != tc.expected {
-				t.Errorf("WorkflowStateMaps[\"workflow_transfer_collection\"][%d] = %v; expected %v", tc.state, result, tc.expected)
+				t.Errorf("GetWorkflowStateMap(\"workflow_transfer_collection\")[%d] = %v; expected %v", tc.state, result, tc.expected)
 			}
 		})
 	}
@@ -182,22 +191,22 @@ func TestFormatWorkflowStateTransferCollection(t *testing.T) {
 		{
 			name:     "Valid state number",
 			stateStr: "220",
-			expected: "stAuthProcessing(220)",
+			expected: "workflow_transfer_collection:220 (stAuthProcessing)",
 		},
 		{
 			name:     "Another valid state number",
 			stateStr: "910",
-			expected: "stCompletedNotified(910)",
+			expected: "workflow_transfer_collection:910 (stCompletedNotified)",
 		},
 		{
 			name:     "Invalid state number",
 			stateStr: "999",
-			expected: "stUnknown_999(999)",
+			expected: "workflow_transfer_collection:999",
 		},
 		{
 			name:     "Non-numeric state string",
 			stateStr: "invalid",
-			expected: "invalid",
+			expected: "workflow_transfer_collection:invalid",
 		},
 	}
 
@@ -246,7 +255,7 @@ func TestThoughtMachineFalseNegativeCase(t *testing.T) {
 
 	// Test workflow state formatting
 	state := FormatWorkflowState("workflow_transfer_payment", "701")
-	expected := "stCaptureFailed(701)"
+	expected := "workflow_transfer_payment:701 (stCaptureFailed)"
 	if state != expected {
 		t.Errorf("Expected workflow state %s, got %s", expected, state)
 	}
@@ -258,13 +267,7 @@ func TestThoughtMachineFalseNegativeCase(t *testing.T) {
 
 	// Test that case is in summary order
 	summaryOrder := GetCaseSummaryOrder()
-	found := false
-	for _, c := range summaryOrder {
-		if c == CaseThoughtMachineFalseNegative {
-			found = true
-			break
-		}
-	}
+	found := slices.Contains(summaryOrder, CaseThoughtMachineFalseNegative)
 	if !found {
 		t.Error("CaseThoughtMachineFalseNegative not found in summary order")
 	}
