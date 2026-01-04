@@ -46,6 +46,7 @@ func (c *Container) InitializeForEnvironment(env string) error {
 		return fmt.Errorf("failed to initialize Jira client for environment: %s", env)
 	}
 	c.jiraClient = jiraClient
+	jira.Jira = jiraClient // Set global instance for subcommands
 
 	// Initialize Transaction service
 	txnService := service.NewTransactionQueryService(env)
