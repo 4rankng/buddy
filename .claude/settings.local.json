@@ -8,7 +8,9 @@
       "Bash({} ;)",
       "Bash(xargs:*)",
       "Bash(git checkout:*)",
-      "Bash(done:*)"
+      "Bash(done:*)",
+      "Bash(./bin/mybuddy:*)",
+      "Bash(./bin/sgbuddy:*)"
     ],
     "deny": [
       "Bash(go build:*)"
