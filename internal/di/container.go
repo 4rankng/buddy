@@ -97,3 +97,8 @@ func (c *Container) GetClientSet() *ClientSet {
 		TxnSvc:  c.txnService,
 	}
 }
+
+// GetDoorman returns the Doorman client
+func (cs *ClientSet) GetDoorman() doorman.DoormanInterface {
+	return cs.Doorman
+}

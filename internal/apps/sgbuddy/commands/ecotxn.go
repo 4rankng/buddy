@@ -20,12 +20,12 @@ func NewEcoTxnCmd(appCtx *common.Context, clients *di.ClientSet) *cobra.Command 
 	}
 
 	// Add subcommands
-	cmd.AddCommand(NewEcoTxnPublishCmd(appCtx))
+	cmd.AddCommand(NewEcoTxnPublishCmd(appCtx, clients))
 
 	return cmd
 }
 
-func NewEcoTxnPublishCmd(appCtx *common.Context) *cobra.Command {
+func NewEcoTxnPublishCmd(appCtx *common.Context, clients *di.ClientSet) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "publish [transaction-id-or-file-path]",
 		Short: "Generate SQL deployment and rollback scripts for Grab transactions",
@@ -46,21 +46,21 @@ The generated scripts will:
 		Args: cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			input := args[0]
-			processEcoTxnPublish(appCtx, input)
+			processEcoTxnPublish(appCtx, clients, input)
 		},
 	}
 
 	return cmd
 }
 
-func processEcoTxnPublish(appCtx *common.Context, input string) {
+func processEcoTxnPublish(appCtx *common.Context, clients *di.ClientSet, input string) {
 	// Check if input is a file or a single transaction ID
 	if utils.IsSimpleFilePath(input) {
 		// Process batch file
-		adapters.ProcessEcoTxnPublishBatch(input, "sg")
+		adapters.ProcessEcoTxnPublishBatch(appCtx, clients, input, "sg")
 	} else {
 		// Process single transaction
-		if err := adapters.ProcessEcoTxnPublish(input, "sg"); err != nil {
+		if err := adapters.ProcessEcoTxnPublish(appCtx, clients, input, "sg"); err != nil {
 			fmt.Printf("%sError: %v\n", appCtx.GetPrefix(), err)
 			os.Exit(1)
 		}

@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(wc:*)",
+      "Bash(go fmt:*)",
+      "Bash(go get:*)",
+      "Bash(go version:*)",
+      "Bash({} ;)",
+      "Bash(xargs:*)",
+      "Bash(git checkout:*)",
+      "Bash(done:*)"
+    ],
+    "deny": [
+      "Bash(go build:*)"
+    ],
+    "ask": []
+  }
+}

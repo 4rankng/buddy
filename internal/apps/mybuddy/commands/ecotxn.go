@@ -37,14 +37,14 @@ Example:
 		Args: cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			runID := args[0]
-			processEcoTransaction(appCtx, runID)
+			processEcoTransaction(appCtx, clients, runID)
 		},
 	}
 
 	return cmd
 }
 
-func processEcoTransaction(appCtx *common.Context, runID string) {
+func processEcoTransaction(appCtx *common.Context, clients *di.ClientSet, runID string) {
 	// Get the TransactionService singleton
 	txnService := service.GetTransactionQueryService()
 
@@ -79,6 +79,9 @@ func processEcoTransaction(appCtx *common.Context, runID string) {
 		} else {
 			fmt.Printf("\nDML files written successfully for case: %s\n", result.CaseType)
 		}
+
+		// Prompt to create Doorman DML tickets
+		PromptForDoormanTicket(appCtx, clients, statements)
 	} else if result.CaseType == domain.CaseNone {
 		fmt.Printf("\nSkipping DML generation for NOT_FOUND case\n")
 	}

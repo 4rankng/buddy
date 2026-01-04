@@ -6,10 +6,17 @@ import (
 	"strings"
 	"time"
 
+	"buddy/internal/apps/common"
+	commondoorman "buddy/internal/apps/common/doorman"
 	"buddy/internal/clients/doorman"
 	"buddy/internal/txn/utils"
 	internalutils "buddy/internal/utils"
 )
+
+// DoormanClients is a minimal interface to avoid import cycle
+type DoormanClients interface {
+	GetDoorman() doorman.DoormanInterface
+}
 
 // EcoTxnPublisher handles SQL generation for ecosystem transactions
 type EcoTxnPublisher struct {
@@ -26,7 +33,7 @@ func NewEcoTxnPublisher() *EcoTxnPublisher {
 }
 
 // ProcessEcoTxnPublish processes a single transaction for publishing
-func ProcessEcoTxnPublish(transactionID, env string) error {
+func ProcessEcoTxnPublish(appCtx *common.Context, clients DoormanClients, transactionID, env string) error {
 	publisher := NewEcoTxnPublisher()
 
 	result := publisher.processSingleTransaction(transactionID)
@@ -37,13 +44,45 @@ func ProcessEcoTxnPublish(transactionID, env string) error {
 		); err != nil {
 			return fmt.Errorf("failed to write SQL files: %v", err)
 		}
+
+		// Prompt to create Doorman DML ticket (if clients provided)
+		if clients != nil {
+			doormanClient := clients.GetDoorman()
+			if doormanClient != nil && publisher.PPEDeploy.Len() > 0 {
+				promptForDoormanTicket(doormanClient, publisher.PPEDeploy.String(), publisher.PPERollback.String())
+			}
+		}
+
 		return nil
 	}
 	return result.Error
 }
 
+// promptForDoormanTicket prompts user and creates Doorman ticket for PPE service
+func promptForDoormanTicket(doormanClient doorman.DoormanInterface, deploySQL, rollbackSQL string) {
+	deployLines := strings.Split(deploySQL, "\n")
+	rollbackLines := strings.Split(rollbackSQL, "\n")
+
+	// Filter empty lines
+	var deployStmts, rollbackStmts []string
+	for _, line := range deployLines {
+		if trimmed := strings.TrimSpace(line); trimmed != "" && trimmed != "--" {
+			deployStmts = append(deployStmts, trimmed)
+		}
+	}
+	for _, line := range rollbackLines {
+		if trimmed := strings.TrimSpace(line); trimmed != "" && trimmed != "--" {
+			rollbackStmts = append(rollbackStmts, trimmed)
+		}
+	}
+
+	if len(deployStmts) > 0 {
+		commondoorman.ProcessServiceDML(doormanClient, "partnerpay_engine", deployStmts, rollbackStmts)
+	}
+}
+
 // ProcessEcoTxnPublishBatch processes multiple transactions from a file
-func ProcessEcoTxnPublishBatch(filePath, env string) {
+func ProcessEcoTxnPublishBatch(appCtx *common.Context, clients DoormanClients, filePath, env string) {
 	transactionIDs, err := utils.ReadTransactionIDsFromFile(filePath)
 	if err != nil {
 		fmt.Printf("Error reading file: %v\n", err)
@@ -72,6 +111,12 @@ func ProcessEcoTxnPublishBatch(filePath, env string) {
 	); err != nil {
 		fmt.Printf("Error writing SQL files: %v\n", err)
 		return
+	}
+
+	// Prompt to create Doorman DML ticket
+	doormanClient := clients.GetDoorman()
+	if doormanClient != nil && publisher.PPEDeploy.Len() > 0 {
+		promptForDoormanTicket(doormanClient, publisher.PPEDeploy.String(), publisher.PPERollback.String())
 	}
 }
 
