@@ -1,0 +1,129 @@
+<workflow_instructions>
+  <mode_overview>
+    Buddy Ops mode is designed for operational tasks in G-Bank payment operations.
+    It utilizes mybuddy (Malaysia) and sgbuddy (Singapore) CLI tools to:
+    - Manage Jira tickets (list, search, view, download attachments)
+    - Investigate payment transactions (single and batch)
+    - Process RPP workflows (mybuddy only)
+    - Handle Eco/PartnerPay transactions
+    - Create DML tickets for production database changes (mybuddy only)
+  </mode_overview>
+
+  <initialization_steps>
+    <step number="1">
+      <action>Determine environment and context</action>
+      <details>
+        Parse the user's input to identify:
+        - Target environment (Malaysia/MY vs Singapore/SG)
+        - Task type (Jira, transaction, RPP, Eco, DML)
+        - Specific ticket or transaction IDs provided
+      </details>
+    </step>
+
+    <step number="2">
+      <action>Verify tool availability</action>
+      <details>
+        Check that the appropriate CLI tool is available:
+        - mybuddy for Malaysia operations (.env.my)
+        - sgbuddy for Singapore operations (.env.sg)
+        - Verify environment variables are configured
+      </details>
+    </step>
+
+    <step number="3">
+      <action>Gather necessary context</action>
+      <details>
+        For Jira-related tasks:
+        - List assigned tickets to find relevant ones
+        - View specific ticket details if key provided
+        - Download attachments if needed
+
+        For transaction investigations:
+        - Extract transaction IDs from user input
+        - Create batch file if multiple IDs provided
+      </details>
+    </step>
+  </initialization_steps>
+
+  <main_workflow>
+    <phase name="jira_operations">
+      <description>Manage Jira tickets for operational tasks</description>
+      <steps>
+        <step>Use interactive picker to list assigned tickets</step>
+        <step>Search tickets by keywords if looking for specific issues</step>
+        <step>View ticket details including description and attachments</step>
+        <step>Download CSV attachments for batch processing (mybuddy only)</step>
+      </steps>
+    </phase>
+
+    <phase name="transaction_investigation">
+      <description>Investigate payment transaction status and generate remediation</description>
+      <steps>
+        <step>Extract transaction IDs from ticket description or CSV</step>
+        <step>Create batch file for multiple transactions</step>
+        <step>Run transaction investigation command</step>
+        <step>Review generated SQL and workflow rules</step>
+        <step>Document findings and remediation steps</step>
+      </steps>
+    </phase>
+
+    <phase name="rpp_operations">
+      <description>Handle RPP adapter workflow issues (mybuddy only)</description>
+      <steps>
+        <step>Identify RPP workflow or E2E ID from ticket</step>
+        <step>Run RPP resume command to inspect workflow status</step>
+        <step>Handle RTP cashin operations if applicable</step>
+        <step>Generate deploy and rollback SQL for RPP operations</step>
+        <step>Follow SOP for RPP-specific case types</step>
+      </steps>
+    </phase>
+
+    <phase name="eco_transactions">
+      <description>Process Eco/PartnerPay transactions</description>
+      <steps>
+        <step>Identify Eco transaction ID or run ID</step>
+        <step>Run ecotxn command to inspect or publish</step>
+        <step>Review transaction status and workflow details</step>
+      </steps>
+    </phase>
+
+    <phase name="dml_creation">
+      <description>Create DML tickets for production database changes (mybuddy only)</description>
+      <steps>
+        <step>Identify service requiring database change</step>
+        <step>Prepare original update SQL query</step>
+        <step>Prepare rollback SQL query</step>
+        <step>Run doorman create-dml command with all parameters</step>
+        <step>Verify DML ticket is created correctly</step>
+      </steps>
+    </phase>
+
+    <phase name="batch_processing">
+      <description>Process multiple transactions efficiently</description>
+      <steps>
+        <step>Download CSV attachment from Jira ticket</step>
+        <step>Extract transaction IDs using awk or similar tools</step>
+        <step>Clean and deduplicate IDs</step>
+        <step>Create batch file with one ID per line</step>
+        <step>Run batch investigation command</step>
+        <step>Review consolidated output</step>
+      </steps>
+    </phase>
+  </main_workflow>
+
+  <completion_criteria>
+    <criterion>Task completed using appropriate tool (mybuddy/sgbuddy)</criterion>
+    <criterion>Correct environment was used (MY/SG)</criterion>
+    <criterion>Remediation SQL generated and reviewed if applicable</criterion>
+    <criterion>Jira ticket updated with findings if applicable</criterion>
+    <criterion>Rollback SQL saved for RPP operations if applicable</criterion>
+  </completion_criteria>
+
+  <important_notes>
+    <note>Always clarify environment first: Malaysia (mybuddy) or Singapore (sgbuddy)</note>
+    <note>sgbuddy does not support Jira attachment downloads - use browser or curl</note>
+    <note>RPP operations are only available in mybuddy (Malaysia)</note>
+    <note>For batch processing, always create a clean ID file first</note>
+    <note>Never output raw customer PII or credentials in chat</note>
+  </important_notes>
+</workflow_instructions>
