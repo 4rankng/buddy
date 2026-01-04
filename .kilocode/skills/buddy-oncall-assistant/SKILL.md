@@ -18,6 +18,7 @@ This skill guides you through using mybuddy and sgbuddy tools to investigate and
   - `rpp resume` - Resume RPP workflows with SQL generation
   - `ecotxn` - PartnerPay (Eco) workflow inspection
   - `jira` - JIRA ticket operations (list, search, attachments)
+  - `doorman create-dml` - Create DML tickets in Doorman for database changes
 
 ### sgbuddy (Singapore Operations)
 - **Region**: Singapore (SG)
@@ -471,6 +472,101 @@ sgbuddy ecotxn 20251228-ECO-001
 - Identifies failures or pending steps
 - Provides diagnostic information
 
+## DML Ticket Creation (Malaysia Only)
+
+### When to Use Doorman DML Tickets
+
+Use `mybuddy doorman create-dml` when:
+- Need to apply database changes in production
+- Require approval and review for DML operations
+- Following SOP procedures for transaction remediation
+- Need to track database changes through Doorman ticketing system
+
+### Command Syntax
+
+```bash
+mybuddy doorman create-dml \
+  --service <service_name> \
+  --original "<original_query>" \
+  --rollback "<rollback_query>" \
+  --note "<ticket_description>"
+```
+
+### Required Flags
+
+| Flag | Short | Description | Required |
+|------|--------|-------------|-----------|
+| `--service` | `-s` | Service name (payment_engine, payment_core, fast_adapter, rpp_adapter, partnerpay_engine) | Yes |
+| `--original` | `-o` | Original DML query | Yes |
+| `--rollback` | `-r` | Rollback query | Yes |
+| `--note` | `-n` | Note/description for the ticket | Yes |
+
+### Available Services
+
+| Service Name | Available In | Database Cluster |
+|--------------|---------------|-------------------|
+| `payment_engine` | MY + SG | sg-prd-m-payment-engine / prd-payments-payment-engine-rds-mysql |
+| `payment_core` | MY + SG | sg-prd-m-payment-core / prd-payments-payment-core-rds-mysql |
+| `fast_adapter` | SG only | sg-prd-m-fast-adapter |
+| `rpp_adapter` | MY only | prd-payments-rpp-adapter-rds-mysql |
+| `partnerpay_engine` | MY + SG | sg-prd-m-partnerpay-engine / prd-payments-partnerpay-engine-rds-mysql |
+
+### Usage Examples
+
+**Example 1: Payment Engine DML**
+
+```bash
+mybuddy doorman create-dml \
+  --service payment_engine \
+  --original "UPDATE workflow_execution SET state = 230 WHERE run_id = 'DE9FD4A8-F738-407A-9E15-D0439CF87DAE' AND state = 701;" \
+  --rollback "UPDATE workflow_execution SET state = 701 WHERE run_id = 'DE9FD4A8-F738-407A-9E15-D0439CF87DAE' AND state = 230;" \
+  --note "Resume PE workflow for transaction 20251202GXSPMYKL010ORB62198922 - thought machine false negative case"
+```
+
+**Example 2: Payment Core DML**
+
+```bash
+mybuddy doorman create-dml \
+  --service payment_core \
+  --original "UPDATE workflow_execution SET state = 0, attempt = 1 WHERE run_id = '403b0708001a42868649a22ffbc4d7ae' AND workflow_id = 'internal_payment_flow' and state = 500;" \
+  --rollback "UPDATE workflow_execution SET state = 500, attempt = 0 WHERE run_id = '403b0708001a42868649a22ffbc4d7ae' AND workflow_id = 'internal_payment_flow';" \
+  --note "Retry PC capture for RPP ACSP case"
+```
+
+**Example 3: RPP Adapter DML**
+
+```bash
+mybuddy doorman create-dml \
+  --service rpp_adapter \
+  --original "UPDATE workflow_execution SET state = 222 WHERE run_id = 'abc123' AND state = 210;" \
+  --rollback "UPDATE workflow_execution SET state = 210 WHERE run_id = 'abc123' AND state = 222;" \
+  --note "Resume RPP workflow - no response but ACSP at Paynet"
+```
+
+### What It Does
+
+- Creates a DML ticket in Doorman for review and approval
+- Requires both original and rollback queries for safety
+- Generates a ticket URL for tracking: `https://doorman.infra.prd.g-bank.app/rds/dml/{ticketID}`
+- Malaysia (mybuddy) only - not available in Singapore
+
+### Best Practices
+
+- Always include current state in WHERE clause for safety
+- Reference relevant SOP cases in the note
+- Include transaction IDs or run_ids in the note for traceability
+- Test in staging before creating production tickets
+- Ensure rollback query is the exact inverse of the original query
+
+### Related SOPs
+
+- [`docs/sops/MY_DML_SOP.md`](docs/sops/MY_DML_SOP.md) - Malaysia case studies
+- [`docs/sops/SG_DML_SOP.md`](docs/sops/SG_DML_SOP.md) - Singapore examples
+
+### Implementation
+
+The DML ticket creation is implemented in [`internal/apps/mybuddy/commands/doorman.go`](internal/apps/mybuddy/commands/doorman.go:28-94).
+
 ## Best Practices
 
 ### 1. Identify Correct Region
@@ -670,6 +766,82 @@ paste txn_ids.txt txn_sources.txt | grep -f investigation_results.log
 # Step 7: Update Jira with categorized findings
 ```
 
+### Workflow 7: Resolve Ticket (End-to-End)
+
+When the request is "resolve TS-xxxx", follow this complete sequence to investigate and resolve the issue.
+
+**Trigger Pattern**: "resolve TS-XXXX" where XXXX is the Jira ticket number
+
+```bash
+# Step 1: Fetch the ticket from Jira
+# Use search to find the specific ticket
+mybuddy jira search "TS-4565"
+
+# OR use list and select the ticket from the interactive picker
+mybuddy jira list
+# → Select the ticket from the picker
+
+# Step 2: View the ticket content
+# When ticket is selected in picker, choose "View details" to see:
+# -> Ticket description and summary
+# -> Status, assignee, priority
+# -> Transaction IDs mentioned in the ticket
+# -> Error messages or stack traces
+# -> Attachment names and URLs
+
+# Step 3: Download and view attachments (if needed)
+# If the ticket has attachments relevant to the investigation:
+python .kilocode/skills/buddy-oncall-assistant/scripts/download_jira_attachment.py TS-4565
+# -> List attachments first to see what's available:
+python .kilocode/skills/buddy-oncall-assistant/scripts/download_jira_attachment.py TS-4565 --list-only
+
+# -> Download specific file if needed:
+python .kilocode/skills/buddy-oncall-assistant/scripts/download_jira_attachment.py TS-4565 --filename transactions.csv
+
+# -> Review downloaded files (cat, view, less, etc.)
+cat attachment.log
+less screenshot_description.txt
+
+# -> Extract transaction IDs if it's a CSV (see Workflow 5 for detailed steps)
+awk -F',' 'NR>1 {print $1}' transactions.csv > txn_ids.txt
+
+# Step 4: Resolve stuck transactions using mybuddy command
+# For single transaction:
+mybuddy txn <transaction-id>
+
+# For batch of transactions:
+mybuddy txn txn_ids.txt
+
+# For RPP-related stuck workflows:
+mybuddy rpp resume
+
+# For PartnerPay/Eco workflows:
+mybuddy ecotxn <run_id>
+
+# Step 5: Review and apply remediation
+# -> Review the generated remediation SQL for correctness
+# -> Verify the SQL matches the SOP case type
+# -> Apply valid remediation to the database
+# -> Keep rollback SQL for safety (especially for RPP operations)
+
+# Step 6: Finalize and document
+# -> Verify transaction state after applying remediation
+# -> Update Jira ticket with resolution details:
+#    * Investigation findings
+#    * Transaction IDs processed
+#    * Remediation SQL applied
+#    * Verification results
+#    * Next steps if any
+# -> Close or transition ticket status as appropriate
+```
+
+**Key Points:**
+- Always verify the region (mybuddy for Malaysia/TS tickets, sgbuddy for Singapore/TSE tickets)
+- Use the interactive picker for easier navigation through ticket details
+- Download attachments before investigating to have full context
+- Extract all relevant transaction IDs from CSV attachments
+- Document all actions in the Jira ticket for audit trail
+
 ## Troubleshooting
 
 ### Issue: "Jira authentication failed"
@@ -746,6 +918,7 @@ For deeper understanding or debugging, relevant code locations:
 | RPP operations | ✅ | ❌ |
 | Eco transactions | ✅ | ✅ |
 | CSV attachments | ✅ | ❌ |
+| Doorman DML tickets | ✅ | ❌ |
 
 ### Data Privacy and Security
 
@@ -784,4 +957,11 @@ mybuddy ecotxn <run_id>        # Investigate Eco workflow
 sgbuddy jira list
 sgbuddy txn <id>
 sgbuddy ecotxn <run_id>
+
+# Doorman DML tickets (Malaysia only)
+mybuddy doorman create-dml \
+  --service <service> \
+  --original "<query>" \
+  --rollback "<query>" \
+  --note "<description>"
 ```
