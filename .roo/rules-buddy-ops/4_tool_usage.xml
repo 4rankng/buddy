@@ -1,0 +1,184 @@
+<tool_usage_guide>
+  <tool_priorities>
+    <priority level="1">
+      <tool>execute_command</tool>
+      <when>Execute mybuddy/sgbuddy CLI commands</when>
+      <why>Primary method for operational tasks</why>
+    </priority>
+    <priority level="2">
+      <tool>write_to_file</tool>
+      <when>Create batch files for transaction processing</when>
+      <why>Batch processing requires clean ID files</why>
+    </priority>
+    <priority level="3">
+      <tool>read_file</tool>
+      <when>Review skill definitions or SOP documentation</when>
+      <why>Understand operational procedures and workflows</why>
+    </priority>
+  </tool_priorities>
+
+  <tool_specific_guidance>
+    <tool name="execute_command - mybuddy">
+      <purpose>Malaysia operations CLI tool</purpose>
+      <when_to_use>For Malaysia (MY) environment operations</when_to_use>
+      <syntax>
+        <command>mybuddy [command] [args...]</command>
+        <commands>
+          <command>mybuddy jira list</command>
+          <command>mybuddy jira search "keywords"</command>
+          <command>mybuddy jira view TS-1234</command>
+          <command>mybuddy txn <transaction_id></command>
+          <command>mybuddy txn batch_file.txt</command>
+          <command>mybuddy rpp resume <workflow_id></command>
+          <command>mybuddy rpp rtp-cashin <txn_id></command>
+          <command>mybuddy ecotxn <txn_id></command>
+          <command>mybuddy doorman create-dml --service <name> --original "<sql>" --rollback "<sql>" --note "<description>"</command>
+        </commands>
+      </syntax>
+      <examples>
+        <example scenario="List assigned tickets">
+          <code>mybuddy jira list</code>
+          <output>Interactive picker showing all assigned tickets with details</output>
+        </example>
+        <example scenario="Investigate transaction">
+          <code>mybuddy txn 20251228TNGDMYNB010ORM77048250</code>
+          <output>Transaction status, workflow rules, and remediation SQL</output>
+        </example>
+        <example scenario="Batch process transactions">
+          <code>mybuddy txn txn_ids.txt</code>
+          <output>Consolidated report for all transactions in file</output>
+        </example>
+      </examples>
+    </tool>
+
+    <tool name="execute_command - sgbuddy">
+      <purpose>Singapore operations CLI tool</purpose>
+      <when_to_use>For Singapore (SG) environment operations</when_to_use>
+      <syntax>
+        <command>sgbuddy [command] [args...]</command>
+        <commands>
+          <command>sgbuddy jira list</command>
+          <command>sgbuddy jira search "keywords"</command>
+          <command>sgbuddy jira view TSE-123</command>
+          <command>sgbuddy txn <transaction_id></command>
+          <command>sgbuddy txn batch_file.txt</command>
+          <command>sgbuddy ecotxn publish <txn_id></command>
+        </commands>
+      </syntax>
+      <examples>
+        <example scenario="List assigned tickets">
+          <code>sgbuddy jira list</code>
+          <output>Interactive picker showing all assigned tickets (no attachments)</output>
+        </example>
+        <example scenario="Investigate transaction">
+          <code>sgbuddy txn 9392fb12b6c64db18e779ae60bdf4307</code>
+          <output>Transaction status, workflow rules, and remediation SQL</output>
+        </example>
+      </examples>
+    </tool>
+
+    <tool name="write_to_file">
+      <purpose>Create batch files for transaction processing</purpose>
+      <when_to_use>When processing multiple transactions from CSV or list</when_to_use>
+      <syntax>
+        <command>Write content to file, one ID per line</command>
+      </syntax>
+      <examples>
+        <example scenario="Create batch file from IDs">
+          <code>20251228TNGDMYNB010ORM77048250
+20251228TNGDMYNB010ORM77048251
+fd230a01dcd04282851b7b9dd6260c93</code>
+        <output>Clean batch file ready for processing</output>
+        </example>
+      </examples>
+    </tool>
+
+    <tool name="execute_command - download_jira_attachment">
+      <purpose>Download CSV attachments from Jira tickets (mybuddy only)</purpose>
+      <when_to_use>When ticket has CSV attachment with transaction IDs</when_to_use>
+      <syntax>
+        <command>python .roo/skills/buddy-oncall-assistant/scripts/download_jira_attachment.py <ticket_key> --filename <filename></command>
+      </syntax>
+      <examples>
+        <example scenario="Download specific attachment">
+          <code>python .roo/skills/buddy-oncall-assistant/scripts/download_jira_attachment.py TS-1234 --filename transactions.csv</code>
+          <output>CSV file downloaded to current directory</output>
+        </example>
+        <example scenario="List available attachments">
+          <code>python .roo/skills/buddy-oncall-assistant/scripts/download_jira_attachment.py TS-1234 --list-only</code>
+          <output>List of available attachments displayed</output>
+        </example>
+      </examples>
+    </tool>
+
+    <tool name="execute_command - awk_sed">
+      <purpose>Extract and clean transaction IDs from CSV files</purpose>
+      <when_to_use>When processing CSV attachments from Jira tickets</when_to_use>
+      <syntax>
+        <command>Extract first column: awk -F',' 'NR>1 {print $1}' file.csv</command>
+        <command>Extract by header: awk -F',' 'NR==1 {for(i=1;i<=NF;i++) if($i=="transaction_id") col=i} NR>1 {print $col}' file.csv</command>
+        <command>Clean and deduplicate: sort -u file.txt | grep -v '^$' | sed 's/\r$//' > clean_ids.txt</command>
+      </syntax>
+      <examples>
+        <example scenario="Extract first column from CSV">
+          <code>awk -F',' 'NR>1 {print $1}' transactions.csv > txn_ids.txt</code>
+          <output>Extracts first column, skipping header</output>
+        </example>
+        <example scenario="Clean and deduplicate IDs">
+          <code>sort -u txn_ids.txt | grep -v '^$' | sed 's/\r$//' > clean_ids.txt</code>
+          <output>Clean file with unique IDs, no empty lines</output>
+        </example>
+      </examples>
+    </tool>
+  </tool_specific_guidance>
+
+  <batch_processing_workflow>
+    <overview>Complete workflow for processing batch transactions from Jira attachments</overview>
+    <steps>
+      <step number="1">
+        <title>Download CSV attachment</title>
+        <command>python .roo/skills/buddy-oncall-assistant/scripts/download_jira_attachment.py TS-1234 --filename transactions.csv</command>
+      </step>
+      <step number="2">
+        <title>Extract transaction IDs</title>
+        <command>awk -F',' 'NR>1 {print $1}' transactions.csv > txn_ids.txt</command>
+      </step>
+      <step number="3">
+        <title>Clean and deduplicate</title>
+        <command>sort -u txn_ids.txt | grep -v '^$' | sed 's/\r$//' > clean_ids.txt</command>
+      </step>
+      <step number="4">
+        <title>Process batch</title>
+        <command>mybuddy txn clean_ids.txt > results.log</command>
+      </step>
+      <step number="5">
+        <title>Review results</title>
+        <command>cat results.log</command>
+      </step>
+    </steps>
+  </batch_processing_workflow>
+
+  <dml_creation_workflow>
+    <overview>Complete workflow for creating DML tickets (mybuddy only)</overview>
+    <steps>
+      <step number="1">
+        <title>Identify service and queries</title>
+        <description>Determine which service needs database change and prepare SQL</description>
+      </step>
+      <step number="2">
+        <title>Create DML ticket</title>
+        <command>mybuddy doorman create-dml --service payment_engine --original "UPDATE transactions SET status='completed' WHERE id IN (...)" --rollback "UPDATE transactions SET status='pending' WHERE id IN (...)" --note "Fix stuck transactions - Reference: TS-1234"</command>
+      </step>
+      <step number="3">
+        <title>Verify ticket created</title>
+        <description>Check that DML ticket was created successfully with correct details</description>
+      </step>
+    </steps>
+    <valid_services>
+      <service>payment_engine</service>
+      <service>payment_core</service>
+      <service>rpp_adapter</service>
+      <service>partnerpay_engine</service>
+    </valid_services>
+  </dml_creation_workflow>
+</tool_usage_guide>
