@@ -70,7 +70,7 @@ func RunJiraPicker(issues []JiraIssue, cfg JiraPickerConfig) error {
 		}
 
 		// Show ticket details
-		printDetails(*issue, cfg, baseURL)
+		PrintDetails(*issue, cfg, baseURL)
 
 		// Show action menu
 		action, err := selectAction(baseURL == "" /* hasBrowser */, cfg.ShowAttachments && len(issue.Attachments) > 0 /* hasAttachments */)
@@ -167,8 +167,8 @@ func selectTicket(issues []JiraIssue, cfg JiraPickerConfig) (*JiraIssue, error) 
 	return &issues[index-1], nil // Adjust index for Quit option
 }
 
-// printDetails displays ticket details
-func printDetails(issue JiraIssue, cfg JiraPickerConfig, baseURL string) {
+// PrintDetails displays ticket details
+func PrintDetails(issue JiraIssue, cfg JiraPickerConfig, baseURL string) {
 	fmt.Printf("\n[issue]\n")
 
 	// Print key with URL, using hyperlinks if enabled and supported

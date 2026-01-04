@@ -21,6 +21,7 @@ func NewJiraCmd(appCtx *common.Context, clients *di.ClientSet) *cobra.Command {
 	}
 
 	jiraCmd.AddCommand(NewJiraListCmd(appCtx))
+	jiraCmd.AddCommand(jira.NewJiraViewCmd(appCtx))
 	jiraCmd.AddCommand(jira.NewJiraSearchCmd(appCtx))
 
 	return jiraCmd
