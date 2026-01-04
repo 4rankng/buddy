@@ -122,8 +122,48 @@ CSV attachments are commonly attached to Jira tickets and contain transaction ID
 
 #### Download CSV from Jira (mybuddy only)
 
+**Method 1: Using the Python Download Script (Recommended for Agents)**
+
+A Python script is provided for direct attachment downloads:
+
 ```bash
-# Method 1: Via interactive picker
+# Download all attachments from a ticket (auto-detects region)
+python .kilocode/skills/buddy-oncall-assistant/scripts/download_jira_attachment.py TS-1234
+
+# Download specific CSV file
+python .kilocode/skills/buddy-oncall-assistant/scripts/download_jira_attachment.py TS-1234 --filename transactions.csv
+
+# Download to specific directory
+python .kilocode/skills/buddy-oncall-assistant/scripts/download_jira_attachment.py TS-1234 --output ./downloads
+
+# List attachments without downloading
+python .kilocode/skills/buddy-oncall-assistant/scripts/download_jira_attachment.py TS-1234 --list-only
+
+# Specify region manually (if auto-detection fails)
+python .kilocode/skills/buddy-oncall-assistant/scripts/download_jira_attachment.py TSE-567 --region sg
+```
+
+**Benefits of the Python script:**
+- Works for both mybuddy (Malaysia) and sgbuddy (Singapore)
+- Auto-detects region from ticket key (TS=MY, TSE=SG)
+- Can download specific files by filename
+- Lists attachments before downloading
+- Handles duplicate filenames automatically
+- Better error messages and progress feedback
+
+**Requirements:**
+```bash
+# Install dependencies if needed
+pip install requests
+
+# Or use the system Python (usually has requests available)
+python3 --version
+```
+
+**Method 2: Via interactive picker**
+
+```bash
+# Via interactive picker (mybuddy only)
 mybuddy jira list
 # → Select ticket → Choose "Download attachment"
 # → Select the CSV file attachment
@@ -215,7 +255,10 @@ cat investigation_results.txt
 ```bash
 # Complete workflow for CSV attachment processing
 
-# Step 1: Download CSV from Jira
+# Step 1: Download CSV from Jira (using Python script - recommended)
+python .kilocode/skills/buddy-oncall-assistant/scripts/download_jira_attachment.py TS-1234 --filename transactions.csv
+
+# OR download via interactive picker (mybuddy only)
 mybuddy jira list
 # → Select ticket → Download CSV attachment (e.g., failed_transactions.csv)
 
@@ -554,9 +597,11 @@ mybuddy txn transactions.txt
 ```bash
 # Scenario: Jira ticket has CSV attachment with hundreds of failed transactions
 
-# Step 1: Download CSV from Jira
-mybuddy jira list
-# → Select ticket → Download attachment → Choose CSV file
+# Step 1: Download CSV from Jira (Python script - works for both MY and SG)
+python .kilocode/skills/buddy-oncall-assistant/scripts/download_jira_attachment.py TS-1234 --filename transactions.csv
+
+# OR list attachments first
+python .kilocode/skills/buddy-oncall-assistant/scripts/download_jira_attachment.py TS-1234 --list-only
 
 # Step 2: Inspect CSV to understand structure
 head -10 transactions.csv
@@ -593,10 +638,11 @@ mybuddy txn txn_ids_clean.txt | tee investigation_$(date +%Y%m%d_%H%M%S).log
 ```bash
 # Scenario: Multiple CSV attachments in one ticket
 
-# Step 1: Download all CSV attachments
-mybuddy jira list
-# → Select ticket → Download each CSV
-# Files: failed_txns.csv, pending_txns.csv, retry_txns.csv
+# Step 1: Download all CSV attachments (Python script)
+python .kilocode/skills/buddy-oncall-assistant/scripts/download_jira_attachment.py TS-1234 --output ./csv_downloads
+
+# This downloads all attachments at once
+# Files will be in: ./csv_downloads/failed_txns.csv, pending_txns.csv, etc.
 
 # Step 2: Extract IDs from all CSVs into single file
 for file in *.csv; do
