@@ -36,7 +36,7 @@ mybuddy jira view TS-1234
 ```
 
 ### 2. Transaction Investigation
-Diagnose status and generate remediation SQL. Input: Transaction ID (TXN...), E2E ID (2025...), or file path.
+Diagnose status and generate remediation SQL. Input: Transaction ID (or Batch ID as given in Jira) (TXN...), E2E ID (2025...), or file path.
 
 ```bash
 # Single Transaction
