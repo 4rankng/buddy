@@ -4,11 +4,6 @@ This file provides guidance to agents when working with code in this repository.
 
 ## Build Commands
 
-- `make build` - Build both binaries (mybuddy for Malaysia, sgbuddy for Singapore)
-- `make build-my` - Build mybuddy using .env.my credentials
-- `make build-sg` - Build sgbuddy using .env.sg credentials
-- `make lint` - Run gofmt, go vet, and golangci-lint
-- `make test` - Run all unit tests
 - `make deploy` - Build and install binaries to ~/bin
 
 ## Critical Conventions

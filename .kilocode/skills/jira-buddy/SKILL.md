@@ -17,7 +17,7 @@ You are an expert at using **mybuddy** and **sgbuddy** - operational CLI tools f
 
 ### What These Tools Do
 Both tools provide:
-1. **Jira Integration** - List, search, and view assigned tickets
+1. **Jira Integration** - List, search, and view assigned tickets (including direct ticket viewing)
 2. **Transaction Investigation** - Query payment engine database for transaction status
 3. **Remediation** - Generate SQL fixes and process workflows
 4. **Eco/PartnerPay** - Publish and manage Eco transactions
@@ -56,7 +56,24 @@ This launches an interactive picker showing:
 - Description
 - Attachments (mybuddy only)
 
-### Step 2: Search for Specific Tickets (Optional)
+### Step 2: View Specific Ticket Details
+If you have a specific ticket key and want to see its details directly:
+```bash
+mybuddy jira view TS-4565
+sgbuddy jira view TSE-123
+```
+
+This displays:
+- Ticket key (clickable link)
+- Summary
+- Status
+- Priority
+- Assignee
+- Created and due dates
+- Full description
+- Attachments (mybuddy only)
+
+### Step 3: Search for Specific Tickets (Optional)
 If you need to find tickets matching specific criteria:
 ```bash
 mybuddy jira search "payment issue"
@@ -69,7 +86,7 @@ Search looks in:
 - Ticket description
 - Only your unresolved tickets (not Closed/Completed)
 
-### Step 3: Download Attachments
+### Step 4: Download Attachments
 **For mybuddy:**
 - Use the interactive picker's "Download attachment" action
 - Attachments download to current directory
@@ -79,7 +96,7 @@ Search looks in:
 - Manually extract attachment URLs from ticket details
 - Use curl or browser to download
 
-### Step 4: Extract Transaction IDs
+### Step 5: Extract Transaction IDs
 Transaction IDs can be found in:
 1. **Ticket description** - Look for patterns like:
    - `20251228TNGDMYNB010ORM77048250` (regular txn ID)
@@ -92,7 +109,7 @@ Transaction IDs can be found in:
 
 3. **Filenames** - Attachments may be named like `TSE-833.txt`
 
-### Step 5: Investigate Transactions
+### Step 6: Investigate Transactions
 
 #### Single Transaction
 ```bash
@@ -119,14 +136,14 @@ The tool will:
 3. Generate remediation SQL if needed
 4. Show applicable rules and workflows
 
-### Step 6: Process Eco Transactions (If Applicable)
+### Step 7: Process Eco Transactions (If Applicable)
 ```bash
 mybuddy ecotxn fd230a01dcd04282851b7b9dd6260c93
 mybuddy ecotxn TSE-833.txt
 sgbuddy ecotxn publish <txnid>
 ```
 
-### Step 7: Handle RPP Workflows (mybuddy only)
+### Step 8: Handle RPP Workflows (mybuddy only)
 ```bash
 # Inspect RPP adapter workflows
 mybuddy rpp resume <workflow-id>
@@ -135,7 +152,7 @@ mybuddy rpp resume <workflow-id>
 mybuddy rpp rtp-cashin <transaction-id>
 ```
 
-### Step 8: Document and Resolve
+### Step 9: Document and Resolve
 Based on investigation findings:
 - **Generate SQL** - The tool provides remediation SQL
 - **Verify status** - Check if transaction needs manual intervention
@@ -159,6 +176,23 @@ sgbuddy jira list    # Singapore - no attachments
 - Open in browser
 - Download attachments (mybuddy only)
 - Quit to exit
+
+#### View Ticket Details
+```bash
+mybuddy jira view <ticket-key>
+sgbuddy jira view <ticket-key>
+
+# Examples
+mybuddy jira view TS-4565
+sgbuddy jira view TSE-123
+```
+
+Displays full ticket details including:
+- Ticket key (clickable link)
+- Summary, status, priority, assignee
+- Created and due dates
+- Full description
+- Attachments (mybuddy only)
 
 #### Search Tickets
 ```bash
@@ -444,7 +478,7 @@ mybuddy rpp rtp-cashin <id>
 ## Summary
 
 You are now equipped to:
-- ✅ List and search Jira tickets
+- ✅ List, search, and view Jira tickets
 - ✅ Download and inspect attachments
 - ✅ Extract transaction IDs from various sources
 - ✅ Investigate single and batch transactions

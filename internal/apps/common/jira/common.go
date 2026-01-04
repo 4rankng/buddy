@@ -1,6 +1,7 @@
 package jira
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"strings"
@@ -27,68 +28,73 @@ Example:
   buddy jira view TS-4565`,
 		Args: cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
-			ticketKey := args[0]
-
-			// Check if JIRA client is initialized
-			if jira.Jira == nil {
-				fmt.Printf("Error: JIRA client not initialized. Please ensure JIRA is properly configured.\n")
-				os.Exit(1)
-			}
-
-			// Get JIRA configuration
-			jiraConfig := jira.GetJiraConfig(appCtx.Environment)
-
-			// Validate JIRA username is configured
-			if jiraConfig.Auth.Username == "" {
-				fmt.Printf("Error: JIRA_USERNAME not configured. Please set it in your .env.%s file\n", appCtx.Environment)
-				os.Exit(1)
-			}
-
-			// Create context with timeout
-			ctx := cmd.Context()
-
-			// Get ticket details
-			ticket, err := jira.Jira.GetIssueDetails(ctx, ticketKey)
-			if err != nil {
-				fmt.Printf("Error fetching JIRA ticket %s: %v\n", ticketKey, err)
-				os.Exit(1)
-			}
-
-			// Map jira.JiraTicket to ui.JiraIssue
-			uiIssue := ui.JiraIssue{
-				Key:         ticket.Key,
-				Summary:     ticket.Summary,
-				Status:      ticket.Status,
-				Priority:    ticket.Priority,
-				Assignee:    ticket.Assignee,
-				IssueType:   ticket.IssueType,
-				CreatedAt:   ticket.CreatedAt,
-				DueAt:       ticket.DueAt,
-				Description: ticket.Description,
-				Attachments: ticket.Attachments,
-			}
-
-			// Build BaseBrowseURL from JIRA_BASE_URL or jiraConfig.Domain
-			baseURL := os.Getenv("JIRA_BASE_URL")
-			if baseURL == "" && jiraConfig.Domain != "" {
-				baseURL = jiraConfig.Domain
-			}
-
-			// Create picker config with view settings
-			config := ui.JiraPickerConfig{
-				ProjectKey:        jiraConfig.Project,
-				BaseBrowseURL:     baseURL + "/browse",
-				ShowAttachments:   true,
-				MaxDescriptionLen: 0, // No limit - show full description
-				HyperlinksMode:    ui.HyperlinksAuto,
-				JiraClient:        jira.Jira,
-			}
-
-			// Print ticket details
-			ui.PrintDetails(uiIssue, config, baseURL+"/browse")
+			RunJiraView(cmd.Context(), appCtx, args[0], true)
 		},
 	}
 	return cmd
+}
+
+// RunJiraView fetches and displays details for a single JIRA ticket
+func RunJiraView(ctx context.Context, appCtx *common.Context, issueKey string, showAttachments bool) {
+	// Check if JIRA client is initialized
+	if jira.Jira == nil {
+		fmt.Printf("Error: JIRA client not initialized. Please ensure JIRA is properly configured.\n")
+		os.Exit(1)
+	}
+
+	// Get JIRA configuration
+	jiraConfig := jira.GetJiraConfig(appCtx.Environment)
+
+	// Validate JIRA username is configured
+	if jiraConfig.Auth.Username == "" {
+		fmt.Printf("Error: JIRA_USERNAME not configured. Please set it in your .env.%s file\n", appCtx.Environment)
+		os.Exit(1)
+	}
+
+	// Get ticket details
+	ticket, err := jira.Jira.GetIssueDetails(ctx, issueKey)
+	if err != nil {
+		fmt.Printf("Error fetching JIRA ticket %s: %v\n", issueKey, err)
+		os.Exit(1)
+	}
+
+	if ticket == nil {
+		fmt.Printf("Error: Ticket %s not found\n", issueKey)
+		os.Exit(1)
+	}
+
+	// Map jira.JiraTicket to ui.JiraIssue
+	uiIssue := ui.JiraIssue{
+		Key:         ticket.Key,
+		Summary:     ticket.Summary,
+		Status:      ticket.Status,
+		Priority:    ticket.Priority,
+		Assignee:    ticket.Assignee,
+		IssueType:   ticket.IssueType,
+		CreatedAt:   ticket.CreatedAt,
+		DueAt:       ticket.DueAt,
+		Description: ticket.Description,
+		Attachments: ticket.Attachments,
+	}
+
+	// Build BaseBrowseURL from JIRA_BASE_URL or jiraConfig.Domain
+	baseURL := os.Getenv("JIRA_BASE_URL")
+	if baseURL == "" && jiraConfig.Domain != "" {
+		baseURL = jiraConfig.Domain
+	}
+
+	// Create picker config
+	config := ui.JiraPickerConfig{
+		ProjectKey:        jiraConfig.Project,
+		BaseBrowseURL:     baseURL + "/browse",
+		ShowAttachments:   showAttachments,
+		MaxDescriptionLen: 0, // No limit - show full description
+		HyperlinksMode:    ui.HyperlinksAuto,
+		JiraClient:        jira.Jira,
+	}
+
+	// Print ticket details
+	ui.PrintDetails(uiIssue, config, baseURL+"/browse")
 }
 
 // NewJiraSearchCmd creates a generic JIRA search command that can be used by both mybuddy and sgbuddy

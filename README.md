@@ -21,7 +21,6 @@ constants injected via `ldflags`.
 1. Copy `env_example` to `.env.my` and `.env.sg`, then populate the required
    secrets (JIRA + Doorman credentials per region).
 2. Ensure Go 1.21+ is installed.
-3. Run `make build` to compile both binaries (`bin/mybuddy`, `bin/sgbuddy`).
 4. Run `make lint` before sending a change to catch formatting or vet issues.
 5. Optionally run `make deploy` to copy the binaries into `~/bin` for global
    use; `make help` lists every available target.
