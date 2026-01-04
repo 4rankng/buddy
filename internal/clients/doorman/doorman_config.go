@@ -316,3 +316,119 @@ func (c *DoormanClient) QueryPartnerpayEngine(query string) ([]map[string]interf
 	}
 	return c.ExecuteQuery(dbInfo.ClusterName, dbInfo.InstanceName, dbInfo.Schema, query)
 }
+
+// CreateTicketRequest represents the request structure for creating a DML ticket
+type CreateTicketRequest struct {
+	AccountID               string  `json:"accountID"`
+	ClusterName             string  `json:"clusterName"`
+	Schema                  string  `json:"schema"`
+	OriginalQuery           string  `json:"originalQuery"`
+	RollbackQuery           string  `json:"rollbackQuery"`
+	ToolLabel               string  `json:"toolLabel"`
+	SkipWhereClause         bool    `json:"skipWhereClause"`
+	SkipRollbackQuery       bool    `json:"skipRollbackQuery"`
+	SkipRollbackQueryReason *string `json:"skipRollbackQueryReason,omitempty"`
+	Note                    string  `json:"note"`
+}
+
+// CreateTicketResponse represents the response structure for creating a DML ticket
+type CreateTicketResponse struct {
+	Code   int `json:"code"`
+	Result []struct {
+		ID string `json:"id"`
+	} `json:"result"`
+}
+
+// getServiceDBInfo returns the DBInfo for a given service name
+func (c *DoormanClient) getServiceDBInfo(serviceName string) (DBInfo, error) {
+	cfg := c.GetConfig()
+	switch serviceName {
+	case "payment_engine":
+		return cfg.PaymentEngine, nil
+	case "payment_core":
+		return cfg.PaymentCore, nil
+	case "fast_adapter":
+		if cfg.FastAdapter.ClusterName == "" {
+			return DBInfo{}, errors.New("fast adapter is not available in this environment")
+		}
+		return cfg.FastAdapter, nil
+	case "rpp_adapter":
+		if cfg.RppAdapter.ClusterName == "" {
+			return DBInfo{}, errors.New("rpp adapter is not available in this environment")
+		}
+		return cfg.RppAdapter, nil
+	case "partnerpay_engine":
+		if cfg.PartnerpayEngine.ClusterName == "" {
+			return DBInfo{}, errors.New("partnerpay engine is not available in this environment")
+		}
+		return cfg.PartnerpayEngine, nil
+	default:
+		return DBInfo{}, fmt.Errorf("unknown service: %s", serviceName)
+	}
+}
+
+// CreateTicket creates a DML ticket in doorman for the specified service
+func (c *DoormanClient) CreateTicket(serviceName, originalQuery, rollbackQuery, note string) (string, error) {
+	if err := c.Authenticate(); err != nil {
+		return "", err
+	}
+
+	dbInfo, err := c.getServiceDBInfo(serviceName)
+	if err != nil {
+		return "", err
+	}
+
+	cfg := c.GetConfig()
+	createTicketURL, _ := url.JoinPath(cfg.Host, "/api/rds/dml/create_ticket")
+
+	toolLabel := "buddy"
+	createTicketReq := CreateTicketRequest{
+		AccountID:         cfg.AccountID,
+		ClusterName:       dbInfo.ClusterName,
+		Schema:            dbInfo.Schema,
+		OriginalQuery:     originalQuery,
+		RollbackQuery:     rollbackQuery,
+		ToolLabel:         toolLabel,
+		SkipWhereClause:   false,
+		SkipRollbackQuery: false,
+		Note:              note,
+	}
+
+	reqBody, err := json.Marshal(createTicketReq)
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal create ticket request: %w", err)
+	}
+
+	req, err := http.NewRequest(http.MethodPost, createTicketURL, bytes.NewReader(reqBody))
+	if err != nil {
+		return "", fmt.Errorf("failed to create request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("failed to send request: %w", err)
+	}
+	defer func() {
+		_ = resp.Body.Close()
+	}()
+
+	if resp.StatusCode >= 300 {
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return "", fmt.Errorf("doorman create ticket failed: %s (failed to read error response)", resp.Status)
+		}
+		return "", fmt.Errorf("doorman create ticket failed: %s - %s", resp.Status, string(body))
+	}
+
+	var response CreateTicketResponse
+	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
+		return "", fmt.Errorf("failed to decode response: %w", err)
+	}
+
+	if response.Code != 0 || len(response.Result) == 0 {
+		return "", fmt.Errorf("create ticket failed with code: %d", response.Code)
+	}
+
+	return response.Result[0].ID, nil
+}

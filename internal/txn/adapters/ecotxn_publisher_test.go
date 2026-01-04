@@ -165,6 +165,10 @@ func (m *MockDoormanClient) QueryPartnerpayEngine(query string) ([]map[string]in
 	return []map[string]interface{}{}, nil
 }
 
+func (m *MockDoormanClient) CreateTicket(serviceName, originalQuery, rollbackQuery, note string) (string, error) {
+	return "mock-ticket-id", nil
+}
+
 func TestEcoTxn_ChargeUpdateSQLTimestampPreservation(t *testing.T) {
 	// Test that both deploy and rollback SQL preserve the updated_at field
 

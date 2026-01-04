@@ -24,4 +24,12 @@ type DoormanInterface interface {
 
 	// Partnerpay Engine queries - Malaysia only
 	QueryPartnerpayEngine(query string) ([]map[string]interface{}, error)
+
+	// CreateTicket creates a DML ticket in doorman for the specified service
+	// serviceName: The service name (payment_engine, payment_core, fast_adapter, rpp_adapter, partnerpay_engine)
+	// originalQuery: The DML query to be executed
+	// rollbackQuery: The rollback query for the DML operation
+	// note: Additional notes for the ticket
+	// Returns the ticket ID on success
+	CreateTicket(serviceName, originalQuery, rollbackQuery, note string) (string, error)
 }
