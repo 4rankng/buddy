@@ -1,967 +1,132 @@
 ---
 name: buddy-oncall-assistant
-description: Use this skill when working with Jira tickets, mybuddy/sgbuddy tools, G-Bank payment operations investigations, or transaction remediation workflows
+description: Operational CLI tools (mybuddy/sgbuddy) for Jira management, transaction investigation, RPP recovery, and DML creation in G-Bank payment operations.
 ---
 
 # Buddy On-Call Assistant Skill
 
-This skill guides you through using mybuddy and sgbuddy tools to investigate and resolve Jira tickets for G-Bank payment operations.
+## Context & Tool Selection
+Select the tool based on the Jira project or region.
 
-## Tool Overview
+| Scope | Region | Tool Command | Env File | Jira Project |
+| :--- | :--- | :--- | :--- | :--- |
+| **Malaysia** | MY | `mybuddy` | `.env.my` | `TS` |
+| **Singapore** | SG | `sgbuddy` | `.env.sg` | `TSE` |
 
-### mybuddy (Malaysia Operations)
-- **Region**: Malaysia (MY)
-- **Config**: Uses `.env.my` environment file
-- **Commands**:
-  - `txn` - Query transaction status and generate remediation SQL
-  - `rpp` - RPP (Regional Payment Partner) adapter operations
-  - `rpp resume` - Resume RPP workflows with SQL generation
-  - `ecotxn` - PartnerPay (Eco) workflow inspection
-  - `jira` - JIRA ticket operations (list, search, attachments)
-  - `doorman create-dml` - Create DML tickets in Doorman for database changes
+## Environment Variables
+Ensure these are set before execution:
+* `JIRA_USERNAME` / `JIRA_API_KEY`
+* `DOORMAN_USERNAME` / `DOORMAN_PASSWORD`
+* `JIRA_DOMAIN` (Optional defaults: `gxbank.atlassian.net` for MY, `gxsbank.atlassian.net` for SG)
 
-### sgbuddy (Singapore Operations)
-- **Region**: Singapore (SG)
-- **Config**: Uses `.env.sg` environment file
-- **Commands**:
-  - `txn` - Query transaction status and generate remediation SQL
-  - `jira` - JIRA ticket operations (list, search)
-  - `ecotxn` - PartnerPay (Eco) workflow inspection
+## Core Commands
 
-### Prerequisites
-
-Before using these tools, ensure the following environment variables are set:
-
-**For Jira access:**
-- `JIRA_DOMAIN` - Jira instance domain (optional, has defaults)
-- `JIRA_USERNAME` - Jira username/email
-- `JIRA_API_KEY` - Jira API key for authentication
-
-**For database access:**
-- `DOORMAN_USERNAME` - Doorman database username
-- `DOORMAN_PASSWORD` - Doorman database password
-
-**Default Jira domains:**
-- Malaysia: `https://gxbank.atlassian.net` (Project: TS)
-- Singapore: `https://gxsbank.atlassian.net` (Project: TSE)
-
-## Jira Ticket Workflow
-
-### 1. List Assigned Tickets
-
-List active Jira tickets assigned to the current user:
+### 1. Jira Operations
+Interact with tickets. Use interactive pickers when possible.
 
 ```bash
-# Malaysia
+# List assigned tickets (interactive)
 mybuddy jira list
 
-# Singapore
-sgbuddy jira list
+# Search (Summary/Description)
+mybuddy jira search "keyword" "keyword2"
+
+# View Details (Direct)
+mybuddy jira view TS-1234
 ```
 
-**What it does:**
-- Fetches tickets assigned to you using JQL
-- Excludes completed/closed tickets
-- Shows up to 50 tickets by default
-- Launches interactive picker for ticket selection
-
-### 2. Search Tickets
-
-Search for tickets matching specific criteria:
+### 2. Transaction Investigation
+Diagnose status and generate remediation SQL. Input: Transaction ID (TXN...), E2E ID (2025...), or file path.
 
 ```bash
-# Search by keywords in summary/description
-mybuddy jira search "payment failed"
-sgbuddy jira search "API error"
+# Single Transaction
+mybuddy txn <txn_id_or_e2e_id>
 
-# Multiple search terms
-mybuddy jira search "refund" "pending"
+# Batch Processing (File containing IDs)
+mybuddy txn ids.txt
 ```
 
-**What it does:**
-- Searches in both summary and description fields
-- Returns unresolved tickets only
-- Provides clickable links to tickets
-- Supports full-text search queries
-
-### 3. Read Ticket Details
-
-When you select a ticket from the list/search results (via interactive picker):
-
-**Available actions:**
-- View full ticket details (description, status, assignee)
-- Open ticket in browser
-- Download attachments (mybuddy only)
-- View transaction IDs and other key information
-
-**For mybuddy (Malaysia):**
-- Full attachment support in picker
-- Download attachments directly to current directory
-- Handles duplicate filenames automatically
-
-**For sgbuddy (Singapore):**
-- No attachment download in picker
-- View attachment URLs manually
-- Use browser to download attachments
-
-### 4. Download Attachments
+### 3. RPP Recovery (Malaysia Only)
+Resume stuck RPP adapter workflows.
 
 ```bash
-# Via interactive picker (mybuddy only)
-mybuddy jira list
-# → Select ticket → Choose "Download attachment"
-
-# Downloads to current directory
-# Duplicates are named: file_1.pdf, file_2.pdf, etc.
-```
-
-**Note**: sgbuddy does not support attachment downloads via CLI. Use browser or curl with attachment URLs.
-
-### 4.1 Download CSV Attachments and Extract Transaction IDs
-
-CSV attachments are commonly attached to Jira tickets and contain transaction IDs that need batch investigation.
-
-#### Download CSV from Jira (mybuddy only)
-
-**Method 1: Using the Python Download Script (Recommended for Agents)**
-
-A Python script is provided for direct attachment downloads:
-
-```bash
-# Download all attachments from a ticket (auto-detects region)
-python .kilocode/skills/buddy-oncall-assistant/scripts/download_jira_attachment.py TS-1234
-
-# Download specific CSV file
-python .kilocode/skills/buddy-oncall-assistant/scripts/download_jira_attachment.py TS-1234 --filename transactions.csv
-
-# Download to specific directory
-python .kilocode/skills/buddy-oncall-assistant/scripts/download_jira_attachment.py TS-1234 --output ./downloads
-
-# List attachments without downloading
-python .kilocode/skills/buddy-oncall-assistant/scripts/download_jira_attachment.py TS-1234 --list-only
-
-# Specify region manually (if auto-detection fails)
-python .kilocode/skills/buddy-oncall-assistant/scripts/download_jira_attachment.py TSE-567 --region sg
-```
-
-**Benefits of the Python script:**
-- Works for both mybuddy (Malaysia) and sgbuddy (Singapore)
-- Auto-detects region from ticket key (TS=MY, TSE=SG)
-- Can download specific files by filename
-- Lists attachments before downloading
-- Handles duplicate filenames automatically
-- Better error messages and progress feedback
-
-**Requirements:**
-```bash
-# Install dependencies if needed
-pip install requests
-
-# Or use the system Python (usually has requests available)
-python3 --version
-```
-
-**Method 2: Via interactive picker**
-
-```bash
-# Via interactive picker (mybuddy only)
-mybuddy jira list
-# → Select ticket → Choose "Download attachment"
-# → Select the CSV file attachment
-# → File downloads to current directory
-
-# Method 2: Direct download via browser
-# If interactive picker doesn't work:
-# 1. Open ticket in browser (via picker or URL)
-# 2. Download CSV attachment manually
-# 3. Save to working directory
-```
-
-#### Extract Transaction IDs from CSV
-
-Once you have the CSV file downloaded, you need to extract transaction IDs from it.
-
-**Understand CSV Structure:**
-- CSV files may have various column names for transaction IDs
-- Common column names: `transaction_id`, `transactionId`, `txn_id`, `id`, `e2e_id`
-- May contain headers or be data-only
-- May need to skip first row (headers)
-
-**Methods to Extract Transaction IDs:**
-
-##### Method 1: Using awk (Quick extraction)
-
-```bash
-# Extract from first column (assuming transaction ID is in column 1)
-awk 'NR>1 {print $1}' transactions.csv > txn_ids.txt
-
-# Extract from specific column by header name
-# Example: Get transaction_id column
-awk -F',' 'NR==1 {for(i=1;i<=NF;i++)if($i=="transaction_id")col=i} NR>1{print $col}' transactions.csv > txn_ids.txt
-
-# Extract all non-empty transaction IDs from any column
-awk -F',' 'NR>1 {for(i=1;i<=NF;i++)if($i~/^[A-Z0-9]+$/)print $i}' transactions.csv > txn_ids.txt
-```
-
-##### Method 2: Extract specific patterns (Transaction ID formats)
-
-```bash
-# Extract regular transaction IDs (e.g., TXN123, 20251228TNGDMYNB...)
-grep -oE '[A-Z]{3}[0-9]{9,}' transactions.csv > txn_ids.txt
-
-# Extract RPP E2E IDs (format: YYYYMMDDGXSPMY...)
-grep -oE '20[0-9]{6}GXSPMY[0-9A-Z]{16,}' transactions.csv > e2e_ids.txt
-
-# Extract transaction IDs with date prefix (common format)
-grep -oE '20[0-9]{6}TNGD[A-Z0-9]{20,}' transactions.csv > txn_ids.txt
-
-# Combine all transaction ID formats
-grep -oE '(20[0-9]{6}(TNGD|GXSPMY)[A-Z0-9]{15,}|[A-Z]{3}[0-9]{9,})' transactions.csv > txn_ids.txt
-```
-
-##### Method 3: Clean and deduplicate IDs
-
-```bash
-# Remove duplicates, empty lines, and spaces
-sort -u txn_ids.txt | grep -v '^$' > txn_ids_unique.txt
-
-# Remove carriage returns (Windows line endings)
-sed -i '' 's/\r$//' txn_ids_unique.txt
-
-# Verify the extracted IDs
-cat txn_ids_unique.txt
-```
-
-#### Batch Process Extracted Transaction IDs
-
-Once you have the transaction IDs extracted:
-
-```bash
-# Batch process all extracted transaction IDs
-mybuddy txn txn_ids_unique.txt
-
-# Or process line by line for better control
-while IFS= read -r txn_id; do
-    echo "Processing: $txn_id"
-    mybuddy txn "$txn_id"
-    echo "---"
-done < txn_ids_unique.txt > investigation_results.txt
-
-# Review results
-cat investigation_results.txt
-```
-
-#### Example Workflow: CSV Batch Investigation
-
-```bash
-# Complete workflow for CSV attachment processing
-
-# Step 1: Download CSV from Jira (using Python script - recommended)
-python .kilocode/skills/buddy-oncall-assistant/scripts/download_jira_attachment.py TS-1234 --filename transactions.csv
-
-# OR download via interactive picker (mybuddy only)
-mybuddy jira list
-# → Select ticket → Download CSV attachment (e.g., failed_transactions.csv)
-
-# Step 2: Inspect CSV structure
-head -5 failed_transactions.csv
-# → Identify which column contains transaction IDs
-
-# Step 3: Extract transaction IDs
-# If transaction IDs are in column 1:
-awk -F',' 'NR>1 {print $1}' failed_transactions.csv > txn_ids.txt
-
-# Step 4: Clean and deduplicate
-sort -u txn_ids.txt | grep -v '^$' | sed 's/\r$//' > txn_ids_clean.txt
-
-# Step 5: Verify extracted IDs (check first few)
-head -10 txn_ids_clean.txt
-
-# Step 6: Batch investigate
-mybuddy txn txn_ids_clean.txt
-
-# Step 7: Update Jira ticket with findings
-# → Summarize investigation results
-# → Note how many transactions were processed
-# → Highlight any critical findings or patterns
-```
-
-#### Tips for CSV Processing
-
-1. **Always inspect the CSV first** to understand its structure:
-   ```bash
-   head -10 file.csv        # View first 10 lines
-   wc -l file.csv           # Count total lines
-   ```
-
-2. **Check for different delimiters** (comma, semicolon, tab):
-   ```bash
-   # Try different delimiters if comma doesn't work
-   awk -F';' 'NR>1 {print $1}' file.csv    # Semicolon
-   awk -F'\t' 'NR>1 {print $1}' file.csv   # Tab
-   ```
-
-3. **Handle quoted fields** (commas within quotes):
-   ```bash
-   # Use Python for complex CSV parsing
-   python3 -c "import csv,sys; [print(row[0]) for row in csv.reader(sys.stdin)]" < file.csv > txn_ids.txt
-   ```
-
-4. **Validate transaction IDs** before processing:
-   ```bash
-   # Check if IDs match expected format
-   grep -vE '^[A-Z0-9]{15,}$' txn_ids.txt  # Show invalid IDs
-   ```
-
-5. **Save investigation results** for documentation:
-   ```bash
-   # Save both output and any generated SQL
-   mybuddy txn txn_ids.txt | tee investigation_$(date +%Y%m%d_%H%M%S).log
-   ```
-
-#### Special Case: sgbuddy (Singapore) CSV Attachments
-
-Since sgbuddy doesn't support attachment downloads via CLI:
-
-```bash
-# Alternative for sgbuddy:
-
-# Option 1: Manual browser download
-# 1. sgbuddy jira list → Select ticket → Open in browser
-# 2. Download CSV manually from browser
-# 3. Use same extraction commands as above
-
-# Option 2: Use curl with attachment URL (if URL is visible)
-# Extract URL from ticket details, then:
-curl -L -o transactions.csv "<attachment-url>"
-
-# Then proceed with extraction steps:
-awk -F',' 'NR>1 {print $1}' transactions.csv > txn_ids.txt
-sgbuddy txn txn_ids.txt
-```
-
-### 5. Transition Ticket Status
-
-Close or transition tickets programmatically:
-
-```bash
-# Available through the Jira client API
-# Supports fetching available transitions
-# Executes state changes (e.g., close, resolve)
-```
-
-This is typically done through the interactive picker or via Jira API calls.
-
-## Transaction Investigation Workflow
-
-### Step 1: Extract Transaction ID from Jira Ticket
-
-When reading a Jira ticket, look for:
-- Regular transaction IDs (e.g., `TXN123456789`)
-- RPP E2E IDs (format: `YYYYMMDDGXSPMYXXXXXXXXXXXXXXXX`)
-- Transaction IDs in ticket description or comments
-
-### Step 2: Investigate the Transaction
-
-```bash
-# Malaysia
-mybuddy txn <transaction-id-or-e2e-id-or-file>
-
-# Singapore
-sgbuddy txn <transaction-id-or-e2e-id-or-file>
-
-# Examples
-mybuddy txn 20251228TNGDMYNB010ORM77048250
-sgbuddy txn TXN123456789
-
-# Batch processing from file
-mybuddy txn transactions.txt
-```
-
-**What it does:**
-- Queries Payment Engine database
-- Retrieves transaction status and details
-- Identifies the SOP case type
-- Generates remediation SQL based on Standard Operating Procedures
-- Provides interactive prompts for case classification
-
-### Step 3: Interpret the Output
-
-The tool will show:
-- **Transaction Status**: Current state of the transaction
-- **Case Type**: SOP classification (e.g., "timeout", "declined", "pending")
-- **Generated SQL**: Remediation SQL to apply (if applicable)
-- **Recommendations**: Next steps based on transaction state
-
-### Step 4: Apply Remediation
-
-The generated SQL is ready to apply:
-1. Review the generated SQL for correctness
-2. Apply to the appropriate database (Payment Engine, Payment Core, etc.)
-3. Verify the transaction state after applying
-4. Update the Jira ticket with actions taken
-
-**Important**: Always document remediation steps in Jira ticket comments.
-
-## RPP Workflow Recovery (Malaysia Only)
-
-### When to Use RPP Resume
-
-Use `mybuddy rpp resume` when:
-- RPP adapter workflows are stuck
-- Transactions are pending at RPP adapter
-- Jira tickets indicate RPP-related issues
-- Need to generate deploy/rollback SQL for RPP workflows
-
-### How to Use
-
-```bash
-# Inspect RPP adapter records and generate SQL
+# Analyze and generate Deploy/Rollback SQL
 mybuddy rpp resume
-
-# This will:
-# 1. Query RPP adapter tables
-# 2. Identify stuck workflows
-# 3. Generate deploy SQL to resume workflows
-# 4. Generate rollback SQL for safety
 ```
 
-### Interpreting RPP Output
-
-- **Adapter Status**: Current state of RPP workflows
-- **Stuck Workflows**: Workflows that need intervention
-- **Generated SQL**: Deploy SQL to resume, rollback SQL for safety
-- **Recommendations**: Whether to proceed with remediation
-
-### Applying RPP Remediation
-
-1. Review the generated SQL thoroughly
-2. Test in non-production if possible
-3. Apply deploy SQL to resume workflows
-4. Monitor for successful completion
-5. Keep rollback SQL for emergency rollback
-6. Document actions in Jira ticket
-
-## PartnerPay Workflow Inspection
-
-### When to Use Eco Transaction
-
-Use `ecotxn` when:
-- Jira ticket mentions PartnerPay or Eco transactions
-- Ticket contains run_id for Eco workflows
-- Need to investigate PartnerPay transaction status
-
-### How to Use
+### 4. PartnerPay (Eco) Inspection
+Investigate PartnerPay workflow runs.
 
 ```bash
-# Malaysia
 mybuddy ecotxn <run_id>
-
-# Singapore
-sgbuddy ecotxn <run_id>
-
-# Example
-mybuddy ecotxn RUN12345
-sgbuddy ecotxn 20251228-ECO-001
 ```
 
-**What it does:**
-- Queries PartnerPay database
-- Retrieves Eco workflow details
-- Shows workflow status and steps
-- Identifies failures or pending steps
-- Provides diagnostic information
+### 5. Doorman DML Creation (Malaysia Only)
+Generate production database change tickets.
 
-## DML Ticket Creation (Malaysia Only)
-
-### When to Use Doorman DML Tickets
-
-Use `mybuddy doorman create-dml` when:
-- Need to apply database changes in production
-- Require approval and review for DML operations
-- Following SOP procedures for transaction remediation
-- Need to track database changes through Doorman ticketing system
-
-### Command Syntax
+Syntax:
 
 ```bash
 mybuddy doorman create-dml \
   --service <service_name> \
-  --original "<original_query>" \
+  --original "<update_query>" \
   --rollback "<rollback_query>" \
-  --note "<ticket_description>"
+  --note "<description_and_reference>"
 ```
+Valid Services: payment_engine, payment_core, rpp_adapter, partnerpay_engine.
 
-### Required Flags
+## Advanced Workflows
 
-| Flag | Short | Description | Required |
-|------|--------|-------------|-----------|
-| `--service` | `-s` | Service name (payment_engine, payment_core, fast_adapter, rpp_adapter, partnerpay_engine) | Yes |
-| `--original` | `-o` | Original DML query | Yes |
-| `--rollback` | `-r` | Rollback query | Yes |
-| `--note` | `-n` | Note/description for the ticket | Yes |
+### Batch CSV Processing (Jira Attachments)
+Use for tickets with attached CSVs of failed transactions.
 
-### Available Services
-
-| Service Name | Available In | Database Cluster |
-|--------------|---------------|-------------------|
-| `payment_engine` | MY + SG | sg-prd-m-payment-engine / prd-payments-payment-engine-rds-mysql |
-| `payment_core` | MY + SG | sg-prd-m-payment-core / prd-payments-payment-core-rds-mysql |
-| `fast_adapter` | SG only | sg-prd-m-fast-adapter |
-| `rpp_adapter` | MY only | prd-payments-rpp-adapter-rds-mysql |
-| `partnerpay_engine` | MY + SG | sg-prd-m-partnerpay-engine / prd-payments-partnerpay-engine-rds-mysql |
-
-### Usage Examples
-
-**Example 1: Payment Engine DML**
+#### 1. Download Attachment
+Prefer the Python script for reliability and auto-region detection.
 
 ```bash
-mybuddy doorman create-dml \
-  --service payment_engine \
-  --original "UPDATE workflow_execution SET state = 230 WHERE run_id = 'DE9FD4A8-F738-407A-9E15-D0439CF87DAE' AND state = 701;" \
-  --rollback "UPDATE workflow_execution SET state = 701 WHERE run_id = 'DE9FD4A8-F738-407A-9E15-D0439CF87DAE' AND state = 230;" \
-  --note "Resume PE workflow for transaction 20251202GXSPMYKL010ORB62198922 - thought machine false negative case"
-```
-
-**Example 2: Payment Core DML**
-
-```bash
-mybuddy doorman create-dml \
-  --service payment_core \
-  --original "UPDATE workflow_execution SET state = 0, attempt = 1 WHERE run_id = '403b0708001a42868649a22ffbc4d7ae' AND workflow_id = 'internal_payment_flow' and state = 500;" \
-  --rollback "UPDATE workflow_execution SET state = 500, attempt = 0 WHERE run_id = '403b0708001a42868649a22ffbc4d7ae' AND workflow_id = 'internal_payment_flow';" \
-  --note "Retry PC capture for RPP ACSP case"
-```
-
-**Example 3: RPP Adapter DML**
-
-```bash
-mybuddy doorman create-dml \
-  --service rpp_adapter \
-  --original "UPDATE workflow_execution SET state = 222 WHERE run_id = 'abc123' AND state = 210;" \
-  --rollback "UPDATE workflow_execution SET state = 210 WHERE run_id = 'abc123' AND state = 222;" \
-  --note "Resume RPP workflow - no response but ACSP at Paynet"
-```
-
-### What It Does
-
-- Creates a DML ticket in Doorman for review and approval
-- Requires both original and rollback queries for safety
-- Generates a ticket URL for tracking: `https://doorman.infra.prd.g-bank.app/rds/dml/{ticketID}`
-- Malaysia (mybuddy) only - not available in Singapore
-
-### Best Practices
-
-- Always include current state in WHERE clause for safety
-- Reference relevant SOP cases in the note
-- Include transaction IDs or run_ids in the note for traceability
-- Test in staging before creating production tickets
-- Ensure rollback query is the exact inverse of the original query
-
-### Related SOPs
-
-- [`docs/sops/MY_DML_SOP.md`](docs/sops/MY_DML_SOP.md) - Malaysia case studies
-- [`docs/sops/SG_DML_SOP.md`](docs/sops/SG_DML_SOP.md) - Singapore examples
-
-### Implementation
-
-The DML ticket creation is implemented in [`internal/apps/mybuddy/commands/doorman.go`](internal/apps/mybuddy/commands/doorman.go:28-94).
-
-## Best Practices
-
-### 1. Identify Correct Region
-
-Always verify which region the Jira ticket belongs to:
-- **Malaysia**: Use mybuddy, `.env.my`, gxbank.atlassian.net
-- **Singapore**: Use sgbuddy, `.env.sg`, gxsbank.atlassian.net
-
-**How to identify:**
-- Check Jira project (TS = Malaysia, TSE = Singapore)
-- Check ticket components or labels
-- Check ticket description for region mentions
-- Ask the user if unclear
-
-### 2. Verify Environment Setup
-
-Before running commands:
-```bash
-# Check that environment variables are set
-echo $JIRA_USERNAME
-echo $JIRA_API_KEY
-echo $DOORMAN_USERNAME
-
-# Verify tool is available
-mybuddy --help   # or sgbuddy --help
-```
-
-### 3. Use Interactive Features
-
-- Use `jira list` with the interactive picker for complex cases
-- Let the tool guide you through SOP classification
-- Review all generated SQL before applying
-- Take advantage of browser-opening features for detailed review
-
-### 4. Document in Jira
-
-Always update the Jira ticket with:
-- Investigation findings
-- Transaction IDs reviewed
-- Remediation applied (include SQL)
-- Verification results
-- Next steps or resolution
-
-### 5. Safety First
-
-- Review generated SQL before applying
-- Keep rollback SQL for RPP operations
-- Test in non-production when possible
-- Verify transactions after remediation
-- Document everything for audit trail
-
-## Common Workflows
-
-### Workflow 1: Payment Timeout Investigation
-
-```bash
-# 1. List or search for timeout-related tickets
-mybuddy jira search "timeout"
-
-# 2. Select ticket and read details
-# → Extract transaction ID from description
-
-# 3. Investigate transaction
-mybuddy txn <transaction-id>
-
-# 4. Review generated remediation SQL
-# → Apply if appropriate
-
-# 5. Update Jira ticket with findings
-```
-
-### Workflow 2: RPP Adapter Stuck Workflows
-
-```bash
-# 1. Search for RPP-related tickets
-mybuddy jira search "RPP" "stuck"
-
-# 2. Use RPP resume to investigate and generate SQL
-mybuddy rpp resume
-
-# 3. Review generated deploy and rollback SQL
-
-# 4. Apply deploy SQL (if safe)
-# → Keep rollback SQL for safety
-
-# 5. Update Jira with actions taken
-```
-
-### Workflow 3: PartnerPay Transaction Investigation
-
-```bash
-# 1. Identify Eco/PartnerPay ticket
-sgbuddy jira search "PartnerPay"
-
-# 2. Extract run_id from ticket
-
-# 3. Investigate Eco workflow
-sgbuddy ecotxn <run_id>
-
-# 4. Identify failure point
-
-# 5. Update Jira with findings and next steps
-```
-
-### Workflow 4: Batch Transaction Processing
-
-```bash
-# 1. Create file with transaction IDs (one per line)
-echo "TXN001" > transactions.txt
-echo "TXN002" >> transactions.txt
-echo "TXN003" >> transactions.txt
-
-# 2. Process batch
-mybuddy txn transactions.txt
-
-# 3. Review each transaction's status and SQL
-# → Apply remediation as needed
-
-# 4. Update all affected Jira tickets
-```
-
-### Workflow 5: CSV Attachment Batch Investigation
-
-```bash
-# Scenario: Jira ticket has CSV attachment with hundreds of failed transactions
-
-# Step 1: Download CSV from Jira (Python script - works for both MY and SG)
+# Download specific file
 python .kilocode/skills/buddy-oncall-assistant/scripts/download_jira_attachment.py TS-1234 --filename transactions.csv
 
-# OR list attachments first
+# List available attachments
 python .kilocode/skills/buddy-oncall-assistant/scripts/download_jira_attachment.py TS-1234 --list-only
+```
 
-# Step 2: Inspect CSV to understand structure
-head -10 transactions.csv
-# Output shows: transaction_id,status,timestamp,error_code
-#            TXN001,failed,2025-01-04,TIMESTAMP
+#### 2. Extract IDs
+Parse CSV (handle headers and delimiters) to create a clean list.
 
-# Step 3: Extract transaction IDs (column 1)
+```bash
+# Extract column 1 (standard)
 awk -F',' 'NR>1 {print $1}' transactions.csv > txn_ids.txt
 
-# Step 4: Clean and verify
-sort -u txn_ids.txt | grep -v '^$' | sed 's/\r$//' > txn_ids_clean.txt
-wc -l txn_ids_clean.txt  # Count transactions to investigate
-head -5 txn_ids_clean.txt  # Verify format
+# Extract column by header name "transaction_id"
+awk -F',' 'NR==1 {for(i=1;i<=NF;i++)if($i=="transaction_id")col=i} NR>1{print $col}' transactions.csv > txn_ids.txt
 
-# Step 5: Batch investigate with timestamped log
-mybuddy txn txn_ids_clean.txt | tee investigation_$(date +%Y%m%d_%H%M%S).log
-
-# Step 6: Review results and patterns
-# → Look for common failure modes
-# → Identify transactions needing remediation
-# → Group by SOP case type
-
-# Step 7: Update Jira ticket with comprehensive summary
-# "Investigated 250 transactions from CSV attachment.
-#  - 150 pending timeout → Generated SQL for remediation
-#  - 50 already successful → No action needed
-#  - 30 declined → Require manual review
-#  - 20 require database investigation
-# Remediation SQL attached. Applied to production at [time]."
+# Clean/Deduplicate
+sort -u txn_ids.txt | grep -v '^$' | sed 's/\r$//' > clean_ids.txt
 ```
 
-### Workflow 6: Multi-CSV Processing (Complex Tickets)
+#### 3. Execute Batch
 
 ```bash
-# Scenario: Multiple CSV attachments in one ticket
-
-# Step 1: Download all CSV attachments (Python script)
-python .kilocode/skills/buddy-oncall-assistant/scripts/download_jira_attachment.py TS-1234 --output ./csv_downloads
-
-# This downloads all attachments at once
-# Files will be in: ./csv_downloads/failed_txns.csv, pending_txns.csv, etc.
-
-# Step 2: Extract IDs from all CSVs into single file
-for file in *.csv; do
-    awk -F',' 'NR>1 {print $1}' "$file"
-done > all_txn_ids.txt
-
-# Step 3: Deduplicate across all files
-sort -u all_txn_ids.txt | grep -v '^$' | sed 's/\r$//' > unique_txn_ids.txt
-
-# Step 4: Categorize by source for tracking
-# Track which CSV each ID came from
-for file in failed_txns.csv pending_txns.csv retry_txns.csv; do
-    awk -F',' 'NR>1 {print $1}' "$file" | while read id; do
-        echo "$id,$file"
-    done
-done > txn_sources.txt
-
-# Step 5: Batch investigate
-mybuddy txn unique_txn_ids.txt > investigation_results.log
-
-# Step 6: Cross-reference results with sources
-# Create summary by original category
-paste txn_ids.txt txn_sources.txt | grep -f investigation_results.log
-
-# Step 7: Update Jira with categorized findings
+mybuddy txn clean_ids.txt > results.log
 ```
 
-### Workflow 7: Resolve Ticket (End-to-End)
+### Resolution Routine (End-to-End)
+Trigger: "Resolve TS-XXXX"
 
-When the request is "resolve TS-xxxx", follow this complete sequence to investigate and resolve the issue.
+1. **Context**: `mybuddy jira view TS-XXXX` (Check description/region).
+2. **Fetch Data**:
+    * If IDs in text -> Copy to file.
+    * If CSV -> Run Batch CSV Processing.
+3. **Investigate**: Run `mybuddy txn` (or `rpp resume` / `ecotxn` based on context).
+4. **Analyze**: Review generated SQL against SOP case type (Timeout, Declined, etc.).
+5. **Action**:
+    * If valid -> Apply SQL.
+    * If complex -> Create DML ticket (`doorman create-dml`).
+6. **Close**: Update Jira with findings, SQL used, and result.
 
-**Trigger Pattern**: "resolve TS-XXXX" where XXXX is the Jira ticket number
-
-```bash
-# Step 1: Fetch the ticket from Jira
-# Use search to find the specific ticket
-mybuddy jira search "TS-4565"
-
-# OR use list and select the ticket from the interactive picker
-mybuddy jira list
-# → Select the ticket from the picker
-
-# Step 2: View the ticket content
-# When ticket is selected in picker, choose "View details" to see:
-# -> Ticket description and summary
-# -> Status, assignee, priority
-# -> Transaction IDs mentioned in the ticket
-# -> Error messages or stack traces
-# -> Attachment names and URLs
-
-# Step 3: Download and view attachments (if needed)
-# If the ticket has attachments relevant to the investigation:
-python .kilocode/skills/buddy-oncall-assistant/scripts/download_jira_attachment.py TS-4565
-# -> List attachments first to see what's available:
-python .kilocode/skills/buddy-oncall-assistant/scripts/download_jira_attachment.py TS-4565 --list-only
-
-# -> Download specific file if needed:
-python .kilocode/skills/buddy-oncall-assistant/scripts/download_jira_attachment.py TS-4565 --filename transactions.csv
-
-# -> Review downloaded files (cat, view, less, etc.)
-cat attachment.log
-less screenshot_description.txt
-
-# -> Extract transaction IDs if it's a CSV (see Workflow 5 for detailed steps)
-awk -F',' 'NR>1 {print $1}' transactions.csv > txn_ids.txt
-
-# Step 4: Resolve stuck transactions using mybuddy command
-# For single transaction:
-mybuddy txn <transaction-id>
-
-# For batch of transactions:
-mybuddy txn txn_ids.txt
-
-# For RPP-related stuck workflows:
-mybuddy rpp resume
-
-# For PartnerPay/Eco workflows:
-mybuddy ecotxn <run_id>
-
-# Step 5: Review and apply remediation
-# -> Review the generated remediation SQL for correctness
-# -> Verify the SQL matches the SOP case type
-# -> Apply valid remediation to the database
-# -> Keep rollback SQL for safety (especially for RPP operations)
-
-# Step 6: Finalize and document
-# -> Verify transaction state after applying remediation
-# -> Update Jira ticket with resolution details:
-#    * Investigation findings
-#    * Transaction IDs processed
-#    * Remediation SQL applied
-#    * Verification results
-#    * Next steps if any
-# -> Close or transition ticket status as appropriate
-```
-
-**Key Points:**
-- Always verify the region (mybuddy for Malaysia/TS tickets, sgbuddy for Singapore/TSE tickets)
-- Use the interactive picker for easier navigation through ticket details
-- Download attachments before investigating to have full context
-- Extract all relevant transaction IDs from CSV attachments
-- Document all actions in the Jira ticket for audit trail
-
-## Troubleshooting
-
-### Issue: "Jira authentication failed"
-
-**Solution:**
-- Verify `JIRA_USERNAME` and `JIRA_API_KEY` are set
-- Check API key is valid and not expired
-- Ensure account has access to the Jira instance
-- Try accessing Jira in browser to verify credentials
-
-### Issue: "Command not found: mybuddy"
-
-**Solution:**
-- Build the tools with make deploy
-- Ensure the built binary is in your PATH
-- Check if you need to use `mybuddy` or similar
-
-### Issue: "Transaction not found"
-
-**Solution:**
-- Verify the transaction ID is correct
-- Check if you're using the correct region (mybuddy vs sgbuddy)
-- Some transaction IDs may be E2E IDs - try with the tool anyway
-- Check if transaction exists in the database (access issues)
-
-### Issue: "Database connection failed"
-
-**Solution:**
-- Verify `DOORMAN_USERNAME` and `DOORMAN_PASSWORD` are set
-- Check VPN/network connectivity to database
-- Ensure database credentials are valid and not expired
-- Verify you have access to the specific database instance
-
-### Issue: "No attachments available" (sgbuddy)
-
-**Expected behavior**: sgbuddy does not support attachment downloads via CLI.
-
-**Workaround:**
-- Use the browser to open the ticket
-- Download attachments manually from Jira web UI
-- Or use curl with the attachment URL if available
-
-### Issue: "Generated SQL looks wrong"
-
-**Solution:**
-- Verify the SOP case type selected is correct
-- Check if transaction state matches assumptions
-- Review transaction details manually
-- Don't apply SQL if you're unsure - ask for review
-- Consider testing in non-production first
-
-## Related Code Reference
-
-For deeper understanding or debugging, relevant code locations:
-
-- **mybuddy Jira commands**: `internal/apps/mybuddy/commands/jira.go`
-- **sgbuddy Jira commands**: `internal/apps/sgbuddy/commands/jira.go`
-- **Jira search/list**: `internal/clients/jira/search.go`
-- **Attachment handling**: `internal/clients/jira/attachments.go`
-- **Interactive picker UI**: `internal/ui/jira_picker.go`
-- **Transaction query**: `internal/apps/common/txn/`
-- **RPP operations**: `internal/apps/mybuddy/commands/rpp.go`
-- **Eco operations**: `internal/apps/common/ecotxn/`
-
-## Important Notes
-
-### Environment-Specific Features
-
-| Feature | mybuddy (MY) | sgbuddy (SG) |
-|---------|--------------|--------------|
-| Transaction queries | ✅ | ✅ |
-| Jira list/search | ✅ | ✅ |
-| Jira attachments | ✅ | ❌ |
-| RPP operations | ✅ | ❌ |
-| Eco transactions | ✅ | ✅ |
-| CSV attachments | ✅ | ❌ |
-| Doorman DML tickets | ✅ | ❌ |
-
-### Data Privacy and Security
-
-- Never output full credentials or API keys in chat
-- Transaction data may contain sensitive information
-- Follow data handling policies for customer data
-- Use secure channels for sharing sensitive information
-- Audit trail is critical - document all actions
-
-### When in Doubt
-
-1. **Ask for clarification**: Which region? Which environment?
-2. **Verify assumptions**: Don't guess - check with user
-3. **Review before applying**: Especially for SQL remediation
-4. **Document everything**: Jira tickets are the source of truth
-5. **Escalate if needed**: Some issues may require senior engineer review
-
-## Quick Reference Commands
-
-```bash
-# Jira Operations
-mybuddy jira list              # List assigned tickets
-mybuddy jira search "query"    # Search tickets
-
-# Transaction Investigation
-mybuddy txn <id>               # Investigate transaction
-mybuddy txn file.txt           # Batch process
-
-# RPP Operations (Malaysia only)
-mybuddy rpp resume             # Resume stuck RPP workflows
-
-# PartnerPay Investigation
-mybuddy ecotxn <run_id>        # Investigate Eco workflow
-
-# Same commands for Singapore (using sgbuddy)
-sgbuddy jira list
-sgbuddy txn <id>
-sgbuddy ecotxn <run_id>
-
-# Doorman DML tickets (Malaysia only)
-mybuddy doorman create-dml \
-  --service <service> \
-  --original "<query>" \
-  --rollback "<query>" \
-  --note "<description>"
-```
+## Troubleshooting & Rules
+* **SgBuddy Attachments**: `sgbuddy` CLI cannot download attachments. Use Browser or curl.
+* **Hex Strings**: If CSV contains 32-char hex strings, check for a "Batch ID" column if "Transaction ID" yields no results.
+* **Safety**: Always generate and save Rollback SQL for RPP operations.
+* **Privacy**: Never output raw customer PII or credentials in chat.
