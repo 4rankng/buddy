@@ -116,6 +116,186 @@ mybuddy jira list
 
 **Note**: sgbuddy does not support attachment downloads via CLI. Use browser or curl with attachment URLs.
 
+### 4.1 Download CSV Attachments and Extract Transaction IDs
+
+CSV attachments are commonly attached to Jira tickets and contain transaction IDs that need batch investigation.
+
+#### Download CSV from Jira (mybuddy only)
+
+```bash
+# Method 1: Via interactive picker
+mybuddy jira list
+# → Select ticket → Choose "Download attachment"
+# → Select the CSV file attachment
+# → File downloads to current directory
+
+# Method 2: Direct download via browser
+# If interactive picker doesn't work:
+# 1. Open ticket in browser (via picker or URL)
+# 2. Download CSV attachment manually
+# 3. Save to working directory
+```
+
+#### Extract Transaction IDs from CSV
+
+Once you have the CSV file downloaded, you need to extract transaction IDs from it.
+
+**Understand CSV Structure:**
+- CSV files may have various column names for transaction IDs
+- Common column names: `transaction_id`, `transactionId`, `txn_id`, `id`, `e2e_id`
+- May contain headers or be data-only
+- May need to skip first row (headers)
+
+**Methods to Extract Transaction IDs:**
+
+##### Method 1: Using awk (Quick extraction)
+
+```bash
+# Extract from first column (assuming transaction ID is in column 1)
+awk 'NR>1 {print $1}' transactions.csv > txn_ids.txt
+
+# Extract from specific column by header name
+# Example: Get transaction_id column
+awk -F',' 'NR==1 {for(i=1;i<=NF;i++)if($i=="transaction_id")col=i} NR>1{print $col}' transactions.csv > txn_ids.txt
+
+# Extract all non-empty transaction IDs from any column
+awk -F',' 'NR>1 {for(i=1;i<=NF;i++)if($i~/^[A-Z0-9]+$/)print $i}' transactions.csv > txn_ids.txt
+```
+
+##### Method 2: Extract specific patterns (Transaction ID formats)
+
+```bash
+# Extract regular transaction IDs (e.g., TXN123, 20251228TNGDMYNB...)
+grep -oE '[A-Z]{3}[0-9]{9,}' transactions.csv > txn_ids.txt
+
+# Extract RPP E2E IDs (format: YYYYMMDDGXSPMY...)
+grep -oE '20[0-9]{6}GXSPMY[0-9A-Z]{16,}' transactions.csv > e2e_ids.txt
+
+# Extract transaction IDs with date prefix (common format)
+grep -oE '20[0-9]{6}TNGD[A-Z0-9]{20,}' transactions.csv > txn_ids.txt
+
+# Combine all transaction ID formats
+grep -oE '(20[0-9]{6}(TNGD|GXSPMY)[A-Z0-9]{15,}|[A-Z]{3}[0-9]{9,})' transactions.csv > txn_ids.txt
+```
+
+##### Method 3: Clean and deduplicate IDs
+
+```bash
+# Remove duplicates, empty lines, and spaces
+sort -u txn_ids.txt | grep -v '^$' > txn_ids_unique.txt
+
+# Remove carriage returns (Windows line endings)
+sed -i '' 's/\r$//' txn_ids_unique.txt
+
+# Verify the extracted IDs
+cat txn_ids_unique.txt
+```
+
+#### Batch Process Extracted Transaction IDs
+
+Once you have the transaction IDs extracted:
+
+```bash
+# Batch process all extracted transaction IDs
+mybuddy txn txn_ids_unique.txt
+
+# Or process line by line for better control
+while IFS= read -r txn_id; do
+    echo "Processing: $txn_id"
+    mybuddy txn "$txn_id"
+    echo "---"
+done < txn_ids_unique.txt > investigation_results.txt
+
+# Review results
+cat investigation_results.txt
+```
+
+#### Example Workflow: CSV Batch Investigation
+
+```bash
+# Complete workflow for CSV attachment processing
+
+# Step 1: Download CSV from Jira
+mybuddy jira list
+# → Select ticket → Download CSV attachment (e.g., failed_transactions.csv)
+
+# Step 2: Inspect CSV structure
+head -5 failed_transactions.csv
+# → Identify which column contains transaction IDs
+
+# Step 3: Extract transaction IDs
+# If transaction IDs are in column 1:
+awk -F',' 'NR>1 {print $1}' failed_transactions.csv > txn_ids.txt
+
+# Step 4: Clean and deduplicate
+sort -u txn_ids.txt | grep -v '^$' | sed 's/\r$//' > txn_ids_clean.txt
+
+# Step 5: Verify extracted IDs (check first few)
+head -10 txn_ids_clean.txt
+
+# Step 6: Batch investigate
+mybuddy txn txn_ids_clean.txt
+
+# Step 7: Update Jira ticket with findings
+# → Summarize investigation results
+# → Note how many transactions were processed
+# → Highlight any critical findings or patterns
+```
+
+#### Tips for CSV Processing
+
+1. **Always inspect the CSV first** to understand its structure:
+   ```bash
+   head -10 file.csv        # View first 10 lines
+   wc -l file.csv           # Count total lines
+   ```
+
+2. **Check for different delimiters** (comma, semicolon, tab):
+   ```bash
+   # Try different delimiters if comma doesn't work
+   awk -F';' 'NR>1 {print $1}' file.csv    # Semicolon
+   awk -F'\t' 'NR>1 {print $1}' file.csv   # Tab
+   ```
+
+3. **Handle quoted fields** (commas within quotes):
+   ```bash
+   # Use Python for complex CSV parsing
+   python3 -c "import csv,sys; [print(row[0]) for row in csv.reader(sys.stdin)]" < file.csv > txn_ids.txt
+   ```
+
+4. **Validate transaction IDs** before processing:
+   ```bash
+   # Check if IDs match expected format
+   grep -vE '^[A-Z0-9]{15,}$' txn_ids.txt  # Show invalid IDs
+   ```
+
+5. **Save investigation results** for documentation:
+   ```bash
+   # Save both output and any generated SQL
+   mybuddy txn txn_ids.txt | tee investigation_$(date +%Y%m%d_%H%M%S).log
+   ```
+
+#### Special Case: sgbuddy (Singapore) CSV Attachments
+
+Since sgbuddy doesn't support attachment downloads via CLI:
+
+```bash
+# Alternative for sgbuddy:
+
+# Option 1: Manual browser download
+# 1. sgbuddy jira list → Select ticket → Open in browser
+# 2. Download CSV manually from browser
+# 3. Use same extraction commands as above
+
+# Option 2: Use curl with attachment URL (if URL is visible)
+# Extract URL from ticket details, then:
+curl -L -o transactions.csv "<attachment-url>"
+
+# Then proceed with extraction steps:
+awk -F',' 'NR>1 {print $1}' transactions.csv > txn_ids.txt
+sgbuddy txn txn_ids.txt
+```
+
 ### 5. Transition Ticket Status
 
 Close or transition tickets programmatically:
@@ -367,6 +547,81 @@ mybuddy txn transactions.txt
 # → Apply remediation as needed
 
 # 4. Update all affected Jira tickets
+```
+
+### Workflow 5: CSV Attachment Batch Investigation
+
+```bash
+# Scenario: Jira ticket has CSV attachment with hundreds of failed transactions
+
+# Step 1: Download CSV from Jira
+mybuddy jira list
+# → Select ticket → Download attachment → Choose CSV file
+
+# Step 2: Inspect CSV to understand structure
+head -10 transactions.csv
+# Output shows: transaction_id,status,timestamp,error_code
+#            TXN001,failed,2025-01-04,TIMESTAMP
+
+# Step 3: Extract transaction IDs (column 1)
+awk -F',' 'NR>1 {print $1}' transactions.csv > txn_ids.txt
+
+# Step 4: Clean and verify
+sort -u txn_ids.txt | grep -v '^$' | sed 's/\r$//' > txn_ids_clean.txt
+wc -l txn_ids_clean.txt  # Count transactions to investigate
+head -5 txn_ids_clean.txt  # Verify format
+
+# Step 5: Batch investigate with timestamped log
+mybuddy txn txn_ids_clean.txt | tee investigation_$(date +%Y%m%d_%H%M%S).log
+
+# Step 6: Review results and patterns
+# → Look for common failure modes
+# → Identify transactions needing remediation
+# → Group by SOP case type
+
+# Step 7: Update Jira ticket with comprehensive summary
+# "Investigated 250 transactions from CSV attachment.
+#  - 150 pending timeout → Generated SQL for remediation
+#  - 50 already successful → No action needed
+#  - 30 declined → Require manual review
+#  - 20 require database investigation
+# Remediation SQL attached. Applied to production at [time]."
+```
+
+### Workflow 6: Multi-CSV Processing (Complex Tickets)
+
+```bash
+# Scenario: Multiple CSV attachments in one ticket
+
+# Step 1: Download all CSV attachments
+mybuddy jira list
+# → Select ticket → Download each CSV
+# Files: failed_txns.csv, pending_txns.csv, retry_txns.csv
+
+# Step 2: Extract IDs from all CSVs into single file
+for file in *.csv; do
+    awk -F',' 'NR>1 {print $1}' "$file"
+done > all_txn_ids.txt
+
+# Step 3: Deduplicate across all files
+sort -u all_txn_ids.txt | grep -v '^$' | sed 's/\r$//' > unique_txn_ids.txt
+
+# Step 4: Categorize by source for tracking
+# Track which CSV each ID came from
+for file in failed_txns.csv pending_txns.csv retry_txns.csv; do
+    awk -F',' 'NR>1 {print $1}' "$file" | while read id; do
+        echo "$id,$file"
+    done
+done > txn_sources.txt
+
+# Step 5: Batch investigate
+mybuddy txn unique_txn_ids.txt > investigation_results.log
+
+# Step 6: Cross-reference results with sources
+# Create summary by original category
+paste txn_ids.txt txn_sources.txt | grep -f investigation_results.log
+
+# Step 7: Update Jira with categorized findings
 ```
 
 ## Troubleshooting
