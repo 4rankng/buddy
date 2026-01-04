@@ -127,6 +127,6 @@ Trigger: "Resolve TS-XXXX"
 
 ## Troubleshooting & Rules
 * **SgBuddy Attachments**: `sgbuddy` CLI cannot download attachments. Use Browser or curl.
-* **Hex Strings**: If CSV contains 32-char hex strings, check for a "Batch ID" column if "Transaction ID" yields no results.
+* **Hex Strings**: If CSV contains 32-char hex strings, check for a "Batch ID" column 
 * **Safety**: Always generate and save Rollback SQL for RPP operations.
 * **Privacy**: Never output raw customer PII or credentials in chat.
