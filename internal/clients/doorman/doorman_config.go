@@ -335,7 +335,7 @@ type CreateTicketRequest struct {
 type CreateTicketResponse struct {
 	Code   int `json:"code"`
 	Result []struct {
-		ID string `json:"id"`
+		ID int `json:"id"`
 	} `json:"result"`
 }
 
@@ -426,9 +426,9 @@ func (c *DoormanClient) CreateTicket(serviceName, originalQuery, rollbackQuery, 
 		return "", fmt.Errorf("failed to decode response: %w", err)
 	}
 
-	if response.Code != 0 || len(response.Result) == 0 {
+	if response.Code != 200 || len(response.Result) == 0 {
 		return "", fmt.Errorf("create ticket failed with code: %d", response.Code)
 	}
 
-	return response.Result[0].ID, nil
+	return fmt.Sprintf("%d", response.Result[0].ID), nil
 }

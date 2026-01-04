@@ -14,5 +14,6 @@ func GetCommands(appCtx *common.Context, clients *di.ClientSet) []*cobra.Command
 		NewRppResumeCmd(appCtx, clients),
 		NewEcoTxnCmd(appCtx, clients),
 		NewJiraCmd(appCtx, clients),
+		NewDoormanCmd(appCtx, clients),
 	}
 }
