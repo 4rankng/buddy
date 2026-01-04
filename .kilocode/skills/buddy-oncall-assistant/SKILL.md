@@ -683,9 +683,9 @@ paste txn_ids.txt txn_sources.txt | grep -f investigation_results.log
 ### Issue: "Command not found: mybuddy"
 
 **Solution:**
-- Build the tools: `make build` or `make build-my` / `make build-sg`
+- Build the tools with make deploy
 - Ensure the built binary is in your PATH
-- Check if you need to use `./bin/mybuddy` or similar
+- Check if you need to use `mybuddy` or similar
 
 ### Issue: "Transaction not found"
 

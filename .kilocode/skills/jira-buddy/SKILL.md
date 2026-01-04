@@ -425,7 +425,7 @@ mybuddy rpp rtp-cashin <id>
 
 ### Issue: Command not found
 **Solution:**
-- Build tools: `make build-my` or `make build-sg`
+- Build tools: `make deploy`
 - Verify binary in PATH or use `./mybuddy`, `./sgbuddy`
 
 ---
