@@ -56,17 +56,64 @@ class JiraAttachmentDownloader:
         self.region = region
         self.domain = self.DOMAINS[region]
 
-        # Get credentials from environment
+        # Get credentials from environment or env file
         self.username = os.environ.get('JIRA_USERNAME')
         self.api_key = os.environ.get('JIRA_API_KEY')
 
+        # Load from env file if not set
+        if not self.username or not self.api_key:
+            self._load_env_file(region)
+
         if not self.username or not self.api_key:
             raise ValueError(
-                "JIRA_USERNAME and JIRA_API_KEY environment variables must be set"
+                "JIRA_USERNAME and JIRA_API_KEY must be set in environment or env file"
             )
 
         self.auth = (self.username, self.api_key)
         self.api_base = f"{self.domain}/rest/api/3"
+
+    def _load_env_file(self, region: str) -> None:
+        """
+        Load credentials from .env.my or .env.sg file
+
+        Args:
+            region: 'my' for Malaysia or 'sg' for Singapore
+        """
+        # Get the buddy directory (where this script is located)
+        # Script is at: .kilocode/skills/buddy-oncall-assistant/scripts/download_jira_attachment.py
+        # We need to go up 4 levels to reach buddy directory
+        script_dir = Path(__file__).resolve().parent.parent.parent.parent
+        env_file = script_dir / f".env.{region}"
+        
+        # Fallback: try current working directory if not found
+        if not env_file.exists():
+            script_dir = Path.cwd()
+            env_file = script_dir / f".env.{region}"
+
+        if not env_file.exists():
+            return
+
+        try:
+            with open(env_file, 'r') as f:
+                for line in f:
+                    line = line.strip()
+                    if line and not line.startswith('#') and '=' in line:
+                        key, value = line.split('=', 1)
+                        key = key.strip()
+                        value = value.strip()
+
+                        # Remove quotes if present
+                        if value.startswith('"') and value.endswith('"'):
+                            value = value[1:-1]
+                        elif value.startswith("'") and value.endswith("'"):
+                            value = value[1:-1]
+
+                        if key == 'JIRA_USERNAME' and not self.username:
+                            self.username = value
+                        elif key == 'JIRA_API_KEY' and not self.api_key:
+                            self.api_key = value
+        except Exception as e:
+            print(f"Warning: Failed to load env file {env_file}: {e}", file=sys.stderr)
 
     def get_ticket_attachments(self, ticket_key: str) -> List[Dict]:
         """
@@ -97,19 +144,20 @@ class JiraAttachmentDownloader:
 
         return attachments
 
-    def download_attachment(self, attachment_url: str, output_path: str) -> bool:
+    def download_attachment(self, attachment_url: str, output_path: str, verify_ssl: bool = False) -> bool:
         """
         Download a single attachment
 
         Args:
             attachment_url: URL to download from
             output_path: Where to save the file
+            verify_ssl: Whether to verify SSL certificates (default: False for compatibility)
 
         Returns:
             True if successful, False otherwise
         """
         try:
-            response = requests.get(attachment_url, auth=self.auth, stream=True)
+            response = requests.get(attachment_url, auth=self.auth, stream=True, verify=verify_ssl)
             response.raise_for_status()
 
             # Handle duplicate filenames
