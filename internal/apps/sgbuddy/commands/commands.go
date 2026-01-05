@@ -12,5 +12,6 @@ func GetCommands(appCtx *common.Context, clients *di.ClientSet) []*cobra.Command
 		NewTxnCmd(appCtx, clients),
 		NewJiraCmd(appCtx, clients),
 		NewEcoTxnCmd(appCtx, clients),
+		NewPayNowCmd(appCtx, clients),
 	}
 }
