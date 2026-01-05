@@ -196,3 +196,26 @@ internal_auth: SUCCESS
 [Classification]
 pe_stuck_at_limit_check_102_4
 
+
+
+
+ALSO WE NEED TO ADD CLASSIFICATION
+Transaction [3] Analysis
+ID: 198fe80766cb48b4aca3cf8a38f5baa5
+
+Diagnosis
+Current State:
+
+Payment Engine (PE): State 220 (stTransferProcessing) - STUCK.
+
+Payment Core (PC): State 201 (stProcessing).
+
+RPP Adapter: wf_ct_qr_payment at State 0 (stInit) with Attempt 20.
+
+Assessment: The Payment Engine is waiting for RPP, but the RPP adapter is stuck in an initialization loop (State 0) and has likely never sent the request to the central switch (PayNet).
+
+SOP Reference: rpp_no_response_reject_not_found.
+
+Although the SOP mentions state = 210, the symptom (No response from RPP, transaction not found/initiated) matches. Since the adapter is at State 0, it definitely does not exist at PayNet.
+
+We must reject the RPP adapter to allow the upstream (PE/PC) to fail gracefully.
