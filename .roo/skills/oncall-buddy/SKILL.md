@@ -121,3 +121,57 @@ mybuddy txn ids.txt
 - **Regional:** MyBuddy has RPP, SGBuddy has Fast Adapter
 - **SGBuddy:** Cannot download attachments (use browser/curl)
 - **Privacy:** Never output PII or credentials
+
+## Database Schema Reference
+
+The `DATABASE_SCHEMA.md` file contains detailed table structures for all services across both Malaysia and Singapore regions. Use it to understand table schemas, column names, and data types before constructing queries.
+
+### When to Reference DATABASE_SCHEMA.md
+
+**Before executing `doorman query` commands:**
+- Identify correct table names for the target service
+- Verify column names and data types
+- Understand relationships between tables
+- Example: Check `payment_core.external_transaction` schema before querying by `tx_id`
+
+**During transaction investigation (`txn` commands):**
+- Understand the data structure of transaction tables
+- Identify relevant columns for filtering (e.g., `status`, `error_code`)
+- Map transaction IDs to appropriate tables across services
+
+**For RPP operations (`rpp resume`):**
+- Review `rpp_adapter.credit_transfer` schema for RPP-specific fields
+- Understand workflow execution state transitions
+
+**When debugging workflows:**
+- Reference `workflow_execution` table structure across all services
+- Understand state numbers and transition IDs
+- Interpret the `data` JSON field structure
+
+**To understand regional differences:**
+- Malaysia: `rpp_adapter` (unique to MY)
+- Singapore: `fast_adapter` (unique to SG)
+- Common services: `payment_core`, `payment_engine`, `partnerpay_engine`
+
+### Recommended Workflow
+
+1. **Identify the service** for your task (e.g., `payment_core` for transaction queries)
+2. **Consult DATABASE_SCHEMA.md** to review the relevant table structure
+3. **Construct your query** using verified column names and data types
+4. **Execute** using the appropriate `doorman query` command
+5. **Iterate** by refining queries based on schema understanding
+
+### Example Usage
+
+```bash
+# Step 1: Check DATABASE_SCHEMA.md for payment_core.external_transaction
+# Step 2: Construct query using verified columns
+mybuddy doorman query -s payment_core -q "SELECT tx_id, status, amount FROM external_transaction WHERE tx_id = 'TXN123'"
+
+# For Singapore Fast Adapter
+sgbuddy doorman query -s fast_adapter -q "SELECT transaction_id, status FROM transactions WHERE status = 1"
+```
+
+**Key Services Reference:**
+- Malaysia: `payment_core`, `payment_engine`, `rpp_adapter`, `partnerpay_engine`
+- Singapore: `payment_core`, `payment_engine`, `fast_adapter`, `partnerpay_engine`
