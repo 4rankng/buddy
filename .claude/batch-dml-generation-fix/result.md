@@ -1,4 +1,4 @@
-frank.nguyen@DBSG-H4M0DVF2C7 buddy %  make deploy && mybuddy txn TS-4558.txt 
+make deploy && mybuddy txn TS-4558.txt
 Building mybuddy with Malaysia environment...
 mybuddy built successfully
 Building sgbuddy with Singapore environment...
@@ -20,6 +20,14 @@ You can now use 'mybuddy' and 'sgbuddy' commands from anywhere.
 Writing batch results to: TS-4558.txt_results.txt
 [MY] Batch processing completed. Results written to TS-4558.txt_results.txt
 [DEBUG] generateSQLFromTicket: case=pe_stuck_at_limit_check_102_4, deploy=4, rollback=2
+[DEBUG] addStatementToDatabase: targetDB=PE, deploySQL_len=571, rollbackSQL_len=0
+[DEBUG] Added PE deploy, total=1
+[DEBUG] addStatementToDatabase: targetDB=PE, deploySQL_len=298, rollbackSQL_len=0
+[DEBUG] Added PE deploy, total=2
+[DEBUG] addStatementToDatabase: targetDB=PE, deploySQL_len=571, rollbackSQL_len=0
+[DEBUG] Added PE deploy, total=3
+[DEBUG] addStatementToDatabase: targetDB=PE, deploySQL_len=298, rollbackSQL_len=0
+[DEBUG] Added PE deploy, total=4
 [DEBUG] Processing rollback templates for case pe_stuck_at_limit_check_102_4: 1 groups
 [DEBUG] Processing rollback group: targetDB=PE, runIDs=2
 [DEBUG] Generated rollback SQL length: 276
@@ -31,11 +39,9 @@ SQL Generation Summary:
 
 SQL statements written to PE_Deploy.sql
 [MY] SQL DML files generated: [PE_Deploy.sql]
-frank.nguyen@DBSG-H4M0DVF2C7 buddy % ls *.sql
-PE_Deploy.sql
 frank.nguyen@DBSG-H4M0DVF2C7 buddy % 
 
-The PE_Rollback.sql is not generated (this is a bug)
+The PE_Rollback.sql is not generated (this is a bug) you must focus on fixing this.
 
 and content of PE_Deploy.sql is not correct
 

@@ -349,8 +349,8 @@ func generateSQLFromTicket(ticket domain.DMLTicket) (domain.SQLStatements, error
 			return domain.SQLStatements{}, fmt.Errorf("rollback SQL validation failed: %w", err)
 		}
 
+		// Add rollback SQL to statements
 		addStatementToDatabase(&statements, group.targetDB, "", rollbackSQL)
-		fmt.Printf("[DEBUG] Added rollback statement to %s\n", group.targetDB)
 	}
 
 	fmt.Printf("[DEBUG] Final statements: PEDeploy=%d, PERollback=%d\n",
@@ -361,34 +361,44 @@ func generateSQLFromTicket(ticket domain.DMLTicket) (domain.SQLStatements, error
 
 // addStatementToDatabase adds SQL statements to the appropriate database section
 func addStatementToDatabase(statements *domain.SQLStatements, targetDB string, deploySQL, rollbackSQL string) {
+	fmt.Printf("[DEBUG] addStatementToDatabase: targetDB=%s, deploySQL_len=%d, rollbackSQL_len=%d\n",
+		targetDB, len(deploySQL), len(rollbackSQL))
 	switch targetDB {
 	case "PC":
 		if deploySQL != "" {
 			statements.PCDeployStatements = append(statements.PCDeployStatements, deploySQL)
+			fmt.Printf("[DEBUG] Added PC deploy, total=%d\n", len(statements.PCDeployStatements))
 		}
 		if rollbackSQL != "" {
 			statements.PCRollbackStatements = append(statements.PCRollbackStatements, rollbackSQL)
+			fmt.Printf("[DEBUG] Added PC rollback, total=%d\n", len(statements.PCRollbackStatements))
 		}
 	case "PE":
 		if deploySQL != "" {
 			statements.PEDeployStatements = append(statements.PEDeployStatements, deploySQL)
+			fmt.Printf("[DEBUG] Added PE deploy, total=%d\n", len(statements.PEDeployStatements))
 		}
 		if rollbackSQL != "" {
 			statements.PERollbackStatements = append(statements.PERollbackStatements, rollbackSQL)
+			fmt.Printf("[DEBUG] Added PE rollback, total=%d\n", len(statements.PERollbackStatements))
 		}
 	case "PPE":
 		if deploySQL != "" {
 			statements.PPEDeployStatements = append(statements.PPEDeployStatements, deploySQL)
+			fmt.Printf("[DEBUG] Added PPE deploy, total=%d\n", len(statements.PPEDeployStatements))
 		}
 		if rollbackSQL != "" {
 			statements.PPERollbackStatements = append(statements.PPERollbackStatements, rollbackSQL)
+			fmt.Printf("[DEBUG] Added PPE rollback, total=%d\n", len(statements.PPERollbackStatements))
 		}
 	case "RPP":
 		if deploySQL != "" {
 			statements.RPPDeployStatements = append(statements.RPPDeployStatements, deploySQL)
+			fmt.Printf("[DEBUG] Added RPP deploy, total=%d\n", len(statements.RPPDeployStatements))
 		}
 		if rollbackSQL != "" {
 			statements.RPPRollbackStatements = append(statements.RPPRollbackStatements, rollbackSQL)
+			fmt.Printf("[DEBUG] Added RPP rollback, total=%d\n", len(statements.RPPRollbackStatements))
 		}
 	}
 }
