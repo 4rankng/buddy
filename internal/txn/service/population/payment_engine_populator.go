@@ -102,6 +102,7 @@ func (p *pePopulator) populateTransferInfo(info *domain.PaymentEngineInfo, trans
 	// Extract other fields using utils.GetStringValue
 	info.Transfers.ReferenceID = utils.GetStringValue(transfer, "reference_id")
 	info.Transfers.CreatedAt = utils.GetStringValue(transfer, "created_at")
+	info.Transfers.UpdatedAt = utils.GetStringValue(transfer, "updated_at")
 	info.Transfers.Type = utils.GetStringValue(transfer, "type")
 	info.Transfers.TxnSubtype = utils.GetStringValue(transfer, "txn_subtype")
 	info.Transfers.TxnDomain = utils.GetStringValue(transfer, "txn_domain")

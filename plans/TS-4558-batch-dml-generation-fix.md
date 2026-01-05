@@ -1,130 +1,122 @@
-# TS-4558: Batch Processing DML Generation Fix
+Issue: Batch Processing Missing DML Generation (TS-4558)
+1. Problem Statement
+The mybuddy tool successfully queries transaction statuses in batch mode and writes the analysis to a text file. However, it fails to generate the corresponding SQL DML scripts (*.sql files) required to fix the identified issues.
 
-## Root Cause Analysis
+Current Observation:
 
-The batch processing workflow in [`internal/apps/common/batch/processor.go`](internal/apps/common/batch/processor.go) identifies SOP cases but does NOT generate corresponding DML scripts.
+Input: TS-4558.txt (contains transaction IDs).
 
-### Current Behavior
+Output: TS-4558.txt_results.txt (created successfully).
 
-When processing a file with multiple transaction IDs:
-1. [`ProcessTransactionFile()`](internal/apps/common/batch/processor.go:15) reads transaction IDs from file
-2. Queries each transaction using `clients.TxnSvc.QueryTransactionWithEnv()`
-3. Writes results to file using [`WriteBatchResults()`](internal/txn/adapters/output.go:12)
-4. **MISSING**: Never calls [`GenerateSQLStatements()`](internal/txn/adapters/sql.go:18) to generate DML
-5. **MISSING**: Never calls [`WriteSQLFiles()`](internal/txn/adapters/sql_writer.go:26) to write SQL to files
+Missing: PE_Deploy.sql, RPP_Deploy.sql, etc. (Files are not generated).
 
-### Expected Behavior (Single Transaction)
+2. Specific SOP Logic: pe_stuck_at_limit_check_102_4
+This specific error pattern requires a two-step fix. The Payment Engine (PE) is stuck at 102 (Limit Checked), while the Payment Core has successfully authorized the transaction.
 
-When processing a single transaction:
-1. [`processSingleTransaction()`](internal/apps/mybuddy/commands/txn.go:44) queries transaction
-2. Calls [`GenerateSQLStatements()`](internal/txn/adapters/sql.go:18) to generate DML
-3. Prints SQL to console using [`printSQLToConsole()`](internal/apps/mybuddy/commands/txn.go:80)
+To resolve this, we must manually inject the AuthorisationID from Payment Core into the Transfer table and reject the stuck workflow.
 
-### Existing Infrastructure
+Logic Requirements:
 
-The [`sql_writer.go`](internal/txn/adapters/sql_writer.go) file already provides:
-- [`WriteSQLFiles()`](internal/txn/adapters/sql_writer.go:26) - writes SQL statements to fixed filenames:
-  - `PC_Deploy.sql`, `PC_Rollback.sql`
-  - `PE_Deploy.sql`, `PE_Rollback.sql`
-  - `PPE_Deploy.sql`, `PPE_Rollback.sql`
-  - `RPP_Deploy.sql`, `RPP_Rollback.sql`
-- [`ClearSQLFiles()`](internal/txn/adapters/sql_writer.go:11) - removes all existing SQL files
+Identify Auth ID: Extract internal_auth.tx_id from the Payment Core status (e.g., ef8a3114ccab4c309cd7855270b5f221).
 
-### Flow Diagram
+Update Workflow: Set state to 221 (Manual Reject).
 
-```mermaid
-flowchart TD
-    subgraph Current_Batch_Flow
-        A[Read File] --> B[Query Transactions]
-        B --> C[Write Results to File]
-        C --> D[END - No DML Generated]
-    end
+Update Transfer: Inject the AuthorisationID into the JSON properties and preserve the original updated_at timestamp.
 
-    subgraph Expected_Batch_Flow
-        A2[Read File] --> B2[Query Transactions]
-        B2 --> C2[Generate SQL Statements]
-        C2 --> D2[Write Results to File]
-        C2 --> E2[Write SQL to Files]
-        D2 --> F2[END - DML Generated]
-        E2 --> F2
-    end
+Target SQL Output:
 
-    subgraph Single_Txn_Flow
-        A3[Query Transaction] --> B3[Generate SQL Statements]
-        B3 --> C3[Print SQL to Console]
-        C3 --> D3[END - DML Generated]
-    end
-```
+SQL
 
-## Solution
+-- 1. Reset/Reject the Workflow Execution
+UPDATE workflow_execution
+SET state = 221, 
+    attempt = 1, 
+    `data` = JSON_SET(`data`, 
+        '$.StreamMessage', JSON_OBJECT('Status', 'FAILED', 'ErrorCode', "ADAPTER_ERROR", 'ErrorMessage', 'Manual Rejected'),
+        '$.State', 221)
+WHERE run_id = 'D060C5AD-C53F-4CEC-AC60-E3B04AB9DE46' 
+  AND state = 102 
+  AND workflow_id = 'workflow_transfer_payment';
 
-Modify [`ProcessTransactionFile()`](internal/apps/common/batch/processor.go:15) to:
+-- 2. Link the Authorisation ID to the Transfer Table
+UPDATE transfer
+SET properties = JSON_SET(properties, '$.AuthorisationID', 'ef8a3114ccab4c309cd7855270b5f221'),
+    updated_at = '2025-12-26T13:32:25.308547Z' -- PRESERVE ORIGINAL TIMESTAMP
+WHERE id = 228567995;
+3. Root Cause Analysis
+The issue lies in internal/apps/common/batch/processor.go. The batch processing flow calculates the results but never invokes the adapters responsible for converting those results into SQL statements and writing them to disk.
 
-1. Generate SQL statements after collecting results
-2. Write SQL statements to a separate file (e.g., `<input_file>_results_sql.txt`)
+Missing Calls
+adapters.GenerateSQLStatements(results): Converts the analysis into SQL strings.
 
-### Implementation Steps
+adapters.WriteSQLFiles(statements, basePath): Writes those strings to the PE_Deploy.sql, PC_Deploy.sql, etc.
 
-1. **Add SQL Generation Call**
-   - After collecting results, call `adapters.GenerateSQLStatements(results)`
-   - Store the returned `domain.SQLStatements`
+4. Implementation Plan
+Step A: Update Batch Processor
+Modify ProcessTransactionFile in internal/apps/common/batch/processor.go to include the SQL generation logic immediately after writing the text results.
 
-2. **Add SQL Output to Files**
-   - Call existing `adapters.WriteSQLFiles(statements, basePath)` to write SQL to fixed filenames:
-     - `PC_Deploy.sql`, `PC_Rollback.sql`
-     - `PE_Deploy.sql`, `PE_Rollback.sql`
-     - `PPE_Deploy.sql`, `PPE_Rollback.sql`
-     - `RPP_Deploy.sql`, `RPP_Rollback.sql`
-   - The function already handles empty arrays (only creates files for databases with SQL)
+Logical Flow:
 
-3. **Update User Feedback**
-   - Print message indicating batch processing completed
-   - The `WriteSQLFiles()` function already prints which files were created
-   - Handle case where no SQL was generated
+Read File.
 
-### Technical Notes
+Query Transactions (Loop).
 
-- The transfer table UPDATE uses `UpdatedAt` field (not `CreatedAt`) for the `updated_at` column
-- This is already handled correctly in existing `generateTransferUpdateSQL()` function
+Write _results.txt.
 
-### Files to Modify
+[NEW] Generate SQL Statements from Results.
 
-- [`internal/apps/common/batch/processor.go`](internal/apps/common/batch/processor.go) - Add SQL generation and output
+[NEW] Write SQL Files to current directory.
 
-## Test Plan
+Step B: Code Logic (Go)
+You need to inject the following logic into the processor:
 
-1. Run batch processing with `TS-4558.txt`
-2. Verify:
-   - `TS-4558.txt_results.txt` contains transaction status (existing behavior)
-   - `PE_Deploy.sql` contains DML scripts for identified PE cases
-   - Cases like `pe_stuck_at_limit_check_102_4` generate appropriate SQL
+Go
 
+// ... existing code ...
+// After WriteBatchResults(results, outputFilename)
 
-CURRENTLY it still does not work
+// 1. Generate the DML objects
+sqlStatements := adapters.GenerateSQLStatements(results)
 
-still not working frank.nguyen@DBSG-H4M0DVF2C7 buddy % make deploy && mybuddy txn TS-4558.txt
-Building mybuddy with Malaysia environment...
-mybuddy built successfully
-Building sgbuddy with Singapore environment...
-sgbuddy built successfully
-Building and deploying binaries...
-Building mybuddy with Malaysia environment...
-mybuddy built successfully
-Building sgbuddy with Singapore environment...
-sgbuddy built successfully
-Deployed to /Users/frank.nguyen/bin
-You can now use 'mybuddy' and 'sgbuddy' commands from anywhere.
-[MY] Processing batch file: TS-4558.txt
-[MY] Found 4 transaction IDs to process
-[MY] Processing 1/4: 253c9e27c69f465bbeed564eb16a4f0e
-[MY] Processing 2/4: 8d69bd2672a041c78d2c18784f83d8eb
-[MY] Processing 3/4: 198fe80766cb48b4aca3cf8a38f5baa5
-[MY] Processing 4/4: 90a8976b531446be8e00d42f02ff2d0d
-[MY] 
-Writing batch results to: TS-4558.txt_results.txt
-[MY] Batch processing completed. Results written to TS-4558.txt_results.txt
-frank.nguyen@DBSG-H4M0DVF2C7 buddy % ls *.sql
-zsh: no matches found: *.sql
-frank.nguyen@DBSG-H4M0DVF2C7 buddy %
+// 2. Clear previous SQL files to avoid appending to old runs
+adapters.ClearSQLFiles()
 
-I see no sql files are generated
+// 3. Write the new SQL files
+// Note: WriteSQLFiles internally handles separating PE, PC, RPP, etc.
+filesCreated, err := adapters.WriteSQLFiles(sqlStatements, ".")
+if err != nil {
+    fmt.Printf("Error writing SQL files: %v\n", err)
+} else {
+    if len(filesCreated) > 0 {
+        fmt.Printf("SQL DML files generated: %v\n", filesCreated)
+    } else {
+        fmt.Println("No SQL fixes required for these transactions.")
+    }
+}
+Step C: Update SOP Adapter
+Ensure the adapter handling pe_stuck_at_limit_check_102_4 correctly implements the logic to fetch the AuthorisationID and format the Transfer table update.
+
+Logic:
+
+Check if PaymentCore.InternalAuth.Status == "SUCCESS".
+
+Capture PaymentCore.InternalAuth.TxID.
+
+Generate UPDATE transfer statement using JSON_SET with the captured ID.
+
+Ensure the WHERE clause uses the Transfer ID.
+
+Ensure updated_at is explicitly set to the current DB value (to prevent auto-update behavior from changing it).
+
+5. Verification Checklist
+To confirm the fix works, run the following:
+
+Rebuild: make deploy
+
+Run Batch: mybuddy txn TS-4558.txt
+
+Check Console: Look for "SQL DML files generated: [...]"
+
+Verify Files: cat PE_Deploy.sql
+
+Verify Content: Ensure the UPDATE transfer statement contains the correct ef8a... ID and updated_at.
