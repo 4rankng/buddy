@@ -1,4 +1,4 @@
-package mybuddy
+package sgbuddy
 
 import (
 	"encoding/json"
@@ -78,8 +78,8 @@ func NewDoormanCreateDMLCmd(appCtx *common.Context, clients *di.ClientSet) *cobr
 				os.Exit(1)
 			}
 
-			// Construct ticket URL (hardcoded for Malaysia environment)
-			ticketURL := fmt.Sprintf("https://doorman.infra.prd.g-bank.app/rds/dml/%s", ticketID)
+			// Construct ticket URL (hardcoded for Singapore environment)
+			ticketURL := fmt.Sprintf("https://doorman.sgbank.pr/rds/dml/%s", ticketID)
 
 			logger.Info("Ticket created successfully!")
 			logger.Info("Ticket ID: %s", ticketID)
@@ -88,7 +88,7 @@ func NewDoormanCreateDMLCmd(appCtx *common.Context, clients *di.ClientSet) *cobr
 	}
 
 	// Define flags
-	cmd.Flags().StringVarP(&serviceName, "service", "s", "", "Service name (payment_engine, payment_core, fast_adapter, rpp_adapter, partnerpay_engine)")
+	cmd.Flags().StringVarP(&serviceName, "service", "s", "", "Service name (payment_engine, payment_core, fast_adapter, partnerpay_engine)")
 	cmd.Flags().StringVarP(&originalQuery, "original", "o", "", "Original DML query")
 	cmd.Flags().StringVarP(&rollbackQuery, "rollback", "r", "", "Rollback query")
 	cmd.Flags().StringVarP(&note, "note", "n", "", "Note/description for the ticket")
@@ -140,8 +140,6 @@ func NewDoormanQueryCmd(appCtx *common.Context, clients *di.ClientSet) *cobra.Co
 				rows, err = clients.Doorman.QueryPaymentCore(query)
 			case "fast_adapter":
 				rows, err = clients.Doorman.QueryFastAdapter(query)
-			case "rpp_adapter":
-				rows, err = clients.Doorman.QueryRppAdapter(query)
 			case "partnerpay_engine":
 				rows, err = clients.Doorman.QueryPartnerpayEngine(query)
 			default:
@@ -165,7 +163,7 @@ func NewDoormanQueryCmd(appCtx *common.Context, clients *di.ClientSet) *cobra.Co
 	}
 
 	// Define flags
-	cmd.Flags().StringVarP(&serviceName, "service", "s", "", "Service name (payment_engine, payment_core, fast_adapter, rpp_adapter, partnerpay_engine)")
+	cmd.Flags().StringVarP(&serviceName, "service", "s", "", "Service name (payment_engine, payment_core, fast_adapter, partnerpay_engine)")
 	cmd.Flags().StringVarP(&query, "query", "q", "", "SQL query to execute")
 	cmd.Flags().StringVarP(&format, "format", "f", "table", "Output format (table, json)")
 
