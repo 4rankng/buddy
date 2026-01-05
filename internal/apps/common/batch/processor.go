@@ -9,6 +9,8 @@ import (
 	"buddy/internal/txn/adapters"
 	"buddy/internal/txn/domain"
 	"buddy/internal/txn/utils"
+
+	mybuddy "buddy/internal/apps/mybuddy"
 )
 
 // ProcessTransactionFile processes a file containing multiple transaction IDs
@@ -125,6 +127,9 @@ func ProcessTransactionFile(appCtx *common.Context, clients *di.ClientSet, fileP
 		} else {
 			fmt.Printf("%sNo SQL fixes required for these transactions.\n", appCtx.GetPrefix())
 		}
+
+		// Prompt to create Doorman DML tickets for all services combined
+		mybuddy.PromptForDoormanTicket(appCtx, clients, statements)
 	}
 }
 
