@@ -53,6 +53,9 @@ func ProcessTransactionFile(appCtx *common.Context, clients *di.ClientSet, fileP
 			fmt.Printf("%sBatch processing completed. Results written to %s\n", appCtx.GetPrefix(), outputPath)
 		}
 
+		// Clear previous SQL files to avoid appending to old runs
+		adapters.ClearSQLFiles()
+
 		// Generate SQL statements
 		statements := adapters.GenerateSQLStatements(results)
 
@@ -94,8 +97,17 @@ func ProcessTransactionFile(appCtx *common.Context, clients *di.ClientSet, fileP
 		fmt.Println() // blank line for readability
 
 		// Write SQL to database-specific files
-		if err := adapters.WriteSQLFiles(statements, filePath); err != nil {
+		filesCreated, err := adapters.WriteSQLFiles(statements, filePath)
+		if err != nil {
 			fmt.Printf("%sError writing SQL files: %v\n", appCtx.GetPrefix(), err)
+			return
+		}
+
+		// Display generated files
+		if len(filesCreated) > 0 {
+			fmt.Printf("%sSQL DML files generated: %v\n", appCtx.GetPrefix(), filesCreated)
+		} else {
+			fmt.Printf("%sNo SQL fixes required for these transactions.\n", appCtx.GetPrefix())
 		}
 	}
 }

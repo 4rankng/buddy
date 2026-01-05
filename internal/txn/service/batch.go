@@ -75,8 +75,17 @@ func processBatchFileWithEnv(filePath, env string) {
 
 	// Write SQL files
 	sqlBasePath := strings.TrimSuffix(outputPath, "-output.txt")
-	if err := adapters.WriteSQLFiles(statements, sqlBasePath); err != nil {
+	filesCreated, err := adapters.WriteSQLFiles(statements, sqlBasePath)
+	if err != nil {
 		fmt.Printf("Error writing SQL files: %v\n", err)
+		return
+	}
+
+	// Display generated files
+	if len(filesCreated) > 0 {
+		fmt.Printf("SQL DML files generated: %v\n", filesCreated)
+	} else {
+		fmt.Printf("No SQL fixes required for these transactions.\n")
 	}
 
 	// Generate and display summary
@@ -127,8 +136,17 @@ func processEcoBatchFileWithEnv(filePath, env string) {
 
 	// Write SQL files
 	sqlBasePath := strings.TrimSuffix(outputPath, "-output.txt")
-	if err := adapters.WriteSQLFiles(statements, sqlBasePath); err != nil {
+	filesCreated, err := adapters.WriteSQLFiles(statements, sqlBasePath)
+	if err != nil {
 		fmt.Printf("Error writing SQL files: %v\n", err)
+		return
+	}
+
+	// Display generated files
+	if len(filesCreated) > 0 {
+		fmt.Printf("SQL DML files generated: %v\n", filesCreated)
+	} else {
+		fmt.Printf("No SQL fixes required for these transactions.\n")
 	}
 
 	// Generate and display summary

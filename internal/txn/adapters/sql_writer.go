@@ -23,64 +23,75 @@ func ClearSQLFiles() {
 }
 
 // WriteSQLFiles writes the SQL statements to database-specific Deploy.sql and Rollback.sql files
-func WriteSQLFiles(statements domain.SQLStatements, basePath string) error {
+// Returns a list of filenames that were successfully created
+func WriteSQLFiles(statements domain.SQLStatements, basePath string) ([]string, error) {
+	var filesCreated []string
+
 	// Write PC files (always overwrite fixed filenames)
 	if len(statements.PCDeployStatements) > 0 {
 		deployPath := "PC_Deploy.sql"
 		if err := WriteSQLFile(deployPath, statements.PCDeployStatements); err != nil {
-			return err
+			return filesCreated, err
 		}
+		filesCreated = append(filesCreated, deployPath)
 	}
 	if len(statements.PCRollbackStatements) > 0 {
 		rollbackPath := "PC_Rollback.sql"
 		if err := WriteSQLFile(rollbackPath, statements.PCRollbackStatements); err != nil {
-			return err
+			return filesCreated, err
 		}
+		filesCreated = append(filesCreated, rollbackPath)
 	}
 
 	// Write PE files (always overwrite fixed filenames)
 	if len(statements.PEDeployStatements) > 0 {
 		deployPath := "PE_Deploy.sql"
 		if err := WriteSQLFile(deployPath, statements.PEDeployStatements); err != nil {
-			return err
+			return filesCreated, err
 		}
+		filesCreated = append(filesCreated, deployPath)
 	}
 	if len(statements.PERollbackStatements) > 0 {
 		rollbackPath := "PE_Rollback.sql"
 		if err := WriteSQLFile(rollbackPath, statements.PERollbackStatements); err != nil {
-			return err
+			return filesCreated, err
 		}
+		filesCreated = append(filesCreated, rollbackPath)
 	}
 
 	// Write PPE files (always overwrite fixed filenames)
 	if len(statements.PPEDeployStatements) > 0 {
 		deployPath := "PPE_Deploy.sql"
 		if err := WriteSQLFile(deployPath, statements.PPEDeployStatements); err != nil {
-			return err
+			return filesCreated, err
 		}
+		filesCreated = append(filesCreated, deployPath)
 	}
 	if len(statements.PPERollbackStatements) > 0 {
 		rollbackPath := "PPE_Rollback.sql"
 		if err := WriteSQLFile(rollbackPath, statements.PPERollbackStatements); err != nil {
-			return err
+			return filesCreated, err
 		}
+		filesCreated = append(filesCreated, rollbackPath)
 	}
 
 	// Write RPP files (always overwrite fixed filenames)
 	if len(statements.RPPDeployStatements) > 0 {
 		deployPath := "RPP_Deploy.sql"
 		if err := WriteSQLFile(deployPath, statements.RPPDeployStatements); err != nil {
-			return err
+			return filesCreated, err
 		}
+		filesCreated = append(filesCreated, deployPath)
 	}
 	if len(statements.RPPRollbackStatements) > 0 {
 		rollbackPath := "RPP_Rollback.sql"
 		if err := WriteSQLFile(rollbackPath, statements.RPPRollbackStatements); err != nil {
-			return err
+			return filesCreated, err
 		}
+		filesCreated = append(filesCreated, rollbackPath)
 	}
 
-	return nil
+	return filesCreated, nil
 }
 
 // WriteSQLFile writes SQL statements to a file

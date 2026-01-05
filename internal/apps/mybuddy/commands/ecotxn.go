@@ -74,10 +74,13 @@ func processEcoTransaction(appCtx *common.Context, clients *di.ClientSet, runID 
 		}
 
 		// Write SQL files to current directory
-		if err := adapters.WriteSQLFiles(statements, ""); err != nil {
+		filesCreated, err := adapters.WriteSQLFiles(statements, "")
+		if err != nil {
 			fmt.Printf("\nWarning: Failed to write DML files: %v\n", err)
+		} else if len(filesCreated) > 0 {
+			fmt.Printf("\nDML files written successfully for case: %s: %v\n", result.CaseType, filesCreated)
 		} else {
-			fmt.Printf("\nDML files written successfully for case: %s\n", result.CaseType)
+			fmt.Printf("\nNo DML files generated for case: %s\n", result.CaseType)
 		}
 
 		// Prompt to create Doorman DML tickets
