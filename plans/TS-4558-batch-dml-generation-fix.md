@@ -1,3 +1,7 @@
+
+why I dont see PE_Rollback.sql created???? We need to have a pair of deploy and rollback. and also for pe_stuck_at_limit_check_102_4 we need to update workflow_execution
+/Users/frank.nguyen/Documents/buddy/internal/txn/adapters/sql_templates_pe_basic.go
+
 Issue: Batch Processing Missing DML Generation (TS-4558)
 1. Problem Statement
 The mybuddy tool successfully queries transaction statuses in batch mode and writes the analysis to a text file. However, it fails to generate the corresponding SQL DML scripts (*.sql files) required to fix the identified issues.
