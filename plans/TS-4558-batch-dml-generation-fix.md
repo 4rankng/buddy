@@ -1,3 +1,47 @@
+Here's what gets generated for pe_stuck_at_limit_check_102_4:
+
+  Deploy Script (PE_Deploy.sql)
+
+  The deploy script generates TWO SQL statements:
+
+  1. Update workflow_execution (from template):
+
+  -- cashout_pe102_reject
+  UPDATE workflow_execution
+  SET  state = 221, attempt = 1, `data` = JSON_SET(
+        `data`, '$.StreamMessage',
+        JSON_OBJECT(
+           'Status', 'FAILED',
+           'ErrorCode', "ADAPTER_ERROR",
+           'ErrorMessage', 'Manual Rejected'
+        ),
+     '$.State', 221,
+     '$.Properties.AuthorisationID', 'ef8a3114ccab4c309cd7855270b5f221')
+  WHERE run_id IN ('D060C5AD-C53F-4CEC-AC60-E3B04AB9DE46')
+    AND state = 102
+    AND workflow_id = 'workflow_transfer_payment';
+
+  2. Update transfer table (auto-generated):
+
+  -- Update transfer table with AuthorisationID from payment-core internal_auth
+  UPDATE transfer
+  SET properties = JSON_SET(properties, '$.AuthorisationID', 'ef8a3114ccab4c309cd7855270b5f221'),
+      updated_at = '2025-12-26T13:32:25.308547Z'
+  WHERE transaction_id = 'TX123456';
+
+  Rollback Script (PE_Rollback.sql)
+
+  -- cashout_pe102_reject_rollback
+  UPDATE workflow_execution
+  SET  state = 102, attempt = 4, `data` = JSON_SET(
+        `data`, '$.StreamMessage',
+        JSON_OBJECT(),
+     '$.State', 102,
+     '$.Properties.AuthorisationID', NULL)
+  WHERE run_id IN (
+     'D060C5AD-C53F-4CEC-AC60-E3B04AB9DE46'
+  );
+
 
 why I dont see PE_Rollback.sql created???? We need to have a pair of deploy and rollback. and also for pe_stuck_at_limit_check_102_4 we need to update workflow_execution
 /Users/frank.nguyen/Documents/buddy/internal/txn/adapters/sql_templates_pe_basic.go
@@ -33,13 +77,13 @@ SQL
 
 -- 1. Reset/Reject the Workflow Execution
 UPDATE workflow_execution
-SET state = 221, 
-    attempt = 1, 
-    `data` = JSON_SET(`data`, 
+SET state = 221,
+    attempt = 1,
+    `data` = JSON_SET(`data`,
         '$.StreamMessage', JSON_OBJECT('Status', 'FAILED', 'ErrorCode', "ADAPTER_ERROR", 'ErrorMessage', 'Manual Rejected'),
         '$.State', 221)
-WHERE run_id = 'D060C5AD-C53F-4CEC-AC60-E3B04AB9DE46' 
-  AND state = 102 
+WHERE run_id = 'D060C5AD-C53F-4CEC-AC60-E3B04AB9DE46'
+  AND state = 102
   AND workflow_id = 'workflow_transfer_payment';
 
 -- 2. Link the Authorisation ID to the Transfer Table
