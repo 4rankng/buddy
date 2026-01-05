@@ -52,7 +52,7 @@ Buddy uses build-time environment injection to produce two region-specific binar
          Build-time ldflags:        Build-time ldflags:
          - JIRA_DOMAIN               - JIRA_DOMAIN
          - JIRA_USERNAME             - JIRA_USERNAME
-         - DOORMAN_*                 (no Doorman)
+         - DOORMAN_*                 - DOORMAN_* (for Pairing Svc)
          - env= "my"                 - env= "sg"
 ```
 
@@ -95,10 +95,10 @@ This ensures:
         │            │            │            │            │
 ┌───────┴────────────┴────────────┴────────────┴────────────┴──────────┐
 │                      Dependency Injection Container                  │
-│  ┌──────────┐ ┌──────────┐ ┌──────────────────────────────────────┐  │
-│  │  Jira    │ │ Doorman  │ │   Transaction Query Service          │  │
-│  │  Client  │ │  Client  │ │  ┌─────────────────────────────┐    │  │
-│  └──────────┘ └──────────┘ │  │  Population Strategies      │    │  │
+│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────────────────────────────────┐  │
+│  │  Jira    │ │ Doorman  │ │ Datadog  │ │   Transaction Query Service          │  │
+│  │  Client  │ │  Client  │ │  Client  │ │  ┌─────────────────────────────┐    │  │
+│  └──────────┘ └──────────┘ └──────────┘ │  │  Population Strategies      │    │  │
 │                              │  └─────────────────────────────┘    │  │
 │                              │  ┌─────────────────────────────┐    │  │
 │                              │  │  DB Adapters (PE/PC/RPP/    │    │  │
@@ -411,7 +411,31 @@ type JiraInterface interface {
 
 ---
 
-### 5. Doorman Integration
+### 5. Datadog Integration
+
+**Location**: `internal/clients/datadog/`
+
+**Purpose**: Query and aggregate Datadog logs, and submit log events directly from the CLI.
+
+**Features:**
+- Official Datadog SDK integration (v2)
+- Log searching with ISO8601 window support
+- Log aggregation (count, avg, timeseries)
+- Log event submission
+
+#### API Client
+
+```go
+type DatadogInterface interface {
+    SearchLogs(params LogSearchParams) (*LogSearchResponse, error)
+    AggregateLogs(request datadogV2.LogsAggregateRequest) (*datadogV2.LogsAggregateResponse, *http.Response, error)
+    SubmitLogs(body []datadogV2.HTTPLogItem, opts *datadogV2.SubmitLogOptionalParameters) (any, *http.Response, error)
+}
+```
+
+---
+
+### 6. Doorman Integration
 
 **Location**: `internal/clients/doorman/` (Malaysia only)
 
@@ -446,7 +470,44 @@ If yes, automatically creates ticket with pre-filled SQL.
 
 ---
 
-### 6. Batch Processing
+### 7. PayNow Operations (Singapore only)
+
+**Location**: `internal/apps/sgbuddy/commands/paynow.go`
+
+**Purpose**: Handle PayNow specific operations like unlinking accounts in the Pairing Service.
+
+**Features:**
+- **Pairing Service Query**: Uses the Doorman client to query `prod_pairing_service_db01` for linked accounts.
+- **CURL Generation**: Generates manual deregistration `curl` commands with unique idempotency keys.
+- **SHIPRM Ticket Creation**: Directly creates Jira tickets in the `SHIPRM` project with custom fields (System Change) and ADF-formatted comments.
+
+#### Workflow
+
+```
+sgbuddy paynow unlink --safe-id 123456 --shiprm
+       │
+       ▼
+┌─────────────────┐
+│ Doorman Query   │─────► [No link? Exit]
+│ (Pairing Svc)   │
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│ Generate CURL   │
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│ Jira SHIPRM     │
+│ - Create Ticket │
+│ - Add Comment   │
+└─────────────────┘
+```
+
+---
+
+### 8. Batch Processing
 
 **Location**: `internal/apps/common/batch/`
 
@@ -517,6 +578,7 @@ UPDATE ...
 type Container struct {
     doormanClient doorman.DoormanInterface
     jiraClient    jira.JiraInterface
+    datadogClient datadog.DatadogInterface
     txnService    *service.TransactionQueryService
     mu            sync.RWMutex
 }
@@ -724,6 +786,13 @@ sgbuddy ecotxn <run_id>
 sgbuddy jira list
 sgbuddy jira view TSE-1234
 sgbuddy jira search "payment"
+
+# PayNow operations
+sgbuddy paynow unlink --safe-id 12345 --shiprm
+
+# Datadog utilities
+sgbuddy dd search "service:payment error" --last 3
+sgbuddy dd aggregate --query "service:payment" --aggregation count
 ```
 
 ### Common Workflows
@@ -1353,6 +1422,6 @@ The MCP server opportunity represents the next evolution: from CLI tool to AI co
 
 ---
 
-**Document Version**: 1.0
-**Last Updated**: 2025-01-05
+**Document Version**: 1.1
+**Last Updated**: 2026-01-05
 **Author**: G-Bank Payment Operations Team
