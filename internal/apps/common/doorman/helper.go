@@ -2,11 +2,25 @@ package doorman
 
 import (
 	"buddy/internal/clients/doorman"
+	"buddy/internal/txn/domain"
 	"fmt"
 
 	"github.com/manifoldco/promptui"
 	"strings"
 )
+
+// PromptForDoormanTicket prompts user to create Doorman DML tickets for all services
+// This function is shared between mybuddy and sgbuddy to avoid circular dependencies
+func PromptForDoormanTicket(doormanClient doorman.DoormanInterface, statements domain.SQLStatements) {
+	if doormanClient == nil {
+		return
+	}
+
+	ProcessServiceDML(doormanClient, "payment_core", statements.PCDeployStatements, statements.PCRollbackStatements)
+	ProcessServiceDML(doormanClient, "rpp_adapter", statements.RPPDeployStatements, statements.RPPRollbackStatements)
+	ProcessServiceDML(doormanClient, "payment_engine", statements.PEDeployStatements, statements.PERollbackStatements)
+	ProcessServiceDML(doormanClient, "partnerpay_engine", statements.PPEDeployStatements, statements.PPERollbackStatements)
+}
 
 // ProcessServiceDML prompts and creates a Doorman ticket for a single service
 func ProcessServiceDML(doormanClient doorman.DoormanInterface, serviceName string, deployStmts, rollbackStmts []string) {

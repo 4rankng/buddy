@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"fmt"
 	"os"
-	"strings"
 )
 
 // ClearSQLFiles removes all existing SQL files before batch processing
@@ -183,81 +182,6 @@ func validateDeployRollbackPairs(statements domain.SQLStatements) error {
 	if len(missingRollbacks) > 0 {
 		fmt.Printf("[ERROR] Deploy/rollback validation failed: missing rollback statements for databases: %v\n", missingRollbacks)
 		return fmt.Errorf("missing rollback statements for databases: %v", missingRollbacks)
-	}
-
-	return nil
-}
-
-// validateSQLContent performs content validation on generated SQL statements
-func validateSQLContent(statements domain.SQLStatements) error {
-	// Validate all statement arrays
-	allStatements := [][]string{
-		statements.PCDeployStatements,
-		statements.PCRollbackStatements,
-		statements.PEDeployStatements,
-		statements.PERollbackStatements,
-		statements.PPEDeployStatements,
-		statements.PPERollbackStatements,
-		statements.RPPDeployStatements,
-		statements.RPPRollbackStatements,
-	}
-
-	for _, stmtArray := range allStatements {
-		for _, stmt := range stmtArray {
-			if err := validateIndividualStatement(stmt); err != nil {
-				return fmt.Errorf("statement validation failed: %w", err)
-			}
-		}
-	}
-
-	return nil
-}
-
-// validateIndividualStatement validates a single SQL statement for correctness
-func validateIndividualStatement(stmt string) error {
-	stmtUpper := strings.ToUpper(stmt)
-
-	// Ensure UPDATE statements have WHERE clauses
-	if strings.Contains(stmtUpper, "UPDATE") && !strings.Contains(stmtUpper, "WHERE") {
-		return fmt.Errorf("UPDATE statement missing WHERE clause: %s", stmt)
-	}
-
-	// Ensure proper transaction targeting
-	if strings.Contains(stmtUpper, "UPDATE WORKFLOW_EXECUTION") {
-		if !strings.Contains(stmtUpper, "RUN_ID") {
-			return fmt.Errorf("workflow_execution UPDATE missing run_id targeting: %s", stmt)
-		}
-	}
-
-	if strings.Contains(stmtUpper, "UPDATE TRANSFER") {
-		if !strings.Contains(stmtUpper, "TRANSACTION_ID") {
-			return fmt.Errorf("transfer UPDATE missing transaction_id targeting: %s", stmt)
-		}
-	}
-
-	// Validate JSON operations
-	if strings.Contains(stmtUpper, "JSON_SET") && !strings.Contains(stmt, "'$.") {
-		return fmt.Errorf("JSON_SET operation missing proper JSON path: %s", stmt)
-	}
-
-	if strings.Contains(stmtUpper, "JSON_REMOVE") && !strings.Contains(stmt, "'$.") {
-		return fmt.Errorf("JSON_REMOVE operation missing proper JSON path: %s", stmt)
-	}
-
-	// Validate transfer table operations preserve data integrity
-	if strings.Contains(stmtUpper, "UPDATE TRANSFER") {
-		if strings.Contains(stmtUpper, "JSON_SET") {
-			// Deploy operations should preserve updated_at timestamp
-			if !strings.Contains(stmtUpper, "UPDATED_AT =") {
-				return fmt.Errorf("transfer UPDATE with JSON_SET should preserve updated_at timestamp: %s", stmt)
-			}
-		}
-		if strings.Contains(stmtUpper, "JSON_REMOVE") {
-			// Rollback operations should also preserve updated_at timestamp
-			if !strings.Contains(stmtUpper, "UPDATED_AT =") {
-				return fmt.Errorf("transfer UPDATE with JSON_REMOVE should preserve updated_at timestamp: %s", stmt)
-			}
-		}
 	}
 
 	return nil

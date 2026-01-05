@@ -5,12 +5,11 @@ import (
 	"os"
 
 	"buddy/internal/apps/common"
+	"buddy/internal/apps/common/doorman"
 	"buddy/internal/di"
 	"buddy/internal/txn/adapters"
 	"buddy/internal/txn/domain"
 	"buddy/internal/txn/utils"
-
-	mybuddy "buddy/internal/apps/mybuddy"
 )
 
 // ProcessTransactionFile processes a file containing multiple transaction IDs
@@ -129,7 +128,7 @@ func ProcessTransactionFile(appCtx *common.Context, clients *di.ClientSet, fileP
 		}
 
 		// Prompt to create Doorman DML tickets for all services combined
-		mybuddy.PromptForDoormanTicket(appCtx, clients, statements)
+		doorman.PromptForDoormanTicket(clients.Doorman, statements)
 	}
 }
 

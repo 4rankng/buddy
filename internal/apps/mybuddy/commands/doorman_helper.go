@@ -9,13 +9,7 @@ import (
 )
 
 // PromptForDoormanTicket prompts user to create Doorman DML tickets for all services
+// Delegates to the common implementation to avoid code duplication
 func PromptForDoormanTicket(appCtx *common.Context, clients *di.ClientSet, statements domain.SQLStatements) {
-	if clients.Doorman == nil {
-		return
-	}
-
-	commondoorman.ProcessServiceDML(clients.Doorman, "payment_core", statements.PCDeployStatements, statements.PCRollbackStatements)
-	commondoorman.ProcessServiceDML(clients.Doorman, "rpp_adapter", statements.RPPDeployStatements, statements.RPPRollbackStatements)
-	commondoorman.ProcessServiceDML(clients.Doorman, "payment_engine", statements.PEDeployStatements, statements.PERollbackStatements)
-	commondoorman.ProcessServiceDML(clients.Doorman, "partnerpay_engine", statements.PPEDeployStatements, statements.PPERollbackStatements)
+	commondoorman.PromptForDoormanTicket(clients.Doorman, statements)
 }

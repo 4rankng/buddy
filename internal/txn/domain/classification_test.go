@@ -9,9 +9,9 @@ import (
 )
 
 func init() {
-	// Initialize config loader for tests with a test config directory
-	// This will fail gracefully if config files don't exist
-	_ = config.InitializeConfigLoader("../../../config")
+	// Initialize config loader for tests
+	// Config files are embedded at build time, no path needed
+	_ = config.InitializeConfigLoader()
 }
 
 func TestRppE2EIDPattern(t *testing.T) {

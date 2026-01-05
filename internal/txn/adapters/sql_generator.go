@@ -59,11 +59,6 @@ func getInternalPaymentFlowRunID(result domain.TransactionResult) string {
 	return ""
 }
 
-// countPlaceholders counts %s occurrences in a template
-func countPlaceholders(template string) int {
-	return strings.Count(template, "%s")
-}
-
 // formatParameter formats a parameter value based on its type for SQL usage
 func formatParameter(info domain.ParamInfo) string {
 	switch info.Type {
@@ -75,29 +70,6 @@ func formatParameter(info domain.ParamInfo) string {
 		// Default to string formatting for unknown types
 		return fmt.Sprintf("'%v'", info.Value)
 	}
-}
-
-// buildSQLFromTemplate builds SQL from a template and parameters using positional substitution
-func buildSQLFromTemplate(template string, params []domain.ParamInfo) (string, error) {
-	// Format all parameters
-	formattedParams := make([]interface{}, len(params))
-	for i, param := range params {
-		formattedParams[i] = formatParameter(param)
-	}
-
-	// Count placeholders
-	placeholderCount := strings.Count(template, "%s")
-
-	// If we have fewer parameters than placeholders, add missing placeholders
-	if len(formattedParams) < placeholderCount {
-		for i := len(formattedParams); i < placeholderCount; i++ {
-			formattedParams = append(formattedParams, "!MISSING")
-		}
-	}
-
-	// Substitute parameters in template
-	sql := fmt.Sprintf(template, formattedParams...)
-	return sql, nil
 }
 
 // getParamValue finds and returns the value of a parameter by name
