@@ -37,23 +37,33 @@ Buddy consolidates operational knowledge into a single CLI that:
 
 Buddy uses build-time environment injection to produce two region-specific binaries from a single codebase:
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    Go Codebase                               │
-│                  (shared implementation)                      │
-└─────────────────────────────────────────────────────────────┘
-                              │
-                ┌─────────────┴─────────────┐
-                │                           │
-         ┌──────▼──────┐             ┌──────▼──────┐
-         │  mybuddy    │             │  sgbuddy    │
-         │  (Malaysia) │             │ (Singapore) │
-         └─────────────┘             └─────────────┘
-         Build-time ldflags:        Build-time ldflags:
-         - JIRA_DOMAIN               - JIRA_DOMAIN
-         - JIRA_USERNAME             - JIRA_USERNAME
-         - DOORMAN_*                 - DOORMAN_* (for Pairing Svc)
-         - env= "my"                 - env= "sg"
+```mermaid
+graph TD
+    subgraph SharedCodebase ["Go Codebase (shared implementation)"]
+        direction TB
+    end
+    
+    SharedCodebase -->|Build-time ldflags| MY["mybuddy (Malaysia)"]
+    SharedCodebase -->|Build-time ldflags| SG["sgbuddy (Singapore)"]
+    
+    subgraph MY_Info ["mybuddy Configuration"]
+        direction TB
+        M1["- JIRA_DOMAIN"]
+        M2["- JIRA_USERNAME"]
+        M3["- DOORMAN_*"]
+        M4["- env= 'my'"]
+    end
+    
+    subgraph SG_Info ["sgbuddy Configuration"]
+        direction TB
+        S1["- JIRA_DOMAIN"]
+        S2["- JIRA_USERNAME"]
+        S3["- DOORMAN_* (for Pairing Svc)"]
+        S4["- env= 'sg'"]
+    end
+    
+    MY --- MY_Info
+    SG --- SG_Info
 ```
 
 **Why this design?**
@@ -85,36 +95,39 @@ This ensures:
 
 ### Component Architecture
 
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│                          CLI Layer (Cobra)                          │
-│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐   │
-│  │   txn    │ │   rpp    │ │ ecotxn   │ │   jira   │ │ doorman  │   │
-│  └────┬─────┘ └────┬─────┘ └────┬─────┘ └────┬─────┘ └────┬─────┘   │
-└───────┼────────────┼────────────┼────────────┼────────────┼──────────┘
-        │            │            │            │            │
-┌───────┴────────────┴────────────┴────────────┴────────────┴──────────┐
-│                      Dependency Injection Container                  │
-│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────────────────────────────────┐  │
-│  │  Jira    │ │ Doorman  │ │ Datadog  │ │   Transaction Query Service          │  │
-│  │  Client  │ │  Client  │ │  Client  │ │  ┌─────────────────────────────┐    │  │
-│  └──────────┘ └──────────┘ └──────────┘ │  │  Population Strategies      │    │  │
-│                              │  └─────────────────────────────┘    │  │
-│                              │  ┌─────────────────────────────┐    │  │
-│                              │  │  DB Adapters (PE/PC/RPP/    │    │  │
-│                              │  │              Fast/PPE)       │    │  │
-│                              │  └─────────────────────────────┘    │  │
-│                              └──────────────────────────────────────┘  │
-└─────────────────────────────────────────────────────────────────────┘
-                                    │
-        ┌───────────────────────────┼───────────────────────────┐
-        │                           │                           │
-┌───────▼──────────┐     ┌─────────▼─────────┐     ┌──────────▼────────┐
-│  Output Adapters │     │  SOP Repository   │     │   External Systems│
-│  - SQL Generator │     │  - Case Detection │     │  - JIRA REST API  │
-│  - File Writers  │◄────┤  - Classification │────►│  - Doorman API    │
-│  - Terminal UI   │     │  - SQL Templates  │     │  - Databases      │
-└──────────────────┘     └───────────────────┘     └───────────────────┘
+```mermaid
+sequenceDiagram
+    autonumber
+    participant U as User
+    participant CLI as CLI Layer (Cobra)
+    participant DI as DI Container
+    participant TQS as Transaction Query Service
+    participant Adapters as DB Adapters
+    participant SOP as SOP Repository
+    participant Output as Output Adapters
+    participant Ext as External Systems
+
+    U->>CLI: Execute Command (e.g., txn, rpp, jira)
+    CLI->>DI: Request Dependencies
+    DI-->>CLI: Client Instances
+    
+    CLI->>TQS: Query & Process
+    activate TQS
+    TQS->>Adapters: Fetch Data (PE/PC/RPP/etc.)
+    Adapters->>Ext: SQL Queries
+    Ext-->>Adapters: Results
+    Adapters-->>TQS: Aggregated Results
+    
+    TQS->>SOP: Classify Case
+    SOP-->>TQS: Case Type & Logic
+    TQS-->>CLI: Result Object
+    deactivate TQS
+    
+    CLI->>Output: Generate Output
+    Output->>SOP: Get SQL Templates
+    SOP-->>Output: Templates
+    Output-->>CLI: Final SQL/UI
+    CLI->>U: Display Results
 ```
 
 ### Design Patterns Used
@@ -140,54 +153,31 @@ This ensures:
 
 #### Flow
 
-```
-User Input (TXN ID / E2E ID / Batch)
-              │
-              ▼
-    ┌─────────────────┐
-    │ Input Parser    │
-    │ - Detect format │
-    │ - Clean data    │
-    └────────┬────────┘
-             │
-      ┌──────┴──────┐
-      │             │
-      ▼             ▼
-Regular TXN    Eco TXN
-(PE/PC/RPP/   (PPE
- FAST)         only)
-      │             │
-      └──────┬──────┘
-             │
-    ┌────────▼─────────┐
-    │  DB Adapters     │
-    │  - PE: transfers │
-    │  - PC: internal  │
-    │  - PC: external  │
-    │  - RPP: response │
-    │  - FAST: txn     │
-    │  - PPE: workflow │
-    └────────┬─────────┘
-             │
-    ┌────────▼─────────┐
-    │ Aggregate Result │
-    │ - Transaction    │
-    │   info           │
-    │ - States         │
-    │ - Errors         │
-    └────────┬─────────┘
-             │
-    ┌────────▼─────────┐
-    │ SOP Repository   │
-    │ - Classify case  │
-    └────────┬─────────┘
-             │
-    ┌────────▼─────────┐
-    │ Output Adapters  │
-    │ - Generate SQL   │
-    │ - Write files    │
-    │ - Terminal UI    │
-    └─────────────────┘
+```mermaid
+graph TD
+    Input[User Input: TXN ID/E2E ID/Batch] --> Parser[Input Parser]
+    Parser --> Format{Detect Format}
+    Format -->|Regular| Regular[Regular TXN Service]
+    Format -->|Eco| Eco[Eco TXN Service]
+    
+    Regular --> Adapters[DB Adapters]
+    Eco --> Adapters
+    
+    Adapters --> PE[PE: transfers]
+    Adapters --> PC_I[PC: internal]
+    Adapters --> PC_E[PC: external]
+    Adapters --> RPP[RPP: response]
+    Adapters --> FAST[FAST: txn]
+    Adapters --> PPE[PPE: workflow]
+    
+    PE & PC_I & PC_E & RPP & FAST & PPE --> Aggregate[Aggregate Result]
+    
+    Aggregate --> SOP[SOP Repository: Classify Case]
+    SOP --> Output[Output Adapters]
+    
+    Output --> SQL[Generate SQL]
+    Output --> Files[Write Files]
+    Output --> UI[Terminal UI]
 ```
 
 #### Key Interface
@@ -269,42 +259,22 @@ if pcInfo.State == 201 && pcInfo.Attempt == 0 &&
 
 #### Process
 
-```
-    ┌─────────────────┐
-    │ Case Type       │
-    │ (e.g., RPP 210) │
-    └────────┬────────┘
-             │
-    ┌────────▼─────────┐
-    │ SQL Template     │
-    │ (parameterized)  │
-    └────────┬─────────┘
-             │
-    ┌────────▼─────────┐
-    │ Extract Params   │
-    │ - TransID        │
-    │ - E2E ID         │
-    │ - From State     │
-    │ - To State       │
-    └────────┬─────────┘
-             │
-    ┌────────▼─────────┐
-    │ Substitute       │
-    │ - Quote strings  │
-    │ - Format ints    │
-    └────────┬─────────┘
-             │
-    ┌────────▼─────────┐
-    │ SQL Statements   │
-    │ ┌──────────────┐ │
-    │ │ PE Deploy    │ │
-    │ │ PE Rollback  │ │
-    │ │ PC Deploy    │ │
-    │ │ PC Rollback  │ │
-    │ │ RPP Deploy   │ │
-    │ │ RPP Rollback │ │
-    │ └──────────────┘ │
-    └─────────────────┘
+```mermaid
+graph TD
+    Case[Case Type: e.g., RPP 210] --> Template[Fetch SQL Template]
+    Template --> Params[Extract Parameters]
+    Params --> TransID[Transaction ID]
+    Params --> E2EID[E2E ID]
+    Params --> States[From/To States]
+    
+    TransID & E2EID & States --> Substitute[Substitute & Format]
+    
+    Substitute --> PE_D[PE Deploy]
+    Substitute --> PE_R[PE Rollback]
+    Substitute --> PC_D[PC Deploy]
+    Substitute --> PC_R[PC Rollback]
+    Substitute --> RPP_D[RPP Deploy]
+    Substitute --> RPP_R[RPP Rollback]
 ```
 
 #### Output Structure
@@ -356,40 +326,15 @@ WHERE workflow_id = 'workflow_transfer_payment'
 
 #### Workflow
 
-```
-mybuddy jira list
-       │
-       ▼
-┌─────────────────┐
-│ Search JQL:     │
-│ assignee = currentUser() AND
-│ status NOT IN (Closed, Completed)
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│ Display Picker  │
-│ 1. TS-1234 ...  │
-│ 2. TS-1235 ...  │
-│ 3. TS-1236 ...  │
-└────────┬────────┘
-         │
-         ▼
-    [User selects]
-         │
-         ▼
-┌─────────────────┐
-│ Show Details:   │
-│ - Summary       │
-│ - Status        │
-│ - Description   │
-│ - Attachments   │
-└────────┬────────┘
-         │
-    ┌────┴────┐
-    ▼         ▼
-Download   Open in
-CSV        Browser
+```mermaid
+graph TD
+    Start[mybuddy jira list] --> Search[Search JQL: Current User, Open Tickets]
+    Search --> Picker[Display TUI Picker]
+    Picker --> Select[User Selects Ticket]
+    Select --> Details[Show Details: Summary, Status, Desc]
+    Details --> Actions{User Action}
+    Actions --> Download[Download CSV]
+    Actions --> Browser[Open in Browser]
 ```
 
 #### API Client
@@ -483,26 +428,13 @@ If yes, automatically creates ticket with pre-filled SQL.
 
 #### Workflow
 
-```
-sgbuddy paynow unlink --safe-id 123456 --shiprm
-       │
-       ▼
-┌─────────────────┐
-│ Doorman Query   │─────► [No link? Exit]
-│ (Pairing Svc)   │
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│ Generate CURL   │
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│ Jira SHIPRM     │
-│ - Create Ticket │
-│ - Add Comment   │
-└─────────────────┘
+```mermaid
+graph TD
+    Start[sgbuddy paynow unlink] --> Query[Doorman Query: Pairing Svc]
+    Query --> Check{Link exists?}
+    Check -->|No| Exit[Exit]
+    Check -->|Yes| CURL[Generate CURL]
+    CURL --> Jira[Jira SHIPRM: Create Ticket & Add Comment]
 ```
 
 ---
@@ -515,37 +447,12 @@ sgbuddy paynow unlink --safe-id 123456 --shiprm
 
 #### Workflow
 
-```
-ids.txt
-───────
-TXN123456789
-TXN123456790
-TXN123456791
-
-mybuddy txn ids.txt
-       │
-       ▼
-┌─────────────────┐
-│ Read & Parse    │
-│ - Clean lines   │
-│ - Deduplicate   │
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│ Process Loop    │
-│ For each ID:    │
-│   - Query DBs   │
-│   - Classify    │
-│   - Generate SQL│
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│ Aggregate Output│
-│ Write:          │
-│ ids_results.txt │
-└─────────────────┘
+```mermaid
+graph TD
+    Start[mybuddy txn ids.txt] --> Read[Read & Parse: Clean, Deduplicate]
+    Read --> Loop[Process Loop: Query DBs, Classify, Generate SQL]
+    Loop --> Aggregate[Aggregate Output]
+    Aggregate --> Write[Write ids_results.txt]
 ```
 
 #### Output Format
@@ -642,21 +549,16 @@ type WorkflowInfo struct {
 
 Payment workflows progress through states:
 
-```
-Initial: 100
-    │
-    ▼
-Processing: 200
-    │
-    ▼
-Partner Processing: 210
-    │
-    ├─► Success: 220
-    │       │
-    │       ▼
-    │   Completed: 400
-    │
-    └─► Failed: 500
+```mermaid
+stateDiagram-v2
+    [*] --> Initial: 100
+    Initial --> Processing: 200
+    Processing --> PartnerProcessing: 210
+    PartnerProcessing --> Success: 220
+    Success --> Completed: 400
+    PartnerProcessing --> Failed: 500
+    Completed --> [*]
+    Failed --> [*]
 ```
 
 **Common stuck states:**
