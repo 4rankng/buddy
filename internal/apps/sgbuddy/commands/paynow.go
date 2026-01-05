@@ -225,7 +225,7 @@ func createShiprmTicket(cfg jira.JiraConfig, title, description, curl string, ch
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != 201 {
 		rb, _ := io.ReadAll(resp.Body)
@@ -279,7 +279,7 @@ func addComment(client *http.Client, baseURL string, cfg jira.JiraConfig, issueK
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != 201 {
 		// Log but don't fail hard if comment fails

@@ -114,7 +114,7 @@ func (c *DatadogClient) SearchLogs(params LogSearchParams) (*LogSearchResponse, 
 
 	resp, httpResp, err := c.logsAPI.ListLogs(c.authCtx, *datadogV2.NewListLogsOptionalParameters().WithBody(*req))
 	if httpResp != nil && httpResp.Body != nil {
-		defer httpResp.Body.Close()
+		defer func() { _ = httpResp.Body.Close() }()
 	}
 	if err != nil {
 		return nil, err
@@ -157,7 +157,7 @@ func (c *DatadogClient) SearchLogs(params LogSearchParams) (*LogSearchResponse, 
 func (c *DatadogClient) AggregateLogs(request datadogV2.LogsAggregateRequest) (*datadogV2.LogsAggregateResponse, *http.Response, error) {
 	resp, httpResp, err := c.logsAPI.AggregateLogs(c.authCtx, request)
 	if httpResp != nil && httpResp.Body != nil {
-		defer httpResp.Body.Close()
+		defer func() { _ = httpResp.Body.Close() }()
 	}
 	if err != nil {
 		return nil, httpResp, err
@@ -177,7 +177,7 @@ func (c *DatadogClient) SubmitLogs(body []datadogV2.HTTPLogItem, opts *datadogV2
 		resp, httpResp, err = c.logsAPI.SubmitLog(c.authCtx, body)
 	}
 	if httpResp != nil && httpResp.Body != nil {
-		defer httpResp.Body.Close()
+		defer func() { _ = httpResp.Body.Close() }()
 	}
 	return resp, httpResp, err
 }
