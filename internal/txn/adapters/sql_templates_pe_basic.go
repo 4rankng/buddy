@@ -134,6 +134,18 @@ func peStuckAtLimitCheck102(result domain.TransactionResult) *domain.DMLTicket {
 					{Name: "run_id", Value: runID, Type: "string"},
 				},
 			},
+			{
+				TargetDB: "PE",
+				SQLTemplate: "-- Rollback transfer table AuthorisationID injection\n" +
+					"UPDATE transfer\n" +
+					"SET properties = JSON_REMOVE(properties, '$.AuthorisationID'),\n" +
+					"    updated_at = %s\n" +
+					"WHERE transaction_id = %s;",
+				Params: []domain.ParamInfo{
+					{Name: "updated_at", Value: updatedAt, Type: "string"},
+					{Name: "transaction_id", Value: transactionID, Type: "string"},
+				},
+			},
 		},
 		CaseType: domain.CasePeStuckAtLimitCheck102,
 	}

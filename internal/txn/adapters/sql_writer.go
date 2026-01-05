@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"fmt"
 	"os"
+	"strings"
 )
 
 // ClearSQLFiles removes all existing SQL files before batch processing
@@ -25,7 +26,15 @@ func ClearSQLFiles() {
 // WriteSQLFiles writes the SQL statements to database-specific Deploy.sql and Rollback.sql files
 // Returns a list of filenames that were successfully created
 func WriteSQLFiles(statements domain.SQLStatements, basePath string) ([]string, error) {
+	fmt.Printf("[DEBUG] WriteSQLFiles called with: PE deploy=%d, PE rollback=%d\n",
+		len(statements.PEDeployStatements), len(statements.PERollbackStatements))
+
 	var filesCreated []string
+
+	// Validate that rollback statements exist when deploy statements exist
+	if err := validateDeployRollbackPairs(statements); err != nil {
+		return filesCreated, fmt.Errorf("deploy/rollback validation failed: %w", err)
+	}
 
 	// Write PC files (always overwrite fixed filenames)
 	if len(statements.PCDeployStatements) > 0 {
@@ -91,6 +100,7 @@ func WriteSQLFiles(statements domain.SQLStatements, basePath string) ([]string, 
 		filesCreated = append(filesCreated, rollbackPath)
 	}
 
+	fmt.Printf("[DEBUG] WriteSQLFiles completed, files created: %v\n", filesCreated)
 	return filesCreated, nil
 }
 
@@ -147,5 +157,113 @@ func AppendSQLFile(filePath string, statements []string) error {
 	}
 
 	fmt.Printf("SQL statements appended to %s\n", filePath)
+	return nil
+}
+
+// validateDeployRollbackPairs ensures that rollback statements exist when deploy statements exist
+func validateDeployRollbackPairs(statements domain.SQLStatements) error {
+	var missingRollbacks []string
+
+	// Check PC
+	if len(statements.PCDeployStatements) > 0 && len(statements.PCRollbackStatements) == 0 {
+		missingRollbacks = append(missingRollbacks, "PC")
+	}
+
+	// Check PE
+	if len(statements.PEDeployStatements) > 0 && len(statements.PERollbackStatements) == 0 {
+		missingRollbacks = append(missingRollbacks, "PE")
+	}
+
+	// Check PPE
+	if len(statements.PPEDeployStatements) > 0 && len(statements.PPERollbackStatements) == 0 {
+		missingRollbacks = append(missingRollbacks, "PPE")
+	}
+
+	// Check RPP
+	if len(statements.RPPDeployStatements) > 0 && len(statements.RPPRollbackStatements) == 0 {
+		missingRollbacks = append(missingRollbacks, "RPP")
+	}
+
+	if len(missingRollbacks) > 0 {
+		fmt.Printf("[ERROR] Deploy/rollback validation failed: missing rollback statements for databases: %v\n", missingRollbacks)
+		return fmt.Errorf("missing rollback statements for databases: %v", missingRollbacks)
+	}
+
+	fmt.Printf("[DEBUG] Deploy/rollback validation passed: all databases with deploy statements have corresponding rollback statements\n")
+	return nil
+}
+
+// validateSQLContent performs content validation on generated SQL statements
+func validateSQLContent(statements domain.SQLStatements) error {
+	// Validate all statement arrays
+	allStatements := [][]string{
+		statements.PCDeployStatements,
+		statements.PCRollbackStatements,
+		statements.PEDeployStatements,
+		statements.PERollbackStatements,
+		statements.PPEDeployStatements,
+		statements.PPERollbackStatements,
+		statements.RPPDeployStatements,
+		statements.RPPRollbackStatements,
+	}
+
+	for _, stmtArray := range allStatements {
+		for _, stmt := range stmtArray {
+			if err := validateIndividualStatement(stmt); err != nil {
+				return fmt.Errorf("statement validation failed: %w", err)
+			}
+		}
+	}
+
+	return nil
+}
+
+// validateIndividualStatement validates a single SQL statement for correctness
+func validateIndividualStatement(stmt string) error {
+	stmtUpper := strings.ToUpper(stmt)
+
+	// Ensure UPDATE statements have WHERE clauses
+	if strings.Contains(stmtUpper, "UPDATE") && !strings.Contains(stmtUpper, "WHERE") {
+		return fmt.Errorf("UPDATE statement missing WHERE clause: %s", stmt)
+	}
+
+	// Ensure proper transaction targeting
+	if strings.Contains(stmtUpper, "UPDATE WORKFLOW_EXECUTION") {
+		if !strings.Contains(stmtUpper, "RUN_ID") {
+			return fmt.Errorf("workflow_execution UPDATE missing run_id targeting: %s", stmt)
+		}
+	}
+
+	if strings.Contains(stmtUpper, "UPDATE TRANSFER") {
+		if !strings.Contains(stmtUpper, "TRANSACTION_ID") {
+			return fmt.Errorf("transfer UPDATE missing transaction_id targeting: %s", stmt)
+		}
+	}
+
+	// Validate JSON operations
+	if strings.Contains(stmtUpper, "JSON_SET") && !strings.Contains(stmt, "'$.") {
+		return fmt.Errorf("JSON_SET operation missing proper JSON path: %s", stmt)
+	}
+
+	if strings.Contains(stmtUpper, "JSON_REMOVE") && !strings.Contains(stmt, "'$.") {
+		return fmt.Errorf("JSON_REMOVE operation missing proper JSON path: %s", stmt)
+	}
+
+	// Validate transfer table operations preserve data integrity
+	if strings.Contains(stmtUpper, "UPDATE TRANSFER") {
+		if strings.Contains(stmtUpper, "JSON_SET") {
+			// Deploy operations should preserve updated_at timestamp
+			if !strings.Contains(stmtUpper, "UPDATED_AT =") {
+				return fmt.Errorf("transfer UPDATE with JSON_SET should preserve updated_at timestamp: %s", stmt)
+			}
+		}
+		if strings.Contains(stmtUpper, "JSON_REMOVE") {
+			// Rollback operations should also preserve updated_at timestamp
+			if !strings.Contains(stmtUpper, "UPDATED_AT =") {
+				return fmt.Errorf("transfer UPDATE with JSON_REMOVE should preserve updated_at timestamp: %s", stmt)
+			}
+		}
+	}
+
 	return nil
 }

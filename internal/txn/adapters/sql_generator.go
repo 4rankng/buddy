@@ -201,6 +201,87 @@ func validateSQL(sql, template string) error {
 		return fmt.Errorf("SQL contains unsubstituted placeholders")
 	}
 
+	// Validate SQL structure and correctness
+	if err := validateSQLStructure(sql); err != nil {
+		return fmt.Errorf("SQL structure validation failed: %w", err)
+	}
+
+	return nil
+}
+
+// validateSQLStructure performs comprehensive SQL correctness validation
+func validateSQLStructure(sql string) error {
+	sqlUpper := strings.ToUpper(sql)
+
+	// Check for proper WHERE clauses in UPDATE statements
+	if strings.Contains(sqlUpper, "UPDATE") {
+		if !strings.Contains(sqlUpper, "WHERE") {
+			return fmt.Errorf("UPDATE statement missing WHERE clause - this could affect all records")
+		}
+
+		// Ensure WHERE clause targets specific transactions
+		if strings.Contains(sqlUpper, "UPDATE WORKFLOW_EXECUTION") {
+			if !strings.Contains(sqlUpper, "RUN_ID") {
+				return fmt.Errorf("workflow_execution UPDATE missing run_id targeting")
+			}
+		}
+
+		if strings.Contains(sqlUpper, "UPDATE TRANSFER") {
+			if !strings.Contains(sqlUpper, "TRANSACTION_ID") {
+				return fmt.Errorf("transfer UPDATE missing transaction_id targeting")
+			}
+		}
+	}
+
+	// Validate JSON operations preserve data integrity
+	if strings.Contains(sqlUpper, "JSON_SET") {
+		// Ensure JSON_SET operations are properly structured
+		if !strings.Contains(sql, "'$.") {
+			return fmt.Errorf("JSON_SET operation missing proper JSON path")
+		}
+	}
+
+	if strings.Contains(sqlUpper, "JSON_REMOVE") {
+		// Ensure JSON_REMOVE operations target specific properties
+		if !strings.Contains(sql, "'$.") {
+			return fmt.Errorf("JSON_REMOVE operation missing proper JSON path")
+		}
+	}
+
+	// Validate that rollback operations are inverse of deploy operations
+	if strings.Contains(sql, "-- Rollback") || strings.Contains(sql, "rollback") {
+		if err := validateRollbackOperation(sql); err != nil {
+			return fmt.Errorf("rollback validation failed: %w", err)
+		}
+	}
+
+	return nil
+}
+
+// validateRollbackOperation ensures rollback SQL properly reverses deploy operations
+func validateRollbackOperation(sql string) error {
+	sqlUpper := strings.ToUpper(sql)
+
+	// Check workflow_execution rollback patterns
+	if strings.Contains(sqlUpper, "UPDATE WORKFLOW_EXECUTION") {
+		// Rollback should restore original state (102 for pe_stuck_at_limit_check_102_4)
+		if strings.Contains(sql, "pe102") || strings.Contains(sql, "limit_check") {
+			if !strings.Contains(sqlUpper, "STATE = 102") {
+				return fmt.Errorf("workflow_execution rollback should restore state to 102")
+			}
+		}
+	}
+
+	// Check transfer table rollback patterns
+	if strings.Contains(sqlUpper, "UPDATE TRANSFER") {
+		// Rollback should remove injected properties
+		if strings.Contains(sqlUpper, "AUTHORISATIONID") {
+			if !strings.Contains(sqlUpper, "JSON_REMOVE") {
+				return fmt.Errorf("transfer rollback should use JSON_REMOVE to remove injected AuthorisationID")
+			}
+		}
+	}
+
 	return nil
 }
 
@@ -239,38 +320,58 @@ func groupTemplates(templates []domain.TemplateInfo) map[templateGroupKey]*group
 
 // buildSQLFromGroupedTemplate builds SQL from a grouped template with run_id IN clause
 func buildSQLFromGroupedTemplate(group *groupedTemplate) (string, error) {
+	fmt.Printf("[DEBUG] buildSQLFromGroupedTemplate: targetDB=%s, runIDs=%v, otherParams=%d\n",
+		group.targetDB, group.runIDs, len(group.otherParams))
+
 	// Build IN clause for run_ids
 	var runIDList []string
 	for _, runID := range group.runIDs {
 		runIDList = append(runIDList, fmt.Sprintf("'%s'", runID))
 	}
 	runIDClause := strings.Join(runIDList, ", ")
+	fmt.Printf("[DEBUG] Built runIDClause: %s\n", runIDClause)
 
 	// Format other parameters
 	formattedParams := make([]interface{}, len(group.otherParams))
 	for i, param := range group.otherParams {
 		formattedParams[i] = formatParameter(param)
 	}
+	fmt.Printf("[DEBUG] Formatted %d parameters\n", len(formattedParams))
 
 	// Build SQL with run_id IN clause
 	sql := group.sqlTemplate
+	fmt.Printf("[DEBUG] Original SQL template length: %d\n", len(sql))
 
 	// Replace "run_id = %s" with "run_id IN (...)" clause
 	if strings.Contains(sql, "run_id = %s") {
 		sql = strings.Replace(sql, "run_id = %s", "run_id IN ("+runIDClause+")", 1)
+		fmt.Printf("[DEBUG] Replaced 'run_id = %%s' with IN clause\n")
 	} else if strings.Contains(sql, "run_id IN (%s)") {
 		// Template already has IN clause, just substitute the run_ids
 		sql = strings.Replace(sql, "run_id IN (%s)", "run_id IN ("+runIDClause+")", 1)
+		fmt.Printf("[DEBUG] Replaced 'run_id IN (%%s)' with actual IDs\n")
+	} else if strings.Contains(sql, "run_id IN (") && strings.Contains(sql, "%s") {
+		// Handle templates with formatted IN clauses like "run_id IN (\n    %s\n)"
+		// Find the %s within the IN clause and replace it
+		sql = strings.Replace(sql, "%s", runIDClause, 1)
+		fmt.Printf("[DEBUG] Replaced %%s in formatted IN clause\n")
 	}
 
 	// Substitute remaining parameters (AuthorisationID, etc.)
 	if len(formattedParams) > 0 {
 		sql = fmt.Sprintf(sql, formattedParams...)
+		fmt.Printf("[DEBUG] Applied %d formatted parameters\n", len(formattedParams))
 	}
 
 	// Add comment back
 	if group.comment != "" {
 		sql = group.comment + "\n" + sql
+		fmt.Printf("[DEBUG] Added comment back, final SQL length: %d\n", len(sql))
+	}
+
+	fmt.Printf("[DEBUG] buildSQLFromGroupedTemplate result length: %d\n", len(sql))
+	if len(sql) > 0 && len(sql) < 500 {
+		fmt.Printf("[DEBUG] Generated SQL preview: %.200s\n", sql)
 	}
 
 	return sql, nil
