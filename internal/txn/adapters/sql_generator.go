@@ -24,6 +24,8 @@ type groupedTemplate struct {
 
 // appendStatements is a helper to merge results into main struct
 func appendStatements(main *domain.SQLStatements, new domain.SQLStatements) {
+	fmt.Printf("[DEBUG] appendStatements: PE deploy %d, PE rollback %d\n",
+		len(new.PEDeployStatements), len(new.PERollbackStatements))
 	main.PCDeployStatements = append(main.PCDeployStatements, new.PCDeployStatements...)
 	main.PCRollbackStatements = append(main.PCRollbackStatements, new.PCRollbackStatements...)
 	main.PEDeployStatements = append(main.PEDeployStatements, new.PEDeployStatements...)
@@ -251,11 +253,17 @@ func buildSQLFromGroupedTemplate(group *groupedTemplate) (string, error) {
 	}
 
 	// Build SQL with run_id IN clause
-	// Replace first %s with IN clause, then substitute remaining params
 	sql := group.sqlTemplate
-	sql = strings.Replace(sql, "run_id = %s", "run_id IN ("+runIDClause+")", 1)
 
-	// Substitute remaining parameters
+	// Replace "run_id = %s" with "run_id IN (...)" clause
+	if strings.Contains(sql, "run_id = %s") {
+		sql = strings.Replace(sql, "run_id = %s", "run_id IN ("+runIDClause+")", 1)
+	} else if strings.Contains(sql, "run_id IN (%s)") {
+		// Template already has IN clause, just substitute the run_ids
+		sql = strings.Replace(sql, "run_id IN (%s)", "run_id IN ("+runIDClause+")", 1)
+	}
+
+	// Substitute remaining parameters (AuthorisationID, etc.)
 	if len(formattedParams) > 0 {
 		sql = fmt.Sprintf(sql, formattedParams...)
 	}
@@ -344,6 +352,9 @@ func generateSQLFromTicket(ticket domain.DMLTicket) (domain.SQLStatements, error
 		addStatementToDatabase(&statements, group.targetDB, "", rollbackSQL)
 		fmt.Printf("[DEBUG] Added rollback statement to %s\n", group.targetDB)
 	}
+
+	fmt.Printf("[DEBUG] Final statements: PEDeploy=%d, PERollback=%d\n",
+		len(statements.PEDeployStatements), len(statements.PERollbackStatements))
 
 	return statements, nil
 }
