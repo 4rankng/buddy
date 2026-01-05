@@ -1,4 +1,15 @@
-make deploy && mybuddy txn TS-4558.txt
+7 buddy % git pull && make deploy && mybuddy txn TS-4558.txt
+remote: Enumerating objects: 11, done.
+remote: Counting objects: 100% (11/11), done.
+remote: Compressing objects: 100% (2/2), done.
+remote: Total 6 (delta 4), reused 6 (delta 4), pack-reused 0 (from 0)
+Unpacking objects: 100% (6/6), 1.22 KiB | 83.00 KiB/s, done.
+From github.com:4rankng/buddy
+   98960d5..680bed8  main       -> origin/main
+Updating 98960d5..680bed8
+Fast-forward
+ internal/txn/adapters/sql_generator.go | 17 ++++++++++++++---
+ 1 file changed, 14 insertions(+), 3 deletions(-)
 Building mybuddy with Malaysia environment...
 mybuddy built successfully
 Building sgbuddy with Singapore environment...
