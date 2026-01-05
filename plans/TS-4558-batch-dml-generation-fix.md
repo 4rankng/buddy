@@ -1,167 +1,186 @@
-Here's what gets generated for pe_stuck_at_limit_check_102_4:
+# TS-4558: Batch Processing Missing DML Generation (and incomplete PE deploy/rollback)
 
-  Deploy Script (PE_Deploy.sql)
+## Context
 
-  The deploy script generates TWO SQL statements:
+When running batch mode with `mybuddy txn <file>`, the tool correctly:
+- reads transaction IDs from the input file, and
+- queries transaction statuses, then
+- writes an analysis file `<input>_results.txt`.
 
-  1. Update workflow_execution (from template):
+However, the tool does **not** reliably generate the corresponding SQL DML scripts (`*.sql`) needed to apply fixes for the detected issues. Separately, for the SOP logic `pe_stuck_at_limit_check_102_4`, SQL generation is currently incomplete: it updates the `transfer` table but does not update `workflow_execution`, and it also fails to produce the required rollback file.
 
-  -- cashout_pe102_reject
-  UPDATE workflow_execution
-  SET  state = 221, attempt = 1, `data` = JSON_SET(
-        `data`, '$.StreamMessage',
-        JSON_OBJECT(
-           'Status', 'FAILED',
-           'ErrorCode', "ADAPTER_ERROR",
-           'ErrorMessage', 'Manual Rejected'
-        ),
-     '$.State', 221,
-     '$.Properties.AuthorisationID', 'ef8a3114ccab4c309cd7855270b5f221')
-  WHERE run_id IN ('D060C5AD-C53F-4CEC-AC60-E3B04AB9DE46')
-    AND state = 102
-    AND workflow_id = 'workflow_transfer_payment';
+---
 
-  2. Update transfer table (auto-generated):
+## Reproduction
 
-  -- Update transfer table with AuthorisationID from payment-core internal_auth
-  UPDATE transfer
-  SET properties = JSON_SET(properties, '$.AuthorisationID', 'ef8a3114ccab4c309cd7855270b5f221'),
-      updated_at = '2025-12-26T13:32:25.308547Z'
-  WHERE transaction_id = 'TX123456';
+### Command
 
-  Rollback Script (PE_Rollback.sql)
-
-  -- cashout_pe102_reject_rollback
-  UPDATE workflow_execution
-  SET  state = 102, attempt = 4, `data` = JSON_SET(
-        `data`, '$.StreamMessage',
-        JSON_OBJECT(),
-     '$.State', 102,
-     '$.Properties.AuthorisationID', NULL)
-  WHERE run_id IN (
-     'D060C5AD-C53F-4CEC-AC60-E3B04AB9DE46'
-  );
-
-
-why I dont see PE_Rollback.sql created???? We need to have a pair of deploy and rollback. and also for pe_stuck_at_limit_check_102_4 we need to update workflow_execution
-/Users/frank.nguyen/Documents/buddy/internal/txn/adapters/sql_templates_pe_basic.go
-
-
+```bash
 make deploy && mybuddy txn TS-4558.txt
-Building mybuddy with Malaysia environment...
-mybuddy built successfully
-Building sgbuddy with Singapore environment...
-sgbuddy built successfully
-Building and deploying binaries...
-Building mybuddy with Malaysia environment...
-mybuddy built successfully
-Building sgbuddy with Singapore environment...
-sgbuddy built successfully
-Deployed to /Users/frank.nguyen/bin
-You can now use 'mybuddy' and 'sgbuddy' commands from anywhere.
+```
+
+### Console output (key lines)
+
+```text
 [MY] Processing batch file: TS-4558.txt
 [MY] Found 4 transaction IDs to process
-[MY] Processing 1/4: 253c9e27c69f465bbeed564eb16a4f0e
-[MY] Processing 2/4: 8d69bd2672a041c78d2c18784f83d8eb
-[MY] Processing 3/4: 198fe80766cb48b4aca3cf8a38f5baa5
-[MY] Processing 4/4: 90a8976b531446be8e00d42f02ff2d0d
-[MY] 
-Writing batch results to: TS-4558.txt_results.txt
+...
+[MY] Writing batch results to: TS-4558.txt_results.txt
 [MY] Batch processing completed. Results written to TS-4558.txt_results.txt
-[MY] 
-SQL Generation Summary:
+
+[MY] SQL Generation Summary:
 [MY]   Generated 4 SQL statements:
 [MY]     PE Deploy: 4 statements
 
 SQL statements written to PE_Deploy.sql
 [MY] SQL DML files generated: [PE_Deploy.sql]
-frank.nguyen@DBSG-H4M0DVF2C7 buddy % 
+```
 
-Issue: Batch Processing Missing DML Generation (TS-4558)
-1. Problem Statement
-The mybuddy tool successfully queries transaction statuses in batch mode and writes the analysis to a text file. However, it fails to generate the corresponding SQL DML scripts (*.sql files) required to fix the identified issues.
+### Observed outputs
 
-Current Observation:
+- ✅ `TS-4558.txt_results.txt` is created successfully.
+- ⚠️ Only **one** SQL file is created: `PE_Deploy.sql`
+- ❌ `PE_Rollback.sql` is **not** created.
+- ❌ For `pe_stuck_at_limit_check_102_4`, the deploy script currently **only updates `transfer`**, but it **must update `workflow_execution` too**.
 
-Input: TS-4558.txt (contains transaction IDs).
+---
 
-Output: TS-4558.txt_results.txt (created successfully).
+## SOP logic: `pe_stuck_at_limit_check_102_4`
 
-Missing: PE_Deploy.sql, RPP_Deploy.sql, etc. (Files are not generated).
+### Meaning
 
-2. Specific SOP Logic: pe_stuck_at_limit_check_102_4
-This specific error pattern requires a two-step fix. The Payment Engine (PE) is stuck at 102 (Limit Checked), while the Payment Core has successfully authorized the transaction.
+This pattern indicates:
+- Payment Engine (PE) workflow is stuck at **state 102** ("Limit Checked"),
+- Payment Core has successfully authorized the transaction,
+- so we must manually link the authorization ID and then reject/reset the stuck workflow.
 
-To resolve this, we must manually inject the AuthorisationID from Payment Core into the Transfer table and reject the stuck workflow.
+### Required fix (two-step deploy)
 
-Logic Requirements:
+1) **Update workflow execution**: force PE workflow from 102 → **221 (Manual Reject)** and include the stream message + state update.
 
-Identify Auth ID: Extract internal_auth.tx_id from the Payment Core status (e.g., ef8a3114ccab4c309cd7855270b5f221).
+2) **Update transfer**: inject the **AuthorisationID** into `transfer.properties` using `JSON_SET`, and **preserve the original `updated_at`** timestamp (explicitly set it).
 
-Update Workflow: Set state to 221 (Manual Reject).
+---
 
-Update Transfer: Inject the AuthorisationID into the JSON properties and preserve the original updated_at timestamp.
+## Expected SQL output for a single example
 
-Target SQL Output:
+### Deploy (PE_Deploy.sql)
 
-SQL
+The deploy script must contain **both** statements (workflow + transfer):
 
--- 1. Reset/Reject the Workflow Execution
+```sql
+-- 1) Reject/Reset the Workflow Execution (cashout_pe102_reject)
 UPDATE workflow_execution
 SET state = 221,
     attempt = 1,
-    `data` = JSON_SET(`data`,
-        '$.StreamMessage', JSON_OBJECT('Status', 'FAILED', 'ErrorCode', "ADAPTER_ERROR", 'ErrorMessage', 'Manual Rejected'),
-        '$.State', 221)
-WHERE run_id = 'D060C5AD-C53F-4CEC-AC60-E3B04AB9DE46'
+    `data` = JSON_SET(
+        `data`,
+        '$.StreamMessage',
+        JSON_OBJECT(
+            'Status', 'FAILED',
+            'ErrorCode', "ADAPTER_ERROR",
+            'ErrorMessage', 'Manual Rejected'
+        ),
+        '$.State', 221,
+        '$.Properties.AuthorisationID', 'ef8a3114ccab4c309cd7855270b5f221'
+    )
+WHERE run_id IN ('D060C5AD-C53F-4CEC-AC60-E3B04AB9DE46')
   AND state = 102
   AND workflow_id = 'workflow_transfer_payment';
 
--- 2. Link the Authorisation ID to the Transfer Table
+-- 2) Update transfer table with AuthorisationID from payment-core internal_auth
 UPDATE transfer
 SET properties = JSON_SET(properties, '$.AuthorisationID', 'ef8a3114ccab4c309cd7855270b5f221'),
-    updated_at = '2025-12-26T13:32:25.308547Z' -- PRESERVE ORIGINAL TIMESTAMP
-WHERE id = 228567995;
-3. Root Cause Analysis
-The issue lies in internal/apps/common/batch/processor.go. The batch processing flow calculates the results but never invokes the adapters responsible for converting those results into SQL statements and writing them to disk.
+    updated_at = '2025-12-26T13:32:25.308547Z'  -- PRESERVE ORIGINAL TIMESTAMP
+WHERE transaction_id = 'TX123456';
+```
 
-Missing Calls
-adapters.GenerateSQLStatements(results): Converts the analysis into SQL strings.
+### Rollback (PE_Rollback.sql)
 
-adapters.WriteSQLFiles(statements, basePath): Writes those strings to the PE_Deploy.sql, PC_Deploy.sql, etc.
+Rollback must revert `workflow_execution` back to the original state (example shown):
 
-4. Implementation Plan
-Step A: Update Batch Processor
-Modify ProcessTransactionFile in internal/apps/common/batch/processor.go to include the SQL generation logic immediately after writing the text results.
+```sql
+-- cashout_pe102_reject_rollback
+UPDATE workflow_execution
+SET state = 102,
+    attempt = 4,
+    `data` = JSON_SET(
+        `data`,
+        '$.StreamMessage', JSON_OBJECT(),
+        '$.State', 102,
+        '$.Properties.AuthorisationID', NULL
+    )
+WHERE run_id IN ('D060C5AD-C53F-4CEC-AC60-E3B04AB9DE46');
+```
 
-Logical Flow:
+---
 
-Read File.
+## Problem 1: Why is `PE_Rollback.sql` not created?
 
-Query Transactions (Loop).
+### Current observation
 
-Write _results.txt.
+Even though the deploy output is written, the corresponding rollback file is missing:
+- `PE_Deploy.sql` exists
+- `PE_Rollback.sql` does **not**
 
-[NEW] Generate SQL Statements from Results.
+### Required behavior
 
-[NEW] Write SQL Files to current directory.
+Every SOP fix must produce a **pair**:
+- `PE_Deploy.sql`
+- `PE_Rollback.sql`
 
-Step B: Code Logic (Go)
-You need to inject the following logic into the processor:
+If a deploy script is emitted for an SOP, the rollback must be emitted too (unless explicitly impossible, which this case is not).
 
-Go
+---
 
-// ... existing code ...
+## Problem 2: Deploy script is incomplete for `pe_stuck_at_limit_check_102_4`
+
+### Current behavior
+
+Deploy script only updates:
+- `transfer`
+
+### Required behavior
+
+Deploy script must update:
+- `workflow_execution` (102 → 221) **and**
+- `transfer` (inject AuthorisationID + preserve updated_at)
+
+---
+
+## Suspected code location(s)
+
+- SOP template / generator:
+  - `/Users/frank.nguyen/Documents/buddy/internal/txn/adapters/sql_templates_pe_basic.go`
+
+If rollback generation is missing, the likely issue is:
+- rollback template is not registered / not returned for this SOP, or
+- the writer only writes deploy files in batch mode (or only for PE deploy), or
+- rollback statements are generated but discarded due to filtering / empty-check / file naming.
+
+---
+
+## Implementation plan (high level)
+
+### A) Ensure batch processing writes SQL files (deploy + rollback)
+
+In the batch processing flow, after writing `<input>_results.txt`, ensure it also:
+1. generates SQL statements from results (deploy and rollback),
+2. clears any previous SQL output for a clean run,
+3. writes all SQL files to disk.
+
+Conceptual flow:
+
+```go
 // After WriteBatchResults(results, outputFilename)
 
-// 1. Generate the DML objects
+// 1) Generate the DML objects (deploy + rollback)
 sqlStatements := adapters.GenerateSQLStatements(results)
 
-// 2. Clear previous SQL files to avoid appending to old runs
+// 2) Clear previous SQL files to avoid appending to old runs
 adapters.ClearSQLFiles()
 
-// 3. Write the new SQL files
-// Note: WriteSQLFiles internally handles separating PE, PC, RPP, etc.
+// 3) Write the new SQL files (PE deploy + PE rollback + any others)
 filesCreated, err := adapters.WriteSQLFiles(sqlStatements, ".")
 if err != nil {
     fmt.Printf("Error writing SQL files: %v\n", err)
@@ -172,30 +191,49 @@ if err != nil {
         fmt.Println("No SQL fixes required for these transactions.")
     }
 }
-Step C: Update SOP Adapter
-Ensure the adapter handling pe_stuck_at_limit_check_102_4 correctly implements the logic to fetch the AuthorisationID and format the Transfer table update.
+```
 
-Logic:
+### B) Fix SOP adapter: `pe_stuck_at_limit_check_102_4`
 
-Check if PaymentCore.InternalAuth.Status == "SUCCESS".
+The adapter must:
+- verify `PaymentCore.InternalAuth.Status == "SUCCESS"`,
+- extract `PaymentCore.InternalAuth.TxID` (AuthorisationID),
+- generate **two deploy statements** (workflow + transfer),
+- generate **rollback** for workflow update (at minimum),
+- ensure `transfer.updated_at` is explicitly set to the current DB value to preserve timestamp.
 
-Capture PaymentCore.InternalAuth.TxID.
+---
 
-Generate UPDATE transfer statement using JSON_SET with the captured ID.
+## Verification checklist
 
-Ensure the WHERE clause uses the Transfer ID.
+1. Rebuild and deploy:
+   ```bash
+   make deploy
+   ```
 
-Ensure updated_at is explicitly set to the current DB value (to prevent auto-update behavior from changing it).
+2. Run batch:
+   ```bash
+   mybuddy txn TS-4558.txt
+   ```
 
-5. Verification Checklist
-To confirm the fix works, run the following:
+3. Confirm console includes:
+   - `SQL DML files generated: [...]`
 
-Rebuild: make deploy
+4. Confirm files exist:
+   ```bash
+   ls -la *.sql
+   ```
 
-Run Batch: mybuddy txn TS-4558.txt
+5. Confirm **both** exist:
+   - `PE_Deploy.sql`
+   - `PE_Rollback.sql`
 
-Check Console: Look for "SQL DML files generated: [...]"
+6. Confirm content:
+   ```bash
+   cat PE_Deploy.sql
+   cat PE_Rollback.sql
+   ```
 
-Verify Files: cat PE_Deploy.sql
-
-Verify Content: Ensure the UPDATE transfer statement contains the correct ef8a... ID and updated_at.
+7. Confirm `PE_Deploy.sql` includes:
+   - `UPDATE workflow_execution ... state = 221 ...`
+   - `UPDATE transfer ... AuthorisationID ... updated_at = '<original>'`

@@ -62,9 +62,13 @@ func ProcessTransactionFile(appCtx *common.Context, clients *di.ClientSet, fileP
 		// Show summary of what was generated
 		fmt.Printf("%s\nSQL Generation Summary:\n", appCtx.GetPrefix())
 		totalStatements := len(statements.PCDeployStatements) +
+			len(statements.PCRollbackStatements) +
 			len(statements.PEDeployStatements) +
+			len(statements.PERollbackStatements) +
 			len(statements.RPPDeployStatements) +
-			len(statements.PPEDeployStatements)
+			len(statements.RPPRollbackStatements) +
+			len(statements.PPEDeployStatements) +
+			len(statements.PPERollbackStatements)
 
 		if totalStatements == 0 {
 			fmt.Printf("%s  No SQL statements generated\n", appCtx.GetPrefix())
@@ -84,14 +88,26 @@ func ProcessTransactionFile(appCtx *common.Context, clients *di.ClientSet, fileP
 			if len(statements.PCDeployStatements) > 0 {
 				fmt.Printf("%s    PC Deploy: %d statements\n", appCtx.GetPrefix(), len(statements.PCDeployStatements))
 			}
+			if len(statements.PCRollbackStatements) > 0 {
+				fmt.Printf("%s    PC Rollback: %d statements\n", appCtx.GetPrefix(), len(statements.PCRollbackStatements))
+			}
 			if len(statements.PEDeployStatements) > 0 {
 				fmt.Printf("%s    PE Deploy: %d statements\n", appCtx.GetPrefix(), len(statements.PEDeployStatements))
+			}
+			if len(statements.PERollbackStatements) > 0 {
+				fmt.Printf("%s    PE Rollback: %d statements\n", appCtx.GetPrefix(), len(statements.PERollbackStatements))
 			}
 			if len(statements.RPPDeployStatements) > 0 {
 				fmt.Printf("%s    RPP Deploy: %d statements\n", appCtx.GetPrefix(), len(statements.RPPDeployStatements))
 			}
+			if len(statements.RPPRollbackStatements) > 0 {
+				fmt.Printf("%s    RPP Rollback: %d statements\n", appCtx.GetPrefix(), len(statements.RPPRollbackStatements))
+			}
 			if len(statements.PPEDeployStatements) > 0 {
 				fmt.Printf("%s    PPE Deploy: %d statements\n", appCtx.GetPrefix(), len(statements.PPEDeployStatements))
+			}
+			if len(statements.PPERollbackStatements) > 0 {
+				fmt.Printf("%s    PPE Rollback: %d statements\n", appCtx.GetPrefix(), len(statements.PPERollbackStatements))
 			}
 		}
 		fmt.Println() // blank line for readability

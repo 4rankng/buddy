@@ -275,6 +275,10 @@ func generateSQLFromTicket(ticket domain.DMLTicket) (domain.SQLStatements, error
 		return domain.SQLStatements{}, fmt.Errorf("ticket contains no templates")
 	}
 
+	// Debug logging
+	fmt.Printf("[DEBUG] generateSQLFromTicket: case=%s, deploy=%d, rollback=%d\n",
+		ticket.CaseType, len(ticket.Deploy), len(ticket.Rollback))
+
 	// Define valid target databases
 	validDatabases := map[string]struct{}{
 		"PC":  {},
@@ -312,8 +316,13 @@ func generateSQLFromTicket(ticket domain.DMLTicket) (domain.SQLStatements, error
 	// Group rollback templates
 	rollbackGroups := groupTemplates(ticket.Rollback)
 
+	// Debug logging
+	fmt.Printf("[DEBUG] Processing rollback templates for case %s: %d groups\n", ticket.CaseType, len(rollbackGroups))
+
 	// Process grouped rollback templates
 	for _, group := range rollbackGroups {
+		fmt.Printf("[DEBUG] Processing rollback group: targetDB=%s, runIDs=%d\n", group.targetDB, len(group.runIDs))
+
 		// Validate target DB
 		if _, ok := validDatabases[group.targetDB]; !ok {
 			return domain.SQLStatements{}, fmt.Errorf("unknown target database: %s", group.targetDB)
@@ -325,12 +334,15 @@ func generateSQLFromTicket(ticket domain.DMLTicket) (domain.SQLStatements, error
 			return domain.SQLStatements{}, fmt.Errorf("failed to generate rollback SQL for case %s: %w", ticket.CaseType, err)
 		}
 
+		fmt.Printf("[DEBUG] Generated rollback SQL length: %d\n", len(rollbackSQL))
+
 		// Validate SQL (use original template for validation)
 		if err := validateSQL(rollbackSQL, group.sqlTemplate); err != nil {
 			return domain.SQLStatements{}, fmt.Errorf("rollback SQL validation failed: %w", err)
 		}
 
 		addStatementToDatabase(&statements, group.targetDB, "", rollbackSQL)
+		fmt.Printf("[DEBUG] Added rollback statement to %s\n", group.targetDB)
 	}
 
 	return statements, nil
