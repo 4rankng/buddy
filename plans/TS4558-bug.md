@@ -214,14 +214,8 @@ RPP Adapter: wf_ct_qr_payment at State 0 (stInit) with Attempt 20.
 
 Assessment: The Payment Engine is waiting for RPP, but the RPP adapter is stuck in an initialization loop (State 0) and has likely never sent the request to the central switch (PayNet).
 
-SOP Reference: rpp_no_response_reject_not_found.
-
-Although the SOP mentions state = 210, the symptom (No response from RPP, transaction not found/initiated) matches. Since the adapter is at State 0, it definitely does not exist at PayNet.
-
-We must reject the RPP adapter to allow the upstream (PE/PC) to fail gracefully.
-
-
-`rpp_no_response_reject_not_found`
+This is classified as a "RPP Adapter stuck in initialization loop" (pe220_pc201_rpp0_stuck_init).
+`pe220_pc201_rpp0_stuck_init`
 
 payment_engine
 Deploy
@@ -234,13 +228,16 @@ SET  state = 221, attempt = 1, `data` = JSON_SET(
           'ErrorMessage', 'Manual Rejected'),
   '$.State', 221)
 WHERE run_id IN (
-  '641f4202-1931-4f49-ab8d-a2716ca80e19'
+  '641f4202-1931-4f49-ab8d-a2716ca80e19')
+AND workflow_id = 'workflow_transfer_payment'
+and state=220;
+
 payment_engine
   Rollback
   UPDATE workflow_execution
-SET  state = 210, attempt = 0, `data` = JSON_SET(
+SET  state = 220, attempt = 0, `data` = JSON_SET(
   `data`, '$.StreamMessage', null,
-    '$.State', 210)
+    '$.State', 220)
 WHERE run_id IN (
   '641f4202-1931-4f49-ab8d-a2716ca80e19'
 ) AND workflow_id = 'workflow_transfer_payment';
