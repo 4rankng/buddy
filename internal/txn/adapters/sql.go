@@ -62,8 +62,9 @@ func GenerateSQLStatements(results []domain.TransactionResult) domain.SQLStateme
 	}
 
 	// Generate transfer table UPDATE statements for transactions with payment-core internal_auth
+	// Skip for pe_stuck_at_limit_check_102_4 case as it's handled in the template
 	for _, result := range results {
-		if shouldGenerateTransferUpdate(result) {
+		if shouldGenerateTransferUpdate(result) && result.CaseType != domain.CasePeStuckAtLimitCheck102 {
 			transferUpdateSQL := generateTransferUpdateSQL(result)
 			if transferUpdateSQL != "" {
 				statements.PEDeployStatements = append(statements.PEDeployStatements, transferUpdateSQL)

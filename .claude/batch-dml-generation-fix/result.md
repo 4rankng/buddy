@@ -1,15 +1,4 @@
-7 buddy % git pull && make deploy && mybuddy txn TS-4558.txt
-remote: Enumerating objects: 11, done.
-remote: Counting objects: 100% (11/11), done.
-remote: Compressing objects: 100% (2/2), done.
-remote: Total 6 (delta 4), reused 6 (delta 4), pack-reused 0 (from 0)
-Unpacking objects: 100% (6/6), 1.22 KiB | 83.00 KiB/s, done.
-From github.com:4rankng/buddy
-   98960d5..680bed8  main       -> origin/main
-Updating 98960d5..680bed8
-Fast-forward
- internal/txn/adapters/sql_generator.go | 17 ++++++++++++++---
- 1 file changed, 14 insertions(+), 3 deletions(-)
+frank.nguyen@DBSG-H4M0DVF2C7 buddy %  make deploy && mybuddy txn TS-4558.txt 
 Building mybuddy with Malaysia environment...
 mybuddy built successfully
 Building sgbuddy with Singapore environment...
@@ -30,21 +19,23 @@ You can now use 'mybuddy' and 'sgbuddy' commands from anywhere.
 [MY] 
 Writing batch results to: TS-4558.txt_results.txt
 [MY] Batch processing completed. Results written to TS-4558.txt_results.txt
-[DEBUG] generateSQLFromTicket: case=pe_stuck_at_limit_check_102_4, deploy=2, rollback=2
+[DEBUG] generateSQLFromTicket: case=pe_stuck_at_limit_check_102_4, deploy=4, rollback=2
 [DEBUG] Processing rollback templates for case pe_stuck_at_limit_check_102_4: 1 groups
 [DEBUG] Processing rollback group: targetDB=PE, runIDs=2
-[DEBUG] Generated rollback SQL length: 249
+[DEBUG] Generated rollback SQL length: 276
+[DEBUG] After GenerateSQLStatements: PE Deploy=2, PE Rollback=0
 [MY] 
 SQL Generation Summary:
-[MY]   Generated 4 SQL statements:
-[MY]     PE Deploy: 4 statements
+[MY]   Generated 2 SQL statements:
+[MY]     PE Deploy: 2 statements
 
 SQL statements written to PE_Deploy.sql
 [MY] SQL DML files generated: [PE_Deploy.sql]
+frank.nguyen@DBSG-H4M0DVF2C7 buddy % ls *.sql
+PE_Deploy.sql
 frank.nguyen@DBSG-H4M0DVF2C7 buddy % 
 
-
-The PE_Rollback.sql is not generated
+The PE_Rollback.sql is not generated (this is a bug)
 
 and content of PE_Deploy.sql is not correct
 
