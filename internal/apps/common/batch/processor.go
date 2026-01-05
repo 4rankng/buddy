@@ -60,59 +60,6 @@ func ProcessTransactionFile(appCtx *common.Context, clients *di.ClientSet, fileP
 		// Generate SQL statements
 		statements := adapters.GenerateSQLStatements(results)
 
-		// Show summary of what was generated
-		fmt.Printf("%s\nSQL Generation Summary:\n", appCtx.GetPrefix())
-		totalStatements := len(statements.PCDeployStatements) +
-			len(statements.PCRollbackStatements) +
-			len(statements.PEDeployStatements) +
-			len(statements.PERollbackStatements) +
-			len(statements.RPPDeployStatements) +
-			len(statements.RPPRollbackStatements) +
-			len(statements.PPEDeployStatements) +
-			len(statements.PPERollbackStatements)
-
-		if totalStatements == 0 {
-			fmt.Printf("%s  No SQL statements generated\n", appCtx.GetPrefix())
-			fmt.Printf("%s  Transactions processed: %d\n", appCtx.GetPrefix(), len(results))
-
-			// Show case types for debugging
-			fmt.Printf("%s\n  Case types identified:\n", appCtx.GetPrefix())
-			for i, result := range results {
-				caseType := result.CaseType
-				if caseType == "" {
-					caseType = "none"
-				}
-				fmt.Printf("%s    [%d] ID: %s -> %s\n", appCtx.GetPrefix(), i+1, result.InputID, caseType)
-			}
-		} else {
-			fmt.Printf("%s  Generated %d SQL statements:\n", appCtx.GetPrefix(), totalStatements)
-			if len(statements.PCDeployStatements) > 0 {
-				fmt.Printf("%s    PC Deploy: %d statements\n", appCtx.GetPrefix(), len(statements.PCDeployStatements))
-			}
-			if len(statements.PCRollbackStatements) > 0 {
-				fmt.Printf("%s    PC Rollback: %d statements\n", appCtx.GetPrefix(), len(statements.PCRollbackStatements))
-			}
-			if len(statements.PEDeployStatements) > 0 {
-				fmt.Printf("%s    PE Deploy: %d statements\n", appCtx.GetPrefix(), len(statements.PEDeployStatements))
-			}
-			if len(statements.PERollbackStatements) > 0 {
-				fmt.Printf("%s    PE Rollback: %d statements\n", appCtx.GetPrefix(), len(statements.PERollbackStatements))
-			}
-			if len(statements.RPPDeployStatements) > 0 {
-				fmt.Printf("%s    RPP Deploy: %d statements\n", appCtx.GetPrefix(), len(statements.RPPDeployStatements))
-			}
-			if len(statements.RPPRollbackStatements) > 0 {
-				fmt.Printf("%s    RPP Rollback: %d statements\n", appCtx.GetPrefix(), len(statements.RPPRollbackStatements))
-			}
-			if len(statements.PPEDeployStatements) > 0 {
-				fmt.Printf("%s    PPE Deploy: %d statements\n", appCtx.GetPrefix(), len(statements.PPEDeployStatements))
-			}
-			if len(statements.PPERollbackStatements) > 0 {
-				fmt.Printf("%s    PPE Rollback: %d statements\n", appCtx.GetPrefix(), len(statements.PPERollbackStatements))
-			}
-		}
-		fmt.Println() // blank line for readability
-
 		// Write SQL to database-specific files
 		filesCreated, err := adapters.WriteSQLFiles(statements, filePath)
 		if err != nil {

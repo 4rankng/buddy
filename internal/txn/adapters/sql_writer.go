@@ -115,7 +115,6 @@ func WriteSQLFile(filePath string, statements []string) error {
 		return fmt.Errorf("failed to write file %s: %v", filePath, err)
 	}
 
-	fmt.Printf("SQL statements written to %s\n", filePath)
 	return nil
 }
 

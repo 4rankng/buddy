@@ -219,3 +219,28 @@ SOP Reference: rpp_no_response_reject_not_found.
 Although the SOP mentions state = 210, the symptom (No response from RPP, transaction not found/initiated) matches. Since the adapter is at State 0, it definitely does not exist at PayNet.
 
 We must reject the RPP adapter to allow the upstream (PE/PC) to fail gracefully.
+
+
+`rpp_no_response_reject_not_found`
+
+payment_engine
+Deploy
+UPDATE workflow_execution
+SET  state = 221, attempt = 1, `data` = JSON_SET(
+  `data`, '$.StreamMessage',
+  JSON_OBJECT(
+          'Status', 'FAILED',
+          'ErrorCode', 'ADAPTER_ERROR',
+          'ErrorMessage', 'Manual Rejected'),
+  '$.State', 221)
+WHERE run_id IN (
+  '641f4202-1931-4f49-ab8d-a2716ca80e19'
+payment_engine
+  Rollback
+  UPDATE workflow_execution
+SET  state = 210, attempt = 0, `data` = JSON_SET(
+  `data`, '$.StreamMessage', null,
+    '$.State', 210)
+WHERE run_id IN (
+  '641f4202-1931-4f49-ab8d-a2716ca80e19'
+) AND workflow_id = 'workflow_transfer_payment';
