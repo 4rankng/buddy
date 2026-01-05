@@ -46,6 +46,37 @@ Here's what gets generated for pe_stuck_at_limit_check_102_4:
 why I dont see PE_Rollback.sql created???? We need to have a pair of deploy and rollback. and also for pe_stuck_at_limit_check_102_4 we need to update workflow_execution
 /Users/frank.nguyen/Documents/buddy/internal/txn/adapters/sql_templates_pe_basic.go
 
+
+make deploy && mybuddy txn TS-4558.txt
+Building mybuddy with Malaysia environment...
+mybuddy built successfully
+Building sgbuddy with Singapore environment...
+sgbuddy built successfully
+Building and deploying binaries...
+Building mybuddy with Malaysia environment...
+mybuddy built successfully
+Building sgbuddy with Singapore environment...
+sgbuddy built successfully
+Deployed to /Users/frank.nguyen/bin
+You can now use 'mybuddy' and 'sgbuddy' commands from anywhere.
+[MY] Processing batch file: TS-4558.txt
+[MY] Found 4 transaction IDs to process
+[MY] Processing 1/4: 253c9e27c69f465bbeed564eb16a4f0e
+[MY] Processing 2/4: 8d69bd2672a041c78d2c18784f83d8eb
+[MY] Processing 3/4: 198fe80766cb48b4aca3cf8a38f5baa5
+[MY] Processing 4/4: 90a8976b531446be8e00d42f02ff2d0d
+[MY] 
+Writing batch results to: TS-4558.txt_results.txt
+[MY] Batch processing completed. Results written to TS-4558.txt_results.txt
+[MY] 
+SQL Generation Summary:
+[MY]   Generated 4 SQL statements:
+[MY]     PE Deploy: 4 statements
+
+SQL statements written to PE_Deploy.sql
+[MY] SQL DML files generated: [PE_Deploy.sql]
+frank.nguyen@DBSG-H4M0DVF2C7 buddy % 
+
 Issue: Batch Processing Missing DML Generation (TS-4558)
 1. Problem Statement
 The mybuddy tool successfully queries transaction statuses in batch mode and writes the analysis to a text file. However, it fails to generate the corresponding SQL DML scripts (*.sql files) required to fix the identified issues.
