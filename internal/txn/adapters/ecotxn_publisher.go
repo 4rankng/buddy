@@ -29,13 +29,13 @@ type EcoTxnPublisher struct {
 
 // ecoTxnData stores data needed for SQL generation
 type ecoTxnData struct {
-	transactionID string
-	chargeRecord  *ChargeRecord
-	pcValuedAt    string
-	originalState string
-	originalAttempt string
+	transactionID    string
+	chargeRecord     *ChargeRecord
+	pcValuedAt       string
+	originalState    string
+	originalAttempt  string
 	chargeStorageSQL string
-	updateCharge    bool
+	updateCharge     bool
 }
 
 // NewEcoTxnPublisher creates a new publisher instance
@@ -267,7 +267,7 @@ func (p *EcoTxnPublisher) generateConsolidatedSQL() {
 		updateCharge    bool
 		originalState   string
 		originalAttempt string
-		chargeStorage  string
+		chargeStorage   string
 	}
 
 	groups := make(map[templateKey][]ecoTxnData)
@@ -277,7 +277,7 @@ func (p *EcoTxnPublisher) generateConsolidatedSQL() {
 			updateCharge:    tx.updateCharge,
 			originalState:   tx.originalState,
 			originalAttempt: tx.originalAttempt,
-			chargeStorage:  tx.chargeStorageSQL,
+			chargeStorage:   tx.chargeStorageSQL,
 		}
 		groups[key] = append(groups[key], tx)
 	}

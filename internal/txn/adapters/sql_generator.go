@@ -8,18 +8,18 @@ import (
 
 // templateGroupKey represents a unique key for grouping identical templates
 type templateGroupKey struct {
-	targetDB      string
-	sqlTemplate   string // SQL template without comments
-	paramsKey     string // String representation of params excluding run_id
+	targetDB    string
+	sqlTemplate string // SQL template without comments
+	paramsKey   string // String representation of params excluding run_id
 }
 
 // groupedTemplate represents a group of templates that can be combined
 type groupedTemplate struct {
-	comment      string
-	targetDB     string
-	sqlTemplate  string
-	otherParams  []domain.ParamInfo // All params except run_id
-	runIDs       []string            // All run_ids to be combined
+	comment     string
+	targetDB    string
+	sqlTemplate string
+	otherParams []domain.ParamInfo // All params except run_id
+	runIDs      []string           // All run_ids to be combined
 }
 
 // appendStatements is a helper to merge results into main struct
