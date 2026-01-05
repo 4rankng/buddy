@@ -98,3 +98,33 @@ Modify [`ProcessTransactionFile()`](internal/apps/common/batch/processor.go:15) 
    - `TS-4558.txt_results.txt` contains transaction status (existing behavior)
    - `PE_Deploy.sql` contains DML scripts for identified PE cases
    - Cases like `pe_stuck_at_limit_check_102_4` generate appropriate SQL
+
+
+CURRENTLY it still does not work
+
+still not working frank.nguyen@DBSG-H4M0DVF2C7 buddy % make deploy && mybuddy txn TS-4558.txt
+Building mybuddy with Malaysia environment...
+mybuddy built successfully
+Building sgbuddy with Singapore environment...
+sgbuddy built successfully
+Building and deploying binaries...
+Building mybuddy with Malaysia environment...
+mybuddy built successfully
+Building sgbuddy with Singapore environment...
+sgbuddy built successfully
+Deployed to /Users/frank.nguyen/bin
+You can now use 'mybuddy' and 'sgbuddy' commands from anywhere.
+[MY] Processing batch file: TS-4558.txt
+[MY] Found 4 transaction IDs to process
+[MY] Processing 1/4: 253c9e27c69f465bbeed564eb16a4f0e
+[MY] Processing 2/4: 8d69bd2672a041c78d2c18784f83d8eb
+[MY] Processing 3/4: 198fe80766cb48b4aca3cf8a38f5baa5
+[MY] Processing 4/4: 90a8976b531446be8e00d42f02ff2d0d
+[MY] 
+Writing batch results to: TS-4558.txt_results.txt
+[MY] Batch processing completed. Results written to TS-4558.txt_results.txt
+frank.nguyen@DBSG-H4M0DVF2C7 buddy % ls *.sql
+zsh: no matches found: *.sql
+frank.nguyen@DBSG-H4M0DVF2C7 buddy %
+
+I see no sql files are generated
