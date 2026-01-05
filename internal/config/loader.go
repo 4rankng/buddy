@@ -1,15 +1,16 @@
 package config
 
 import (
-	"fmt"
-	"os"
-	"path/filepath"
+	"embed"
 
 	"buddy/internal/errors"
 	"buddy/internal/logging"
 
 	"gopkg.in/yaml.v3"
 )
+
+//go:embed workflow_states.yaml fast_adapter_states.yaml
+var configFS embed.FS
 
 // WorkflowStates represents the workflow state configuration
 type WorkflowStates struct {
@@ -21,28 +22,24 @@ type FastAdapterStates struct {
 	FastAdapterStates map[string]map[int]string `yaml:"fast_adapter_states"`
 }
 
-// ConfigLoader handles loading configuration from YAML files
+// ConfigLoader handles loading configuration from embedded YAML files
 type ConfigLoader struct {
-	configDir string
-	logger    *logging.Logger
+	logger *logging.Logger
 }
 
 // NewConfigLoader creates a new configuration loader
-func NewConfigLoader(configDir string) *ConfigLoader {
+func NewConfigLoader() *ConfigLoader {
 	return &ConfigLoader{
-		configDir: configDir,
-		logger:    logging.NewDefaultLogger("config"),
+		logger: logging.NewDefaultLogger("config"),
 	}
 }
 
-// LoadWorkflowStates loads workflow state mappings from YAML
+// LoadWorkflowStates loads workflow state mappings from embedded YAML
 func (cl *ConfigLoader) LoadWorkflowStates() (map[string]map[int]string, error) {
-	configPath := filepath.Join(cl.configDir, "workflow_states.yaml")
-
-	data, err := os.ReadFile(configPath)
+	data, err := configFS.ReadFile("workflow_states.yaml")
 	if err != nil {
 		return nil, errors.Wrap(err, errors.ErrorTypeConfiguration,
-			fmt.Sprintf("failed to read workflow states config: %s", configPath))
+			"failed to read embedded workflow states config")
 	}
 
 	var config WorkflowStates
@@ -55,19 +52,13 @@ func (cl *ConfigLoader) LoadWorkflowStates() (map[string]map[int]string, error) 
 	return config.WorkflowStates, nil
 }
 
-// LoadFastAdapterStates loads fast adapter state mappings from YAML
+// LoadFastAdapterStates loads fast adapter state mappings from embedded YAML
 func (cl *ConfigLoader) LoadFastAdapterStates() (map[string]map[int]string, error) {
-	configPath := filepath.Join(cl.configDir, "fast_adapter_states.yaml")
-
-	data, err := os.ReadFile(configPath)
+	data, err := configFS.ReadFile("fast_adapter_states.yaml")
 	if err != nil {
 		// Fast adapter states are optional, return empty map if file doesn't exist
-		if os.IsNotExist(err) {
-			cl.logger.Warn("Fast adapter states config not found, using empty mappings")
-			return make(map[string]map[int]string), nil
-		}
-		return nil, errors.Wrap(err, errors.ErrorTypeConfiguration,
-			fmt.Sprintf("failed to read fast adapter states config: %s", configPath))
+		cl.logger.Warn("Fast adapter states config not found, using empty mappings")
+		return make(map[string]map[int]string), nil
 	}
 
 	var config FastAdapterStates
@@ -80,31 +71,18 @@ func (cl *ConfigLoader) LoadFastAdapterStates() (map[string]map[int]string, erro
 	return config.FastAdapterStates, nil
 }
 
-// ValidateConfig validates that required configuration files exist
+// ValidateConfig validates that required configuration files are embedded
 func (cl *ConfigLoader) ValidateConfig() error {
-	requiredFiles := []string{"workflow_states.yaml"}
-
-	for _, file := range requiredFiles {
-		configPath := filepath.Join(cl.configDir, file)
-		if _, err := os.Stat(configPath); os.IsNotExist(err) {
-			return errors.Configuration(fmt.Sprintf("required config file missing: %s", configPath))
-		}
-	}
-
+	// Config files are embedded at build time, no runtime validation needed
 	return nil
-}
-
-// GetConfigDir returns the configuration directory path
-func (cl *ConfigLoader) GetConfigDir() string {
-	return cl.configDir
 }
 
 // Global config loader instance
 var defaultLoader *ConfigLoader
 
 // InitializeConfigLoader initializes the global config loader
-func InitializeConfigLoader(configDir string) error {
-	defaultLoader = NewConfigLoader(configDir)
+func InitializeConfigLoader() error {
+	defaultLoader = NewConfigLoader()
 	return defaultLoader.ValidateConfig()
 }
 

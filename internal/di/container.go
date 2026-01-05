@@ -30,8 +30,8 @@ func (c *Container) InitializeForEnvironment(env string) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	// Initialize configuration loader first
-	if err := config.InitializeConfigLoader("config"); err != nil {
+	// Initialize configuration loader first (configs are now embedded)
+	if err := config.InitializeConfigLoader(); err != nil {
 		return fmt.Errorf("failed to initialize configuration: %w", err)
 	}
 
