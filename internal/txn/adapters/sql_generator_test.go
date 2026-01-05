@@ -531,3 +531,236 @@ func TestGetDMLTicketForRppNoResponseRejectNotFound(t *testing.T) {
 		})
 	}
 }
+
+func TestGetDMLTicketForPe220Pc201Rpp0StuckInit(t *testing.T) {
+	tests := []struct {
+		name          string
+		result        domain.TransactionResult
+		wantTicket    bool
+		expectedRunID string
+	}{
+		{
+			name: "PE 220/0, PC 201/0, RPP wf_ct_qr_payment State 0 - full match",
+			result: domain.TransactionResult{
+				PaymentEngine: &domain.PaymentEngineInfo{
+					Workflow: domain.WorkflowInfo{
+						WorkflowID: "workflow_transfer_payment",
+						RunID:      "pe-run-001",
+						State:      "220",
+						Attempt:    0,
+					},
+				},
+				PaymentCore: &domain.PaymentCoreInfo{
+					ExternalTransfer: domain.PCExternalInfo{
+						Workflow: domain.WorkflowInfo{
+							WorkflowID: "external_payment_flow",
+							State:      "201",
+							Attempt:    0,
+						},
+					},
+				},
+				RPPAdapter: &domain.RPPAdapterInfo{
+					Workflow: []domain.WorkflowInfo{
+						{WorkflowID: "wf_ct_qr_payment", RunID: "rpp-run-001", State: "0", Attempt: 20},
+					},
+				},
+				CaseType: domain.CasePe220Pc201Rpp0StuckInit,
+			},
+			wantTicket:    true,
+			expectedRunID: "pe-run-001",
+		},
+		{
+			name: "PE 220/0, PC 201/0, RPP wf_ct_qr_payment State 0 with attempt 0",
+			result: domain.TransactionResult{
+				PaymentEngine: &domain.PaymentEngineInfo{
+					Workflow: domain.WorkflowInfo{
+						WorkflowID: "workflow_transfer_payment",
+						RunID:      "pe-run-002",
+						State:      "220",
+						Attempt:    0,
+					},
+				},
+				PaymentCore: &domain.PaymentCoreInfo{
+					ExternalTransfer: domain.PCExternalInfo{
+						Workflow: domain.WorkflowInfo{
+							WorkflowID: "external_payment_flow",
+							State:      "201",
+							Attempt:    0,
+						},
+					},
+				},
+				RPPAdapter: &domain.RPPAdapterInfo{
+					Workflow: []domain.WorkflowInfo{
+						{WorkflowID: "wf_ct_qr_payment", RunID: "rpp-run-002", State: "0", Attempt: 0},
+					},
+				},
+				CaseType: domain.CasePe220Pc201Rpp0StuckInit,
+			},
+			wantTicket:    true,
+			expectedRunID: "pe-run-002",
+		},
+		{
+			name: "wrong RPP workflow (wf_ct_cashout instead of wf_ct_qr_payment)",
+			result: domain.TransactionResult{
+				PaymentEngine: &domain.PaymentEngineInfo{
+					Workflow: domain.WorkflowInfo{
+						WorkflowID: "workflow_transfer_payment",
+						RunID:      "pe-run-003",
+						State:      "220",
+						Attempt:    0,
+					},
+				},
+				PaymentCore: &domain.PaymentCoreInfo{
+					ExternalTransfer: domain.PCExternalInfo{
+						Workflow: domain.WorkflowInfo{
+							WorkflowID: "external_payment_flow",
+							State:      "201",
+							Attempt:    0,
+						},
+					},
+				},
+				RPPAdapter: &domain.RPPAdapterInfo{
+					Workflow: []domain.WorkflowInfo{
+						{WorkflowID: "wf_ct_cashout", RunID: "rpp-run-003", State: "0", Attempt: 5},
+					},
+				},
+				// Don't set CaseType - IdentifyCase should not match this
+			},
+			wantTicket:    false,
+			expectedRunID: "",
+		},
+		{
+			name: "wrong PE state (221 instead of 220)",
+			result: domain.TransactionResult{
+				PaymentEngine: &domain.PaymentEngineInfo{
+					Workflow: domain.WorkflowInfo{
+						WorkflowID: "workflow_transfer_payment",
+						RunID:      "pe-run-004",
+						State:      "221",
+						Attempt:    0,
+					},
+				},
+				PaymentCore: &domain.PaymentCoreInfo{
+					ExternalTransfer: domain.PCExternalInfo{
+						Workflow: domain.WorkflowInfo{
+							WorkflowID: "external_payment_flow",
+							State:      "201",
+							Attempt:    0,
+						},
+					},
+				},
+				RPPAdapter: &domain.RPPAdapterInfo{
+					Workflow: []domain.WorkflowInfo{
+						{WorkflowID: "wf_ct_qr_payment", RunID: "rpp-run-004", State: "0", Attempt: 10},
+					},
+				},
+				// Don't set CaseType - IdentifyCase should not match this
+			},
+			wantTicket:    false,
+			expectedRunID: "",
+		},
+		{
+			name: "wrong RPP state (210 instead of 0)",
+			result: domain.TransactionResult{
+				PaymentEngine: &domain.PaymentEngineInfo{
+					Workflow: domain.WorkflowInfo{
+						WorkflowID: "workflow_transfer_payment",
+						RunID:      "pe-run-005",
+						State:      "220",
+						Attempt:    0,
+					},
+				},
+				PaymentCore: &domain.PaymentCoreInfo{
+					ExternalTransfer: domain.PCExternalInfo{
+						Workflow: domain.WorkflowInfo{
+							WorkflowID: "external_payment_flow",
+							State:      "201",
+							Attempt:    0,
+						},
+					},
+				},
+				RPPAdapter: &domain.RPPAdapterInfo{
+					Workflow: []domain.WorkflowInfo{
+						{WorkflowID: "wf_ct_qr_payment", RunID: "rpp-run-005", State: "210", Attempt: 0},
+					},
+				},
+				// Don't set CaseType - IdentifyCase should not match this
+			},
+			wantTicket:    false,
+			expectedRunID: "",
+		},
+		{
+			name: "nil PaymentEngine",
+			result: domain.TransactionResult{
+				PaymentEngine: nil,
+			},
+			wantTicket:    false,
+			expectedRunID: "",
+		},
+		{
+			name: "empty PE RunID",
+			result: domain.TransactionResult{
+				PaymentEngine: &domain.PaymentEngineInfo{
+					Workflow: domain.WorkflowInfo{
+						WorkflowID: "workflow_transfer_payment",
+						RunID:      "",
+						State:      "220",
+						Attempt:    0,
+					},
+				},
+				PaymentCore: &domain.PaymentCoreInfo{
+					ExternalTransfer: domain.PCExternalInfo{
+						Workflow: domain.WorkflowInfo{
+							WorkflowID: "external_payment_flow",
+							State:      "201",
+							Attempt:    0,
+						},
+					},
+				},
+				RPPAdapter: &domain.RPPAdapterInfo{
+					Workflow: []domain.WorkflowInfo{
+						{WorkflowID: "wf_ct_qr_payment", RunID: "rpp-run-006", State: "0", Attempt: 15},
+					},
+				},
+				// Don't set CaseType - IdentifyCase should not match this
+			},
+			wantTicket:    false,
+			expectedRunID: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ticket := GetDMLTicketForPe220Pc201Rpp0StuckInit(tt.result)
+
+			if tt.wantTicket {
+				require.NotNil(t, ticket)
+				require.Equal(t, domain.CasePe220Pc201Rpp0StuckInit, ticket.CaseType)
+				require.Len(t, ticket.Deploy, 1)
+				require.Len(t, ticket.Rollback, 1)
+				assert.Equal(t, "PE", ticket.Deploy[0].TargetDB)
+				assert.Equal(t, "PE", ticket.Rollback[0].TargetDB)
+				assert.Equal(t, tt.expectedRunID, ticket.Deploy[0].Params[0].Value)
+				assert.Equal(t, tt.expectedRunID, ticket.Rollback[0].Params[0].Value)
+
+				// Verify SQL contains key elements
+				deploySQL := ticket.Deploy[0].SQLTemplate
+				assert.Contains(t, deploySQL, "state = 221")
+				assert.Contains(t, deploySQL, "attempt = 1")
+				assert.Contains(t, deploySQL, "ADAPTER_ERROR")
+				assert.Contains(t, deploySQL, "Manual Rejected")
+				assert.Contains(t, deploySQL, "workflow_transfer_payment")
+				assert.Contains(t, deploySQL, "state = 220")
+
+				// Verify rollback SQL
+				rollbackSQL := ticket.Rollback[0].SQLTemplate
+				assert.Contains(t, rollbackSQL, "state = 220")
+				assert.Contains(t, rollbackSQL, "attempt = 0")
+				assert.Contains(t, rollbackSQL, "StreamMessage', null")
+				assert.Contains(t, rollbackSQL, "workflow_transfer_payment")
+			} else {
+				assert.Nil(t, ticket)
+			}
+		})
+	}
+}

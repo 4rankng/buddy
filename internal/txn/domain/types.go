@@ -164,6 +164,7 @@ const (
 	CaseCashoutRpp210Pe220Pc201                      Case = "cashout_rpp210_pe220_pc201"
 	CaseRpp210Pe220Pc201Accept                       Case = "rpp210_pe220_pc201_accept"
 	CaseRpp210Pe220Pc201Reject                       Case = "rpp210_pe220_pc201_reject"
+	CasePe220Pc201Rpp0StuckInit                      Case = "pe220_pc201_rpp0_stuck_init"
 )
 
 // GetCaseSummaryOrder returns the order in which SOP cases should be displayed in summaries
@@ -188,6 +189,9 @@ func GetCaseSummaryOrder() []Case {
 		CasePeStuck300RppNotFound,
 		CaseCashoutPe220Pc201Reject,
 		CaseCashoutRpp210Pe220Pc201,
+		CaseRpp210Pe220Pc201Accept,
+		CaseRpp210Pe220Pc201Reject,
+		CasePe220Pc201Rpp0StuckInit,
 	}
 }
 

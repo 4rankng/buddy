@@ -342,6 +342,53 @@ func getDefaultSOPRules() []CaseRule {
 				},
 			},
 		},
+		{
+			CaseType:    domain.CasePe220Pc201Rpp0StuckInit,
+			Description: "PE 220/0, PC 201/0, RPP wf_ct_qr_payment stuck at State 0 - manual PE rejection required",
+			Country:     "my",
+			Conditions: []RuleCondition{
+				{
+					FieldPath: "PaymentEngine.Workflow.WorkflowID",
+					Operator:  "eq",
+					Value:     "workflow_transfer_payment",
+				},
+				{
+					FieldPath: "PaymentEngine.Workflow.State",
+					Operator:  "eq",
+					Value:     "220",
+				},
+				{
+					FieldPath: "PaymentEngine.Workflow.Attempt",
+					Operator:  "eq",
+					Value:     0,
+				},
+				{
+					FieldPath: "PaymentCore.ExternalTransfer.Workflow.WorkflowID",
+					Operator:  "eq",
+					Value:     "external_payment_flow",
+				},
+				{
+					FieldPath: "PaymentCore.ExternalTransfer.Workflow.State",
+					Operator:  "eq",
+					Value:     "201",
+				},
+				{
+					FieldPath: "PaymentCore.ExternalTransfer.Workflow.Attempt",
+					Operator:  "eq",
+					Value:     0,
+				},
+				{
+					FieldPath: "RPPAdapter.Workflow.WorkflowID",
+					Operator:  "eq",
+					Value:     "wf_ct_qr_payment",
+				},
+				{
+					FieldPath: "RPPAdapter.Workflow.State",
+					Operator:  "eq",
+					Value:     "0", // stInit
+				},
+			},
+		},
 
 		// 2. Medium Complexity (PE + PC or Partnerpay + PC)
 		{

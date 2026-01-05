@@ -292,3 +292,18 @@ func GetDMLTicketForRppNoResponseRejectNotFound(result domain.TransactionResult)
 	}
 	return nil
 }
+
+// GetDMLTicketForPe220Pc201Rpp0StuckInit returns a DML ticket for PE 220, PC 201, RPP 0 rejection
+func GetDMLTicketForPe220Pc201Rpp0StuckInit(result domain.TransactionResult) *domain.DMLTicket {
+	sopRepo := SOPRepo
+	sopRepo.IdentifyCase(&result, "my")
+	if result.CaseType != domain.CasePe220Pc201Rpp0StuckInit {
+		return nil
+	}
+
+	// Use sqlTemplates map to generate ticket
+	if templateFunc, exists := sqlTemplates[domain.CasePe220Pc201Rpp0StuckInit]; exists {
+		return templateFunc(result)
+	}
+	return nil
+}

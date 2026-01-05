@@ -11,6 +11,7 @@ func registerPEAdvancedTemplates(templates map[domain.Case]TemplateFunc) {
 	templates[domain.CasePeStuck300RppNotFound] = peStuck300RppNotFound
 	templates[domain.CaseCashoutPe220Pc201Reject] = cashoutPe220Pc201Reject
 	templates[domain.CaseRpp210Pe220Pc201Reject] = rpp210Pe220Pc201Reject
+	templates[domain.CasePe220Pc201Rpp0StuckInit] = pe220Pc201Rpp0StuckInit
 }
 
 // peStuck230RepublishPC handles PE stuck at 230 - republish to PC
@@ -191,6 +192,49 @@ func rpp210Pe220Pc201Reject(result domain.TransactionResult) *domain.DMLTicket {
 				},
 			},
 			CaseType: domain.CaseRpp210Pe220Pc201Reject,
+		}
+	}
+	return nil
+}
+
+// pe220Pc201Rpp0StuckInit handles PE 220, PC 201, RPP 0 - PE manual rejection
+// Use case: RPP adapter stuck in initialization (State 0), reject PE to fail gracefully
+func pe220Pc201Rpp0StuckInit(result domain.TransactionResult) *domain.DMLTicket {
+	if runID := result.PaymentEngine.Workflow.RunID; runID != "" {
+		return &domain.DMLTicket{
+			Deploy: []domain.TemplateInfo{
+				{
+					TargetDB: "PE",
+					SQLTemplate: "-- pe220_pc201_rpp0_stuck_init, manual PE rejection\n" +
+						"UPDATE workflow_execution\n" +
+						"SET state = 221, attempt = 1, `data` = JSON_SET(\n" +
+						"      `data`, '$.StreamMessage',\n" +
+						"      JSON_OBJECT(\n" +
+						"         'Status', 'FAILED',\n" +
+						"         'ErrorCode', \"ADAPTER_ERROR\",\n" +
+						"         'ErrorMessage', 'Manual Rejected'\n" +
+						"      ),\n" +
+						"   '$.State', 221)\n" +
+						"WHERE run_id IN (%s) AND state = 220 AND workflow_id = 'workflow_transfer_payment';",
+					Params: []domain.ParamInfo{
+						{Name: "run_id", Value: runID, Type: "string"},
+					},
+				},
+			},
+			Rollback: []domain.TemplateInfo{
+				{
+					TargetDB: "PE",
+					SQLTemplate: "UPDATE workflow_execution\n" +
+						"SET state = 220, attempt = 0, `data` = JSON_SET(\n" +
+						"      `data`, '$.StreamMessage', null,\n" +
+						"   '$.State', 220)\n" +
+						"WHERE run_id IN (%s) AND workflow_id = 'workflow_transfer_payment';",
+					Params: []domain.ParamInfo{
+						{Name: "run_id", Value: runID, Type: "string"},
+					},
+				},
+			},
+			CaseType: domain.CasePe220Pc201Rpp0StuckInit,
 		}
 	}
 	return nil

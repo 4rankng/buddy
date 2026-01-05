@@ -91,6 +91,29 @@ This document outlines standard operating procedures (SOPs) for resolving stuck 
   AND workflow_id = 'workflow_transfer_payment';
   ```
 
+### `pe220_pc201_rpp0_stuck_init`
+- **Condition**: PE 220/0, PC 201/0, RPP wf_ct_qr_payment stuck at State 0 (stInit). RPP adapter never initialized properly.
+- **Diagnosis**: RPP adapter stuck in initialization loop; transaction does not exist at PayNet side. PE must be rejected to fail gracefully.
+- **Resolution**: Manually reject Payment Engine by moving to State 221 with ADAPTER_ERROR.
+- **References**:
+  - Related: `rpp_no_response_reject_not_found` (RPP State 210 variant)
+  - Related: `rpp_no_response_reject_not_found_state_0` (RPP State 0 SOP-only variant)
+- **Sample Deploy Script**:
+  ```sql
+  UPDATE workflow_execution
+  SET state = 221, attempt = 1, `data` = JSON_SET(
+    `data`, '$.StreamMessage',
+    JSON_OBJECT(
+       'Status', 'FAILED',
+       'ErrorCode', 'ADAPTER_ERROR',
+       'ErrorMessage', 'Manual Rejected'
+    ),
+    '$.State', 221)
+  WHERE run_id IN ('{RUN_ID}')
+  AND workflow_id = 'workflow_transfer_payment'
+  AND state = 220;
+  ```
+
 ---
 
 ## **RPP Adapter Issues**
