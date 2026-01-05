@@ -27,6 +27,11 @@ func ProcessBatchFileWithEnv(filePath, env string) {
 	processBatchFileWithEnv(filePath, env)
 }
 
+// ProcessEcoBatchFileWithEnv processes a file with specified environment for eco transactions
+func ProcessEcoBatchFileWithEnv(filePath, env string) {
+	processEcoBatchFileWithEnv(filePath, env)
+}
+
 // processBatchFileWithEnv is the internal implementation
 func processBatchFileWithEnv(filePath, env string) {
 	// Read transaction IDs from file
@@ -50,6 +55,58 @@ func processBatchFileWithEnv(filePath, env string) {
 	results := make([]domain.TransactionResult, 0, len(ids))
 	for _, id := range ids {
 		result := txnService.QueryTransactionWithEnv(id, env)
+		results = append(results, *result)
+	}
+
+	// Generate output path
+	outputPath := generateOutputPath(filePath)
+
+	// Write detailed results to output file
+	if err := adapters.WriteBatchResults(results, outputPath); err != nil {
+		fmt.Printf("Error writing output file: %v\n", err)
+		return
+	}
+
+	// Generate SQL statements
+	statements := adapters.GenerateSQLStatements(results)
+
+	// Clear existing SQL files before writing (for batch mode, always start fresh)
+	adapters.ClearSQLFiles()
+
+	// Write SQL files
+	sqlBasePath := strings.TrimSuffix(outputPath, "-output.txt")
+	if err := adapters.WriteSQLFiles(statements, sqlBasePath); err != nil {
+		fmt.Printf("Error writing SQL files: %v\n", err)
+	}
+
+	// Generate and display summary
+	summary := generateBatchSummary(results)
+	printBatchSummary(filePath, summary, outputPath)
+}
+
+// processEcoBatchFileWithEnv is the internal implementation for eco transactions
+func processEcoBatchFileWithEnv(filePath, env string) {
+	// Read transaction IDs from file
+	ids, err := utils.ReadTransactionIDsFromFile(filePath)
+	if err != nil {
+		fmt.Printf("Error reading file: %v\n", err)
+		return
+	}
+
+	if len(ids) == 0 {
+		fmt.Printf("No transaction IDs found in %s\n", filePath)
+		return
+	}
+
+	fmt.Printf("Processing %d transaction IDs from %s\n", len(ids), filePath)
+
+	// Get the TransactionService singleton for batch processing
+	txnService := GetTransactionQueryService()
+
+	// Process each transaction ID using eco strategy
+	results := make([]domain.TransactionResult, 0, len(ids))
+	for _, id := range ids {
+		result := txnService.QueryEcoTransactionWithEnv(id, env)
 		results = append(results, *result)
 	}
 

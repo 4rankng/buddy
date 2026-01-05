@@ -12,13 +12,6 @@ description: CLI tools (mybuddy/sgbuddy) for database queries, transaction inves
 | Malaysia | `mybuddy` | `.env.my` | `TS` |
 | Singapore | `sgbuddy` | `.env.sg` | `TSE` |
 
-## Environment Variables
-
-```bash
-JIRA_USERNAME / JIRA_API_KEY
-DOORMAN_USERNAME / DOORMAN_PASSWORD
-JIRA_DOMAIN  # Optional: gxbank.atlassian.net (MY) or gxsbank.atlassian.net (SG)
-```
 
 ## Commands
 

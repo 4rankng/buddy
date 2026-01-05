@@ -17,7 +17,6 @@ type JiraClient struct {
 // NewJiraClient creates a new JIRA client instance
 func NewJiraClient(env string) *JiraClient {
 	logger := logging.NewDefaultLogger("jira")
-	logger.Info("Initialize Jira client for [%s]...", env)
 
 	cfg := GetJiraConfig(env)
 	return &JiraClient{

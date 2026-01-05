@@ -31,15 +31,10 @@ type DatadogConfig struct {
 
 func NewDatadogClient(env string) *DatadogClient {
 	logger := logging.NewDefaultLogger("datadog")
-	logger.Info("Initialize Datadog client for [%s]...", env)
 
 	apiKey := config.Get("DD_API_KEY", "")
 	appKey := config.Get("DD_APPLICATION_KEY", "")
 	baseURL := config.Get("DATADOG_BASE_URL", "https://api.datadoghq.com")
-
-	if apiKey == "" || appKey == "" {
-		logger.Warn("Datadog credentials not set. Some features may not work.")
-	}
 
 	httpClient := &http.Client{Timeout: 30 * time.Second}
 	apiCfg := datadogapi.NewConfiguration()

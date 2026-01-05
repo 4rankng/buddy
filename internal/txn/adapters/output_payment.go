@@ -298,10 +298,8 @@ func WriteEcoTransactionInfo(w io.Writer, result domain.TransactionResult, trans
 		}
 	}
 
-	// Write classification section
-	if err := displayClassificationSection(w, result); err != nil {
-		fmt.Printf("Warning: failed to display classification section: %v\n", err)
-	}
+	// Note: Classification section is handled by the caller (writeResult in output.go)
+	// to avoid duplication
 
 	if _, err := fmt.Fprintln(w); err != nil {
 		fmt.Printf("Warning: failed to write final newline: %v\n", err)

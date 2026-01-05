@@ -37,8 +37,6 @@ func initializeStates() {
 			logger.Warn("Failed to load fast adapter states, using empty mappings: %v", err)
 			fastAdapterStates = make(map[string]map[int]string)
 		}
-
-		logger.Info("Successfully loaded workflow state mappings")
 	})
 }
 

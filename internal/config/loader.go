@@ -48,7 +48,6 @@ func (cl *ConfigLoader) LoadWorkflowStates() (map[string]map[int]string, error) 
 			"failed to parse workflow states YAML")
 	}
 
-	cl.logger.Info("Loaded workflow states for %d workflow types", len(config.WorkflowStates))
 	return config.WorkflowStates, nil
 }
 
@@ -67,7 +66,6 @@ func (cl *ConfigLoader) LoadFastAdapterStates() (map[string]map[int]string, erro
 			"failed to parse fast adapter states YAML")
 	}
 
-	cl.logger.Info("Loaded fast adapter states for %d adapter types", len(config.FastAdapterStates))
 	return config.FastAdapterStates, nil
 }
 
