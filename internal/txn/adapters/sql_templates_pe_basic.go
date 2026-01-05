@@ -70,9 +70,11 @@ func peStuckAtLimitCheck102(result domain.TransactionResult) *domain.DMLTicket {
 					"         'ErrorCode', \"ADAPTER_ERROR\",\n" +
 					"         'ErrorMessage', 'Manual Rejected'\n" +
 					"      ),\n" +
-					"   '$.State', 221)\n" +
+					"   '$.State', 221,\n" +
+					"   '$.Properties.AuthorisationID', %s)\n" +
 					"WHERE run_id IN (%s) AND state = 102 AND workflow_id = 'workflow_transfer_payment';",
 				Params: []domain.ParamInfo{
+					{Name: "authorisation_id", Value: result.PaymentCore.InternalAuth.TxID, Type: "string"},
 					{Name: "run_id", Value: result.PaymentEngine.Workflow.RunID, Type: "string"},
 				},
 			},
@@ -85,7 +87,8 @@ func peStuckAtLimitCheck102(result domain.TransactionResult) *domain.DMLTicket {
 					"SET  state = 102, attempt = 4, `data` = JSON_SET(\n" +
 					"      `data`, '$.StreamMessage',\n" +
 					"      JSON_OBJECT(),\n" +
-					"   '$.State', 102)\n" +
+					"   '$.State', 102,\n" +
+					"   '$.Properties.AuthorisationID', NULL)\n" +
 					"WHERE run_id IN (\n" +
 					"   %s\n" +
 					");",
