@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"buddy/internal/txn/domain"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -67,9 +68,9 @@ func TestBuildRunIDsOnlySQL(t *testing.T) {
 			},
 			wantErr: false, // Empty string is a valid parameter value
 			validate: func(t *testing.T, deploy, rollback string) {
-				// With empty string value, it will be wrapped in single quotes
-				assert.Contains(t, deploy, "UPDATE workflow SET state = 201 WHERE run_id = '';")
-				assert.Contains(t, rollback, "UPDATE workflow SET state = 200 WHERE run_id = '';")
+				// With empty string value, it will be wrapped in single quotes in IN clause
+				assert.Contains(t, deploy, "UPDATE workflow SET state = 201 WHERE run_id IN ('');")
+				assert.Contains(t, rollback, "UPDATE workflow SET state = 200 WHERE run_id IN ('');")
 			},
 		},
 	}
@@ -129,13 +130,13 @@ func TestMultipleDatabaseSupport(t *testing.T) {
 	statements, err := GenerateSQLFromTicket(ticket)
 	require.NoError(t, err)
 
-	// Verify PE statements
-	assert.Contains(t, statements.PEDeployStatements[0], "UPDATE pe_workflow SET state = 230 WHERE run_id = 'pe-run-123';")
-	assert.Contains(t, statements.PERollbackStatements[0], "UPDATE pe_workflow SET state = 701 WHERE run_id = 'pe-run-123';")
+	// Verify PE statements (now using IN clause)
+	assert.Contains(t, statements.PEDeployStatements[0], "UPDATE pe_workflow SET state = 230 WHERE run_id IN ('pe-run-123');")
+	assert.Contains(t, statements.PERollbackStatements[0], "UPDATE pe_workflow SET state = 701 WHERE run_id IN ('pe-run-123');")
 
-	// Verify PC statements
-	assert.Contains(t, statements.PCDeployStatements[0], "UPDATE pc_workflow SET state = 0 WHERE run_id = 'pc-run-456';")
-	assert.Contains(t, statements.PCRollbackStatements[0], "UPDATE pc_workflow SET state = 500 WHERE run_id = 'pc-run-456';")
+	// Verify PC statements (now using IN clause)
+	assert.Contains(t, statements.PCDeployStatements[0], "UPDATE pc_workflow SET state = 0 WHERE run_id IN ('pc-run-456');")
+	assert.Contains(t, statements.PCRollbackStatements[0], "UPDATE pc_workflow SET state = 500 WHERE run_id IN ('pc-run-456');")
 
 	// Verify no statements in other databases
 	assert.Empty(t, statements.RPPDeployStatements)
@@ -180,14 +181,14 @@ func TestThoughtMachineFalseNegativeTemplate(t *testing.T) {
 	assert.NotEmpty(t, statements.PCRollbackStatements, "PC rollback statements should be generated")
 
 	// Verify PE SQL content
-	assert.Contains(t, statements.PEDeployStatements[0], "WHERE run_id = 'pe-test-run-id'")
+	assert.Contains(t, statements.PEDeployStatements[0], "WHERE run_id IN ('pe-test-run-id')")
 	assert.Contains(t, statements.PERollbackStatements[0], "prev_trans_id = 'prev-trans-id'")
-	assert.Contains(t, statements.PERollbackStatements[0], "WHERE run_id = 'pe-test-run-id'")
+	assert.Contains(t, statements.PERollbackStatements[0], "WHERE run_id IN ('pe-test-run-id')")
 
 	// Verify PC SQL content
-	assert.Contains(t, statements.PCDeployStatements[0], "WHERE run_id = 'pc-test-run-id'")
+	assert.Contains(t, statements.PCDeployStatements[0], "WHERE run_id IN ('pc-test-run-id')")
 	assert.Contains(t, statements.PCDeployStatements[0], "workflow_id = 'internal_payment_flow'")
-	assert.Contains(t, statements.PCRollbackStatements[0], "WHERE run_id = 'pc-test-run-id'")
+	assert.Contains(t, statements.PCRollbackStatements[0], "WHERE run_id IN ('pc-test-run-id')")
 	assert.Contains(t, statements.PCRollbackStatements[0], "workflow_id = 'internal_payment_flow'")
 }
 

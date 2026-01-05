@@ -23,6 +23,19 @@ type EcoTxnPublisher struct {
 	client      doorman.DoormanInterface
 	PPEDeploy   strings.Builder
 	PPERollback strings.Builder
+	// Store transaction data for consolidation
+	transactions []ecoTxnData
+}
+
+// ecoTxnData stores data needed for SQL generation
+type ecoTxnData struct {
+	transactionID string
+	chargeRecord  *ChargeRecord
+	pcValuedAt    string
+	originalState string
+	originalAttempt string
+	chargeStorageSQL string
+	updateCharge    bool
 }
 
 // NewEcoTxnPublisher creates a new publisher instance
@@ -93,17 +106,22 @@ func ProcessEcoTxnPublishBatch(appCtx *common.Context, clients DoormanClients, f
 	processedCount := 0
 	failedCount := 0
 
+	// Collect all transaction data first
 	for _, txID := range transactionIDs {
-		result := publisher.processSingleTransaction(txID)
-		if result.Success {
-			processedCount++
-		} else {
+		data, err := publisher.collectTransactionData(txID)
+		if err != nil {
 			failedCount++
-			fmt.Printf("Failed to process transaction ID: %s, Error: %v\n", txID, result.Error)
+			fmt.Printf("Failed to process transaction ID: %s, Error: %v\n", txID, err)
+		} else {
+			processedCount++
+			publisher.transactions = append(publisher.transactions, data)
 		}
 	}
 
 	fmt.Printf("Processing completed. Success: %d, Failed: %d\n", processedCount, failedCount)
+
+	// Consolidate and generate SQL statements
+	publisher.generateConsolidatedSQL()
 
 	if err := WriteEcoTxnSQLFiles(
 		publisher.PPEDeploy.String(),
@@ -204,6 +222,129 @@ WHERE
 
 	result.Success = true
 	return result
+}
+
+// collectTransactionData collects data needed for SQL generation without writing to builders
+func (p *EcoTxnPublisher) collectTransactionData(transactionID string) (ecoTxnData, error) {
+	data := ecoTxnData{transactionID: transactionID}
+
+	// 1. Query PPE Charge table
+	chargeRecord, err := p.queryChargeRecord(transactionID)
+	if err != nil {
+		return data, fmt.Errorf("failed to query charge record: %w", err)
+	}
+	data.chargeRecord = chargeRecord
+
+	// 2. Query PC internal_transaction table to find the tx_id (run_id) and valued_at
+	pcValuedAt, err := p.queryInternalTransaction(transactionID, chargeRecord.CreatedAt)
+	if err != nil {
+		return data, fmt.Errorf("failed to query payment-core internal transaction: %w", err)
+	}
+	data.pcValuedAt = pcValuedAt
+
+	// 3. Query workflow_execution to get original state and attempt for rollback
+	originalState, originalAttempt, err := p.queryWorkflowExecutionState(transactionID)
+	if err != nil {
+		return data, fmt.Errorf("failed to query workflow execution state: %w", err)
+	}
+	data.originalState = originalState
+	data.originalAttempt = originalAttempt
+
+	// 4. Construct ChargeStorage JSON for workflow_execution update
+	data.chargeStorageSQL = buildChargeStorageJSONObject(chargeRecord, pcValuedAt)
+
+	// 5. Check if charge table needs update
+	data.updateCharge = chargeRecord.ValuedAt == "" || chargeRecord.ValuedAt == "0000-00-00 00:00:00" ||
+		chargeRecord.ValuedAt == "0000-00-00T00:00:00.00Z" || strings.HasPrefix(chargeRecord.ValuedAt, "0001-01-01")
+
+	return data, nil
+}
+
+// generateConsolidatedSQL consolidates identical SQL statements and writes to builders
+func (p *EcoTxnPublisher) generateConsolidatedSQL() {
+	// Group transactions by their SQL template characteristics
+	type templateKey struct {
+		updateCharge    bool
+		originalState   string
+		originalAttempt string
+		chargeStorage  string
+	}
+
+	groups := make(map[templateKey][]ecoTxnData)
+
+	for _, tx := range p.transactions {
+		key := templateKey{
+			updateCharge:    tx.updateCharge,
+			originalState:   tx.originalState,
+			originalAttempt: tx.originalAttempt,
+			chargeStorage:  tx.chargeStorageSQL,
+		}
+		groups[key] = append(groups[key], tx)
+	}
+
+	// Generate consolidated SQL for each group
+	for key, txns := range groups {
+		if len(txns) == 0 {
+			continue
+		}
+
+		// Build run_id IN clause
+		var runIDs []string
+		for _, tx := range txns {
+			runIDs = append(runIDs, fmt.Sprintf("'%s'", tx.transactionID))
+		}
+		runIDClause := strings.Join(runIDs, ", ")
+
+		// Generate deploy SQL
+		p.PPEDeploy.WriteString(fmt.Sprintf("-- Transactions: %d\n", len(txns)))
+		if key.updateCharge {
+			p.PPEDeploy.WriteString(fmt.Sprintf(`UPDATE charge
+SET
+	   valued_at = '%s',
+	   updated_at = '%s'
+WHERE transaction_id IN (%s);
+
+`, txns[0].pcValuedAt, txns[0].chargeRecord.UpdatedAt, runIDClause))
+		} else {
+			p.PPEDeploy.WriteString("-- valued_at already set, skipping charge table update\n")
+		}
+
+		p.PPEDeploy.WriteString(fmt.Sprintf(`UPDATE workflow_execution
+SET
+	   state = 800,
+	   attempt = 1,
+	   data = JSON_SET(data,
+	           '$.State', 800,
+	           '$.ChargeStorage', %s)
+WHERE
+	   run_id IN (%s);
+
+`, key.chargeStorage, runIDClause))
+
+		// Generate rollback SQL
+		p.PPERollback.WriteString(fmt.Sprintf("-- Transactions: %d\n", len(txns)))
+		if key.updateCharge {
+			p.PPERollback.WriteString(fmt.Sprintf(`UPDATE charge
+SET
+	   valued_at = '0000-00-00T00:00:00Z',
+	   updated_at = '%s'
+WHERE transaction_id IN (%s);
+
+`, txns[0].chargeRecord.UpdatedAt, runIDClause))
+		}
+
+		p.PPERollback.WriteString(fmt.Sprintf(`UPDATE workflow_execution
+SET
+	   state = %s,
+	   attempt = %s,
+	   data = JSON_SET(data,
+	           '$.State', %s,
+	           '$.ChargeStorage', JSON_OBJECT())
+WHERE
+	   run_id IN (%s);
+
+`, key.originalState, key.originalAttempt, key.originalState, runIDClause))
+	}
 }
 
 // queryChargeRecord queries the charge table and populates the record

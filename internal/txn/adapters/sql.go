@@ -21,6 +21,10 @@ func GenerateSQLStatements(results []domain.TransactionResult) domain.SQLStateme
 	// Reset auto-choices for "Apply to All" at the start of each batch
 	ResetAutoChoices()
 
+	// Group tickets by CaseType to allow cross-result consolidation
+	groupedTickets := make(map[domain.Case]*domain.DMLTicket)
+	caseErrors := make(map[domain.Case]string)
+
 	for i := range results {
 		// Populate index for use in interactive prompts
 		results[i].Index = i + 1
@@ -32,18 +36,36 @@ func GenerateSQLStatements(results []domain.TransactionResult) domain.SQLStateme
 		if templateFunc, exists := sqlTemplates[caseType]; exists {
 			ticket := templateFunc(results[i])
 			if ticket != nil {
-				// Generate SQL for each individual ticket (no consolidation)
-				generatedSQL, err := generateSQLFromTicket(*ticket)
-				if err != nil {
-					// Store the error in the result for display
-					results[i].Error = err.Error()
-					continue
+				if existing, exists := groupedTickets[caseType]; exists {
+					// Merge templates from new ticket into existing one
+					existing.Deploy = append(existing.Deploy, ticket.Deploy...)
+					existing.Rollback = append(existing.Rollback, ticket.Rollback...)
+				} else {
+					groupedTickets[caseType] = ticket
 				}
-				appendStatements(&statements, generatedSQL)
 			} else if caseType == domain.CaseThoughtMachineFalseNegative {
-				// Special handling for thought_machine_false_negative case when validation fails
-				// Store the error in the result for display
 				results[i].Error = "Cannot generate DMLs for thought_machine_false_negative case: prev_trans_id is required but not found in workflow data"
+				caseErrors[caseType] = results[i].Error
+			}
+		}
+	}
+
+	// Generate SQL for each consolidated group of tickets
+	for caseType, ticket := range groupedTickets {
+		generatedSQL, err := generateSQLFromTicket(*ticket)
+		if err != nil {
+			// Store error globally if consolidation fails (unlikely given current logic)
+			caseErrors[caseType] = err.Error()
+			continue
+		}
+		appendStatements(&statements, generatedSQL)
+	}
+
+	// Re-assign errors back to relevant records if needed (optional, for visibility)
+	for caseType, errStr := range caseErrors {
+		for i := range results {
+			if results[i].CaseType == caseType {
+				results[i].Error = errStr
 			}
 		}
 	}
