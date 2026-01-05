@@ -277,3 +277,18 @@ func GetDMLTicketForRppRtpCashinStuck200_0(result domain.TransactionResult) *dom
 	}
 	return nil
 }
+
+// GetDMLTicketForRppNoResponseRejectNotFound returns a DML ticket for the RPP QR payment stuck at state 0 case
+func GetDMLTicketForRppNoResponseRejectNotFound(result domain.TransactionResult) *domain.DMLTicket {
+	sopRepo := SOPRepo
+	sopRepo.IdentifyCase(&result, "my")
+	if result.CaseType != domain.CaseRppNoResponseRejectNotFound {
+		return nil
+	}
+
+	// Use sqlTemplates map to generate ticket
+	if templateFunc, exists := sqlTemplates[domain.CaseRppNoResponseRejectNotFound]; exists {
+		return templateFunc(result)
+	}
+	return nil
+}

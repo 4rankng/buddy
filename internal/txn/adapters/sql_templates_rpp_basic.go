@@ -6,6 +6,7 @@ import "buddy/internal/txn/domain"
 func registerRPPBasicTemplates(templates map[domain.Case]TemplateFunc) {
 	templates[domain.CaseRppCashoutReject101_19] = rppCashoutReject101_19
 	templates[domain.CaseRppQrPaymentReject210_0] = rppQrPaymentReject210_0
+	templates[domain.CaseRppNoResponseRejectNotFound] = rppNoResponseRejectNotFound
 	templates[domain.CaseRppNoResponseResume] = rppNoResponseResume
 	templates[domain.CaseRppCashinValidationFailed122_0] = rppCashinValidationFailed122_0
 }
@@ -115,6 +116,61 @@ AND workflow_id = 'wf_ct_qr_payment';`,
 			},
 		},
 		CaseType: domain.CaseRppQrPaymentReject210_0,
+	}
+}
+
+// rppNoResponseRejectNotFound handles RPP QR payment reject at state 0 (stInit), any attempt
+// Use case: RPP adapter stuck in initialization loop and never sends to PayNet
+func rppNoResponseRejectNotFound(result domain.TransactionResult) *domain.DMLTicket {
+	if result.RPPAdapter == nil {
+		return nil
+	}
+
+	// Find workflow with state 0 (any attempt) for wf_ct_qr_payment
+	runID := getRPPWorkflowRunIDByCriteria(
+		result.RPPAdapter.Workflow,
+		"wf_ct_qr_payment",
+		"0",
+		-1, // -1 means any attempt
+	)
+
+	if runID == "" {
+		return nil
+	}
+
+	return &domain.DMLTicket{
+		Deploy: []domain.TemplateInfo{
+			{
+				TargetDB: "RPP",
+				SQLTemplate: `-- rpp_no_response_reject_not_found, manual reject for stuck initialization
+UPDATE workflow_execution
+SET state = 221,
+    attempt = 1,
+    data = JSON_SET(data, '$.State', 221)
+WHERE run_id = %s
+AND state = 0
+AND workflow_id = 'wf_ct_qr_payment';`,
+				Params: []domain.ParamInfo{
+					{Name: "run_id", Value: runID, Type: "string"},
+				},
+			},
+		},
+		Rollback: []domain.TemplateInfo{
+			{
+				TargetDB: "RPP",
+				SQLTemplate: `-- rpp_no_response_reject_not_found_rollback
+UPDATE workflow_execution
+SET state = 0,
+    attempt = 0,
+    data = JSON_SET(data, '$.State', 0)
+WHERE run_id = %s
+AND workflow_id = 'wf_ct_qr_payment';`,
+				Params: []domain.ParamInfo{
+					{Name: "run_id", Value: runID, Type: "string"},
+				},
+			},
+		},
+		CaseType: domain.CaseRppNoResponseRejectNotFound,
 	}
 }
 

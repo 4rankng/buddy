@@ -151,6 +151,7 @@ const (
 	CasePeStuck230RepublishPC                        Case = "pe_stuck_230_republish_pc"
 	CaseRppCashoutReject101_19                       Case = "rpp_cashout_reject_101_19"
 	CaseRppQrPaymentReject210_0                      Case = "rpp_qr_payment_reject_210_0"
+	CaseRppNoResponseRejectNotFound                  Case = "rpp_no_response_reject_not_found"
 	CaseRppNoResponseResume                          Case = "rpp_no_response_resume"
 	CaseRppCashinValidationFailed122_0               Case = "rpp_cashin_validation_failed_122_0"
 	CaseRppRtpCashinStuck200_0                       Case = "rpp_rtp_cashin_stuck_200_0"
@@ -179,6 +180,7 @@ func GetCaseSummaryOrder() []Case {
 		CasePe2200FastCashinFailed,
 		CaseRppCashoutReject101_19,
 		CaseRppQrPaymentReject210_0,
+		CaseRppNoResponseRejectNotFound,
 		CaseRppNoResponseResume,
 		CaseRppCashinValidationFailed122_0,
 		CaseRppRtpCashinStuck200_0,

@@ -129,6 +129,23 @@ This document outlines standard operating procedures (SOPs) for resolving stuck 
   AND workflow_id = 'wf_ct_qr_payment';
   ```
 
+### `rpp_no_response_reject_not_found_state_0`
+- **Condition**: RPP wf_ct_qr_payment stuck at state 0 (stInit) with any attempt count. PE 220, PC 201. Adapter never sent request to PayNet.
+- **Diagnosis**: RPP adapter stuck in initialization loop; transaction does not exist at PayNet side.
+- **Resolution**: Move RPP adapter state to 221 to reject the transaction manually.
+- **References**:
+  - Similar to: `rpp_no_response_reject_not_found` (State 210 variant)
+- **Sample Deploy Script**:
+  ```sql
+  UPDATE workflow_execution
+  SET state = 221,
+      attempt = 1,
+      data = JSON_SET(data, '$.State', 221)
+  WHERE run_id = {RUN_ID}
+  AND state = 0
+  AND workflow_id = 'wf_ct_qr_payment';
+  ```
+
 ### `rpp_adapter_publish_failure_311`
 - **Condition**: Cash out RPP adapter stuck at 301 or 311 (stSuccessPublish/stPrepareFailurePublish) but failed to publish to Kafka.
 - **Resolution**: Resume publish failed stream on 311 or set attempt to 1 to resume.

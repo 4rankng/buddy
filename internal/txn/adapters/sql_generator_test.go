@@ -391,3 +391,143 @@ func TestGetDMLTicketForRppRtpCashinStuck200_0(t *testing.T) {
 		})
 	}
 }
+
+func TestGetDMLTicketForRppNoResponseRejectNotFound(t *testing.T) {
+	tests := []struct {
+		name          string
+		result        domain.TransactionResult
+		wantTicket    bool
+		expectedRunID string
+	}{
+		{
+			name: "wf_ct_qr_payment at state 0, attempt 20",
+			result: domain.TransactionResult{
+				RPPAdapter: &domain.RPPAdapterInfo{
+					Workflow: []domain.WorkflowInfo{
+						{WorkflowID: "wf_ct_qr_payment", RunID: "test-run-001", State: "0", Attempt: 20},
+					},
+				},
+				CaseType: domain.CaseRppNoResponseRejectNotFound,
+			},
+			wantTicket:    true,
+			expectedRunID: "test-run-001",
+		},
+		{
+			name: "wf_ct_qr_payment at state 0, attempt 0",
+			result: domain.TransactionResult{
+				RPPAdapter: &domain.RPPAdapterInfo{
+					Workflow: []domain.WorkflowInfo{
+						{WorkflowID: "wf_ct_qr_payment", RunID: "test-run-002", State: "0", Attempt: 0},
+					},
+				},
+				CaseType: domain.CaseRppNoResponseRejectNotFound,
+			},
+			wantTicket:    true,
+			expectedRunID: "test-run-002",
+		},
+		{
+			name: "wf_ct_qr_payment at state 0, attempt 5",
+			result: domain.TransactionResult{
+				RPPAdapter: &domain.RPPAdapterInfo{
+					Workflow: []domain.WorkflowInfo{
+						{WorkflowID: "wf_ct_qr_payment", RunID: "test-run-003", State: "0", Attempt: 5},
+					},
+				},
+				CaseType: domain.CaseRppNoResponseRejectNotFound,
+			},
+			wantTicket:    true,
+			expectedRunID: "test-run-003",
+		},
+		{
+			name: "wrong workflow (wf_ct_cashout)",
+			result: domain.TransactionResult{
+				RPPAdapter: &domain.RPPAdapterInfo{
+					Workflow: []domain.WorkflowInfo{
+						{WorkflowID: "wf_ct_cashout", RunID: "test-run-004", State: "0", Attempt: 5},
+					},
+				},
+				CaseType: domain.CaseRppNoResponseRejectNotFound,
+			},
+			wantTicket:    false,
+			expectedRunID: "",
+		},
+		{
+			name: "wrong state (210 instead of 0)",
+			result: domain.TransactionResult{
+				RPPAdapter: &domain.RPPAdapterInfo{
+					Workflow: []domain.WorkflowInfo{
+						{WorkflowID: "wf_ct_qr_payment", RunID: "test-run-005", State: "210", Attempt: 0},
+					},
+				},
+				CaseType: domain.CaseRppNoResponseRejectNotFound,
+			},
+			wantTicket:    false,
+			expectedRunID: "",
+		},
+		{
+			name: "nil RPPAdapter",
+			result: domain.TransactionResult{
+				RPPAdapter: nil,
+			},
+			wantTicket:    false,
+			expectedRunID: "",
+		},
+		{
+			name: "empty workflow slice",
+			result: domain.TransactionResult{
+				RPPAdapter: &domain.RPPAdapterInfo{
+					Workflow: []domain.WorkflowInfo{},
+				},
+				CaseType: domain.CaseRppNoResponseRejectNotFound,
+			},
+			wantTicket:    false,
+			expectedRunID: "",
+		},
+		{
+			name: "first workflow matches, second doesn't",
+			result: domain.TransactionResult{
+				RPPAdapter: &domain.RPPAdapterInfo{
+					Workflow: []domain.WorkflowInfo{
+						{WorkflowID: "wf_ct_qr_payment", RunID: "test-run-006", State: "0", Attempt: 10},
+						{WorkflowID: "wf_ct_cashout", RunID: "test-run-007", State: "0", Attempt: 5},
+					},
+				},
+				CaseType: domain.CaseRppNoResponseRejectNotFound,
+			},
+			wantTicket:    true,
+			expectedRunID: "test-run-006",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ticket := GetDMLTicketForRppNoResponseRejectNotFound(tt.result)
+
+			if tt.wantTicket {
+				require.NotNil(t, ticket)
+				require.Equal(t, domain.CaseRppNoResponseRejectNotFound, ticket.CaseType)
+				require.Len(t, ticket.Deploy, 1)
+				require.Len(t, ticket.Rollback, 1)
+				assert.Equal(t, "RPP", ticket.Deploy[0].TargetDB)
+				assert.Equal(t, "RPP", ticket.Rollback[0].TargetDB)
+				assert.Equal(t, tt.expectedRunID, ticket.Deploy[0].Params[0].Value)
+				assert.Equal(t, tt.expectedRunID, ticket.Rollback[0].Params[0].Value)
+
+				// Verify SQL contains key elements
+				deploySQL := ticket.Deploy[0].SQLTemplate
+				assert.Contains(t, deploySQL, "state = 221")
+				assert.Contains(t, deploySQL, "attempt = 1")
+				assert.Contains(t, deploySQL, "workflow_id = 'wf_ct_qr_payment'")
+				assert.Contains(t, deploySQL, "state = 0")
+
+				// Verify rollback SQL
+				rollbackSQL := ticket.Rollback[0].SQLTemplate
+				assert.Contains(t, rollbackSQL, "state = 0")
+				assert.Contains(t, rollbackSQL, "attempt = 0")
+				assert.Contains(t, rollbackSQL, "workflow_id = 'wf_ct_qr_payment'")
+			} else {
+				assert.Nil(t, ticket)
+			}
+		})
+	}
+}
