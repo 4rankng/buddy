@@ -77,7 +77,7 @@ func peStuckAtLimitCheck102(result domain.TransactionResult) *domain.DMLTicket {
 		Deploy: []domain.TemplateInfo{
 			{
 				TargetDB: "PE",
-				SQLTemplate: "-- 1) Reject/Reset the Workflow Execution (cashout_pe102_reject)\n" +
+				SQLTemplate: "-- Reject/Reset the Workflow Execution (cashout_pe102_reject)\n" +
 					"UPDATE workflow_execution\n" +
 					"SET state = 221,\n" +
 					"    attempt = 1,\n" +
@@ -102,7 +102,7 @@ func peStuckAtLimitCheck102(result domain.TransactionResult) *domain.DMLTicket {
 			},
 			{
 				TargetDB: "PE",
-				SQLTemplate: "-- 2) Update transfer table with AuthorisationID from payment-core internal_auth\n" +
+				SQLTemplate: "-- Update transfer table with AuthorisationID from payment-core internal_auth\n" +
 					"UPDATE transfer\n" +
 					"SET properties = JSON_SET(properties, '$.AuthorisationID', %s),\n" +
 					"    updated_at = %s\n" +

@@ -24,8 +24,6 @@ type groupedTemplate struct {
 
 // appendStatements is a helper to merge results into main struct
 func appendStatements(main *domain.SQLStatements, new domain.SQLStatements) {
-	fmt.Printf("[DEBUG] appendStatements: PE deploy %d, PE rollback %d\n",
-		len(new.PEDeployStatements), len(new.PERollbackStatements))
 	main.PCDeployStatements = append(main.PCDeployStatements, new.PCDeployStatements...)
 	main.PCRollbackStatements = append(main.PCRollbackStatements, new.PCRollbackStatements...)
 	main.PEDeployStatements = append(main.PEDeployStatements, new.PEDeployStatements...)
@@ -320,58 +318,42 @@ func groupTemplates(templates []domain.TemplateInfo) map[templateGroupKey]*group
 
 // buildSQLFromGroupedTemplate builds SQL from a grouped template with run_id IN clause
 func buildSQLFromGroupedTemplate(group *groupedTemplate) (string, error) {
-	fmt.Printf("[DEBUG] buildSQLFromGroupedTemplate: targetDB=%s, runIDs=%v, otherParams=%d\n",
-		group.targetDB, group.runIDs, len(group.otherParams))
-
 	// Build IN clause for run_ids
 	var runIDList []string
 	for _, runID := range group.runIDs {
 		runIDList = append(runIDList, fmt.Sprintf("'%s'", runID))
 	}
 	runIDClause := strings.Join(runIDList, ", ")
-	fmt.Printf("[DEBUG] Built runIDClause: %s\n", runIDClause)
 
 	// Format other parameters
 	formattedParams := make([]interface{}, len(group.otherParams))
 	for i, param := range group.otherParams {
 		formattedParams[i] = formatParameter(param)
 	}
-	fmt.Printf("[DEBUG] Formatted %d parameters\n", len(formattedParams))
 
 	// Build SQL with run_id IN clause
 	sql := group.sqlTemplate
-	fmt.Printf("[DEBUG] Original SQL template length: %d\n", len(sql))
 
 	// Replace "run_id = %s" with "run_id IN (...)" clause
 	if strings.Contains(sql, "run_id = %s") {
 		sql = strings.Replace(sql, "run_id = %s", "run_id IN ("+runIDClause+")", 1)
-		fmt.Printf("[DEBUG] Replaced 'run_id = %%s' with IN clause\n")
 	} else if strings.Contains(sql, "run_id IN (%s)") {
 		// Template already has IN clause, just substitute the run_ids
 		sql = strings.Replace(sql, "run_id IN (%s)", "run_id IN ("+runIDClause+")", 1)
-		fmt.Printf("[DEBUG] Replaced 'run_id IN (%%s)' with actual IDs\n")
 	} else if strings.Contains(sql, "run_id IN (") && strings.Contains(sql, "%s") {
 		// Handle templates with formatted IN clauses like "run_id IN (\n    %s\n)"
 		// Find the %s within the IN clause and replace it
 		sql = strings.Replace(sql, "%s", runIDClause, 1)
-		fmt.Printf("[DEBUG] Replaced %%s in formatted IN clause\n")
 	}
 
 	// Substitute remaining parameters (AuthorisationID, etc.)
 	if len(formattedParams) > 0 {
 		sql = fmt.Sprintf(sql, formattedParams...)
-		fmt.Printf("[DEBUG] Applied %d formatted parameters\n", len(formattedParams))
 	}
 
 	// Add comment back
 	if group.comment != "" {
 		sql = group.comment + "\n" + sql
-		fmt.Printf("[DEBUG] Added comment back, final SQL length: %d\n", len(sql))
-	}
-
-	fmt.Printf("[DEBUG] buildSQLFromGroupedTemplate result length: %d\n", len(sql))
-	if len(sql) > 0 && len(sql) < 500 {
-		fmt.Printf("[DEBUG] Generated SQL preview: %.200s\n", sql)
 	}
 
 	return sql, nil
@@ -383,10 +365,6 @@ func generateSQLFromTicket(ticket domain.DMLTicket) (domain.SQLStatements, error
 	if len(ticket.Deploy) == 0 && len(ticket.Rollback) == 0 {
 		return domain.SQLStatements{}, fmt.Errorf("ticket contains no templates")
 	}
-
-	// Debug logging
-	fmt.Printf("[DEBUG] generateSQLFromTicket: case=%s, deploy=%d, rollback=%d\n",
-		ticket.CaseType, len(ticket.Deploy), len(ticket.Rollback))
 
 	// Define valid target databases
 	validDatabases := map[string]struct{}{
@@ -425,13 +403,8 @@ func generateSQLFromTicket(ticket domain.DMLTicket) (domain.SQLStatements, error
 	// Group rollback templates
 	rollbackGroups := groupTemplates(ticket.Rollback)
 
-	// Debug logging
-	fmt.Printf("[DEBUG] Processing rollback templates for case %s: %d groups\n", ticket.CaseType, len(rollbackGroups))
-
 	// Process grouped rollback templates
 	for _, group := range rollbackGroups {
-		fmt.Printf("[DEBUG] Processing rollback group: targetDB=%s, runIDs=%d\n", group.targetDB, len(group.runIDs))
-
 		// Validate target DB
 		if _, ok := validDatabases[group.targetDB]; !ok {
 			return domain.SQLStatements{}, fmt.Errorf("unknown target database: %s", group.targetDB)
@@ -443,8 +416,6 @@ func generateSQLFromTicket(ticket domain.DMLTicket) (domain.SQLStatements, error
 			return domain.SQLStatements{}, fmt.Errorf("failed to generate rollback SQL for case %s: %w", ticket.CaseType, err)
 		}
 
-		fmt.Printf("[DEBUG] Generated rollback SQL length: %d\n", len(rollbackSQL))
-
 		// Validate SQL (use original template for validation)
 		if err := validateSQL(rollbackSQL, group.sqlTemplate); err != nil {
 			return domain.SQLStatements{}, fmt.Errorf("rollback SQL validation failed: %w", err)
@@ -454,52 +425,39 @@ func generateSQLFromTicket(ticket domain.DMLTicket) (domain.SQLStatements, error
 		addStatementToDatabase(&statements, group.targetDB, "", rollbackSQL)
 	}
 
-	fmt.Printf("[DEBUG] Final statements: PEDeploy=%d, PERollback=%d\n",
-		len(statements.PEDeployStatements), len(statements.PERollbackStatements))
-
 	return statements, nil
 }
 
 // addStatementToDatabase adds SQL statements to the appropriate database section
 func addStatementToDatabase(statements *domain.SQLStatements, targetDB string, deploySQL, rollbackSQL string) {
-	fmt.Printf("[DEBUG] addStatementToDatabase: targetDB=%s, deploySQL_len=%d, rollbackSQL_len=%d\n",
-		targetDB, len(deploySQL), len(rollbackSQL))
 	switch targetDB {
 	case "PC":
 		if deploySQL != "" {
 			statements.PCDeployStatements = append(statements.PCDeployStatements, deploySQL)
-			fmt.Printf("[DEBUG] Added PC deploy, total=%d\n", len(statements.PCDeployStatements))
 		}
 		if rollbackSQL != "" {
 			statements.PCRollbackStatements = append(statements.PCRollbackStatements, rollbackSQL)
-			fmt.Printf("[DEBUG] Added PC rollback, total=%d\n", len(statements.PCRollbackStatements))
 		}
 	case "PE":
 		if deploySQL != "" {
 			statements.PEDeployStatements = append(statements.PEDeployStatements, deploySQL)
-			fmt.Printf("[DEBUG] Added PE deploy, total=%d\n", len(statements.PEDeployStatements))
 		}
 		if rollbackSQL != "" {
 			statements.PERollbackStatements = append(statements.PERollbackStatements, rollbackSQL)
-			fmt.Printf("[DEBUG] Added PE rollback, total=%d\n", len(statements.PERollbackStatements))
 		}
 	case "PPE":
 		if deploySQL != "" {
 			statements.PPEDeployStatements = append(statements.PPEDeployStatements, deploySQL)
-			fmt.Printf("[DEBUG] Added PPE deploy, total=%d\n", len(statements.PPEDeployStatements))
 		}
 		if rollbackSQL != "" {
 			statements.PPERollbackStatements = append(statements.PPERollbackStatements, rollbackSQL)
-			fmt.Printf("[DEBUG] Added PPE rollback, total=%d\n", len(statements.PPERollbackStatements))
 		}
 	case "RPP":
 		if deploySQL != "" {
 			statements.RPPDeployStatements = append(statements.RPPDeployStatements, deploySQL)
-			fmt.Printf("[DEBUG] Added RPP deploy, total=%d\n", len(statements.RPPDeployStatements))
 		}
 		if rollbackSQL != "" {
 			statements.RPPRollbackStatements = append(statements.RPPRollbackStatements, rollbackSQL)
-			fmt.Printf("[DEBUG] Added RPP rollback, total=%d\n", len(statements.RPPRollbackStatements))
 		}
 	}
 }

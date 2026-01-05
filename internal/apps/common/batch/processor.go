@@ -59,10 +59,6 @@ func ProcessTransactionFile(appCtx *common.Context, clients *di.ClientSet, fileP
 		// Generate SQL statements
 		statements := adapters.GenerateSQLStatements(results)
 
-		// Debug: Check what was generated
-		fmt.Printf("[DEBUG] After GenerateSQLStatements: PE Deploy=%d, PE Rollback=%d\n",
-			len(statements.PEDeployStatements), len(statements.PERollbackStatements))
-
 		// Show summary of what was generated
 		fmt.Printf("%s\nSQL Generation Summary:\n", appCtx.GetPrefix())
 		totalStatements := len(statements.PCDeployStatements) +

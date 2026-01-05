@@ -26,9 +26,6 @@ func ClearSQLFiles() {
 // WriteSQLFiles writes the SQL statements to database-specific Deploy.sql and Rollback.sql files
 // Returns a list of filenames that were successfully created
 func WriteSQLFiles(statements domain.SQLStatements, basePath string) ([]string, error) {
-	fmt.Printf("[DEBUG] WriteSQLFiles called with: PE deploy=%d, PE rollback=%d\n",
-		len(statements.PEDeployStatements), len(statements.PERollbackStatements))
-
 	var filesCreated []string
 
 	// Validate that rollback statements exist when deploy statements exist
@@ -100,7 +97,6 @@ func WriteSQLFiles(statements domain.SQLStatements, basePath string) ([]string, 
 		filesCreated = append(filesCreated, rollbackPath)
 	}
 
-	fmt.Printf("[DEBUG] WriteSQLFiles completed, files created: %v\n", filesCreated)
 	return filesCreated, nil
 }
 
@@ -189,7 +185,6 @@ func validateDeployRollbackPairs(statements domain.SQLStatements) error {
 		return fmt.Errorf("missing rollback statements for databases: %v", missingRollbacks)
 	}
 
-	fmt.Printf("[DEBUG] Deploy/rollback validation passed: all databases with deploy statements have corresponding rollback statements\n")
 	return nil
 }
 

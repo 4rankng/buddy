@@ -88,7 +88,7 @@ WHERE run_id IN ('D060C5AD-C53F-4CEC-AC60-E3B04AB9DE46')
   AND state = 102
   AND workflow_id = 'workflow_transfer_payment';
 
--- 2) Update transfer table with AuthorisationID from payment-core internal_auth
+-- Update transfer table with AuthorisationID from payment-core internal_auth
 UPDATE transfer
 SET properties = JSON_SET(properties, '$.AuthorisationID', 'ef8a3114ccab4c309cd7855270b5f221'),
     updated_at = '2025-12-26T13:32:25.308547Z'  -- PRESERVE ORIGINAL TIMESTAMP
