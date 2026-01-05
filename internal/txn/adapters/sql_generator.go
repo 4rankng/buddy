@@ -6,6 +6,22 @@ import (
 	"strings"
 )
 
+// templateGroupKey represents a unique key for grouping identical templates
+type templateGroupKey struct {
+	targetDB      string
+	sqlTemplate   string // SQL template without comments
+	paramsKey     string // String representation of params excluding run_id
+}
+
+// groupedTemplate represents a group of templates that can be combined
+type groupedTemplate struct {
+	comment      string
+	targetDB     string
+	sqlTemplate  string
+	otherParams  []domain.ParamInfo // All params except run_id
+	runIDs       []string            // All run_ids to be combined
+}
+
 // appendStatements is a helper to merge results into main struct
 func appendStatements(main *domain.SQLStatements, new domain.SQLStatements) {
 	main.PCDeployStatements = append(main.PCDeployStatements, new.PCDeployStatements...)
@@ -112,6 +128,67 @@ func updateParamValue(params []domain.ParamInfo, name string, newValue interface
 }
 */
 
+// extractComment extracts SQL comments from the beginning of a template
+func extractComment(template string) (comment, sqlWithoutComment string) {
+	lines := strings.Split(template, "\n")
+	var commentLines []string
+	var sqlLines []string
+	inComment := true
+
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if inComment && strings.HasPrefix(trimmed, "--") {
+			commentLines = append(commentLines, line)
+		} else {
+			inComment = false
+			sqlLines = append(sqlLines, line)
+		}
+	}
+
+	if len(commentLines) > 0 {
+		comment = strings.Join(commentLines, "\n")
+	}
+	if len(sqlLines) > 0 {
+		sqlWithoutComment = strings.Join(sqlLines, "\n")
+	}
+	return
+}
+
+// buildParamsKey creates a string key from params excluding run_id
+func buildParamsKey(params []domain.ParamInfo) string {
+	var keyParts []string
+	for _, p := range params {
+		if p.Name != "run_id" {
+			keyParts = append(keyParts, fmt.Sprintf("%s:%v", p.Name, p.Value))
+		}
+	}
+	return strings.Join(keyParts, "|")
+}
+
+// extractRunID extracts the run_id parameter value from params
+func extractRunID(params []domain.ParamInfo) string {
+	for _, p := range params {
+		if p.Name == "run_id" {
+			if strVal, ok := p.Value.(string); ok {
+				return strVal
+			}
+			return fmt.Sprintf("%v", p.Value)
+		}
+	}
+	return ""
+}
+
+// removeRunIDParam removes the run_id parameter from params
+func removeRunIDParam(params []domain.ParamInfo) []domain.ParamInfo {
+	var result []domain.ParamInfo
+	for _, p := range params {
+		if p.Name != "run_id" {
+			result = append(result, p)
+		}
+	}
+	return result
+}
+
 // validateSQL checks if the generated SQL matches expected template structure
 func validateSQL(sql, template string) error {
 	// Count placeholders in template
@@ -123,6 +200,72 @@ func validateSQL(sql, template string) error {
 	}
 
 	return nil
+}
+
+// groupTemplates groups templates by their SQL template and params (excluding run_id)
+func groupTemplates(templates []domain.TemplateInfo) map[templateGroupKey]*groupedTemplate {
+	groups := make(map[templateGroupKey]*groupedTemplate)
+
+	for _, tmpl := range templates {
+		comment, sqlWithoutComment := extractComment(tmpl.SQLTemplate)
+		paramsKey := buildParamsKey(tmpl.Params)
+		runID := extractRunID(tmpl.Params)
+
+		key := templateGroupKey{
+			targetDB:    tmpl.TargetDB,
+			sqlTemplate: sqlWithoutComment,
+			paramsKey:   paramsKey,
+		}
+
+		if group, exists := groups[key]; exists {
+			// Add run_id to existing group
+			group.runIDs = append(group.runIDs, runID)
+		} else {
+			// Create new group
+			groups[key] = &groupedTemplate{
+				comment:     comment,
+				targetDB:    tmpl.TargetDB,
+				sqlTemplate: sqlWithoutComment,
+				otherParams: removeRunIDParam(tmpl.Params),
+				runIDs:      []string{runID},
+			}
+		}
+	}
+
+	return groups
+}
+
+// buildSQLFromGroupedTemplate builds SQL from a grouped template with run_id IN clause
+func buildSQLFromGroupedTemplate(group *groupedTemplate) (string, error) {
+	// Build IN clause for run_ids
+	var runIDList []string
+	for _, runID := range group.runIDs {
+		runIDList = append(runIDList, fmt.Sprintf("'%s'", runID))
+	}
+	runIDClause := strings.Join(runIDList, ", ")
+
+	// Format other parameters
+	formattedParams := make([]interface{}, len(group.otherParams))
+	for i, param := range group.otherParams {
+		formattedParams[i] = formatParameter(param)
+	}
+
+	// Build SQL with run_id IN clause
+	// Replace first %s with IN clause, then substitute remaining params
+	sql := group.sqlTemplate
+	sql = strings.Replace(sql, "run_id = %s", "run_id IN ("+runIDClause+")", 1)
+
+	// Substitute remaining parameters
+	if len(formattedParams) > 0 {
+		sql = fmt.Sprintf(sql, formattedParams...)
+	}
+
+	// Add comment back
+	if group.comment != "" {
+		sql = group.comment + "\n" + sql
+	}
+
+	return sql, nil
 }
 
 // generateSQLFromTicket generates SQL statements from a DML ticket using TemplateInfo arrays
@@ -142,52 +285,52 @@ func generateSQLFromTicket(ticket domain.DMLTicket) (domain.SQLStatements, error
 
 	statements := domain.SQLStatements{}
 
-	// Process all deploy templates
-	for _, deploy := range ticket.Deploy {
+	// Group deploy templates
+	deployGroups := groupTemplates(ticket.Deploy)
+
+	// Process grouped deploy templates
+	for _, group := range deployGroups {
 		// Validate target DB
-		if _, ok := validDatabases[deploy.TargetDB]; !ok {
-			return domain.SQLStatements{}, fmt.Errorf("unknown target database: %s", deploy.TargetDB)
+		if _, ok := validDatabases[group.targetDB]; !ok {
+			return domain.SQLStatements{}, fmt.Errorf("unknown target database: %s", group.targetDB)
 		}
 
-		// Count placeholders and validate parameters
-		deployPlaceholders := countPlaceholders(deploy.SQLTemplate)
-		if len(deploy.Params) != deployPlaceholders {
-			return domain.SQLStatements{}, fmt.Errorf("deploy parameters count mismatch: need %d, got %d", deployPlaceholders, len(deploy.Params))
-		}
-
-		// Generate SQL for deploy template
-		deploySQL, err := buildSQLFromTemplate(deploy.SQLTemplate, deploy.Params)
+		// Generate SQL for grouped template
+		deploySQL, err := buildSQLFromGroupedTemplate(group)
 		if err != nil {
 			return domain.SQLStatements{}, fmt.Errorf("failed to generate deploy SQL for case %s: %w", ticket.CaseType, err)
 		}
-		if err := validateSQL(deploySQL, deploy.SQLTemplate); err != nil {
+
+		// Validate SQL (use original template for validation)
+		if err := validateSQL(deploySQL, group.sqlTemplate); err != nil {
 			return domain.SQLStatements{}, fmt.Errorf("deploy SQL validation failed: %w", err)
 		}
-		addStatementToDatabase(&statements, deploy.TargetDB, deploySQL, "")
+
+		addStatementToDatabase(&statements, group.targetDB, deploySQL, "")
 	}
 
-	// Process all rollback templates
-	for _, rollback := range ticket.Rollback {
+	// Group rollback templates
+	rollbackGroups := groupTemplates(ticket.Rollback)
+
+	// Process grouped rollback templates
+	for _, group := range rollbackGroups {
 		// Validate target DB
-		if _, ok := validDatabases[rollback.TargetDB]; !ok {
-			return domain.SQLStatements{}, fmt.Errorf("unknown target database: %s", rollback.TargetDB)
+		if _, ok := validDatabases[group.targetDB]; !ok {
+			return domain.SQLStatements{}, fmt.Errorf("unknown target database: %s", group.targetDB)
 		}
 
-		// Count placeholders and validate parameters
-		rollbackPlaceholders := countPlaceholders(rollback.SQLTemplate)
-		if len(rollback.Params) != rollbackPlaceholders {
-			return domain.SQLStatements{}, fmt.Errorf("rollback parameters count mismatch: need %d, got %d", rollbackPlaceholders, len(rollback.Params))
-		}
-
-		// Generate SQL for rollback template
-		rollbackSQL, err := buildSQLFromTemplate(rollback.SQLTemplate, rollback.Params)
+		// Generate SQL for grouped template
+		rollbackSQL, err := buildSQLFromGroupedTemplate(group)
 		if err != nil {
 			return domain.SQLStatements{}, fmt.Errorf("failed to generate rollback SQL for case %s: %w", ticket.CaseType, err)
 		}
-		if err := validateSQL(rollbackSQL, rollback.SQLTemplate); err != nil {
+
+		// Validate SQL (use original template for validation)
+		if err := validateSQL(rollbackSQL, group.sqlTemplate); err != nil {
 			return domain.SQLStatements{}, fmt.Errorf("rollback SQL validation failed: %w", err)
 		}
-		addStatementToDatabase(&statements, rollback.TargetDB, "", rollbackSQL)
+
+		addStatementToDatabase(&statements, group.targetDB, "", rollbackSQL)
 	}
 
 	return statements, nil
