@@ -61,6 +61,16 @@ func GenerateSQLStatements(results []domain.TransactionResult) domain.SQLStateme
 		appendStatements(&statements, generatedSQL)
 	}
 
+	// Generate transfer table UPDATE statements for transactions with payment-core internal_auth
+	for _, result := range results {
+		if shouldGenerateTransferUpdate(result) {
+			transferUpdateSQL := generateTransferUpdateSQL(result)
+			if transferUpdateSQL != "" {
+				statements.PEDeployStatements = append(statements.PEDeployStatements, transferUpdateSQL)
+			}
+		}
+	}
+
 	// Re-assign errors back to relevant records if needed (optional, for visibility)
 	for caseType, errStr := range caseErrors {
 		for i := range results {
@@ -71,6 +81,50 @@ func GenerateSQLStatements(results []domain.TransactionResult) domain.SQLStateme
 	}
 
 	return statements
+}
+
+// shouldGenerateTransferUpdate checks if a transfer table UPDATE statement should be generated
+func shouldGenerateTransferUpdate(result domain.TransactionResult) bool {
+	// Check if PaymentCore has InternalAuth with SUCCESS status and TxID
+	if result.PaymentCore == nil {
+		return false
+	}
+	if result.PaymentCore.InternalAuth.TxStatus != "SUCCESS" {
+		return false
+	}
+	if result.PaymentCore.InternalAuth.TxID == "" {
+		return false
+	}
+	// Check if PaymentEngine has a valid transaction with updated_at timestamp
+	if result.PaymentEngine == nil {
+		return false
+	}
+	if result.PaymentEngine.Transfers.TransactionID == "" {
+		return false
+	}
+	if result.PaymentEngine.Transfers.UpdatedAt == "" {
+		return false
+	}
+	return true
+}
+
+// generateTransferUpdateSQL generates the SQL UPDATE statement for the transfer table
+func generateTransferUpdateSQL(result domain.TransactionResult) string {
+	// Format the AuthorisationID and created_at timestamp
+	authorisationID := result.PaymentCore.InternalAuth.TxID
+	transactionID := result.PaymentEngine.Transfers.TransactionID
+	updatedAt := result.PaymentEngine.Transfers.UpdatedAt
+
+	// Build the SQL UPDATE statement
+	sql := fmt.Sprintf(
+		"-- Update transfer table with AuthorisationID from payment-core internal_auth\n"+
+			"UPDATE transfer\n"+
+			"SET properties = JSON_SET(properties, '$.AuthorisationID', '%s'),\n"+
+			"    updated_at = '%s'\n"+
+			"WHERE transaction_id = '%s';",
+		authorisationID, updatedAt, transactionID)
+
+	return sql
 }
 
 // GenerateSQLFromTicket generates SQL statements from a DML ticket (exposed version)

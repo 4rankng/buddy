@@ -13,6 +13,7 @@ type PETransfersInfo struct {
 	DestinationAccountID string  // payment-engine transfers.destination_account_id
 	Amount               float64 // payment-engine transfers.amount (in cents)
 	CreatedAt            string  // payment-engine transfers.created_at
+	UpdatedAt            string  // payment-engine transfers.updated_at
 }
 
 // WorkflowInfo contains information about a specific workflow execution

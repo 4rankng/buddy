@@ -52,6 +52,14 @@ func ProcessTransactionFile(appCtx *common.Context, clients *di.ClientSet, fileP
 		} else {
 			fmt.Printf("%sBatch processing completed. Results written to %s\n", appCtx.GetPrefix(), outputPath)
 		}
+
+		// Generate SQL statements
+		statements := adapters.GenerateSQLStatements(results)
+
+		// Write SQL to database-specific files
+		if err := adapters.WriteSQLFiles(statements, filePath); err != nil {
+			fmt.Printf("%sError writing SQL files: %v\n", appCtx.GetPrefix(), err)
+		}
 	}
 }
 
