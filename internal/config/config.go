@@ -51,6 +51,14 @@ func Get(key, defaultValue string) string {
 		if buildinfo.DoormanPassword != "" {
 			return buildinfo.DoormanPassword
 		}
+	case "DD_API_KEY":
+		if buildinfo.DatadogApiKey != "" {
+			return buildinfo.DatadogApiKey
+		}
+	case "DD_APPLICATION_KEY":
+		if buildinfo.DatadogAppKey != "" {
+			return buildinfo.DatadogAppKey
+		}
 	}
 	return defaultValue
 }

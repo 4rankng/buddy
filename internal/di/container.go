@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sync"
 
+	"buddy/internal/clients/datadog"
 	"buddy/internal/clients/doorman"
 	"buddy/internal/clients/jira"
 	"buddy/internal/config"
@@ -14,6 +15,7 @@ import (
 type Container struct {
 	doormanClient doorman.DoormanInterface
 	jiraClient    jira.JiraInterface
+	datadogClient datadog.DatadogInterface
 	txnService    *service.TransactionQueryService
 	mu            sync.RWMutex
 }
@@ -48,6 +50,13 @@ func (c *Container) InitializeForEnvironment(env string) error {
 	c.jiraClient = jiraClient
 	jira.Jira = jiraClient // Set global instance for subcommands
 
+	// Initialize Datadog client
+	datadogClient := datadog.NewDatadogClient(env)
+	if datadogClient == nil {
+		return fmt.Errorf("failed to initialize Datadog client for environment: %s", env)
+	}
+	c.datadogClient = datadogClient
+
 	// Initialize Transaction service
 	txnService := service.NewTransactionQueryService(env)
 	if txnService == nil {
@@ -72,6 +81,13 @@ func (c *Container) JiraClient() jira.JiraInterface {
 	return c.jiraClient
 }
 
+// DatadogClient returns the Datadog client instance
+func (c *Container) DatadogClient() datadog.DatadogInterface {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.datadogClient
+}
+
 // TransactionService returns the transaction service instance
 func (c *Container) TransactionService() *service.TransactionQueryService {
 	c.mu.RLock()
@@ -83,6 +99,7 @@ func (c *Container) TransactionService() *service.TransactionQueryService {
 type ClientSet struct {
 	Doorman doorman.DoormanInterface
 	Jira    jira.JiraInterface
+	Datadog datadog.DatadogInterface
 	TxnSvc  *service.TransactionQueryService
 }
 
@@ -94,6 +111,7 @@ func (c *Container) GetClientSet() *ClientSet {
 	return &ClientSet{
 		Doorman: c.doormanClient,
 		Jira:    c.jiraClient,
+		Datadog: c.datadogClient,
 		TxnSvc:  c.txnService,
 	}
 }

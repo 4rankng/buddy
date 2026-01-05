@@ -15,6 +15,10 @@ var (
 	DoormanUsername string
 	DoormanPassword string
 
+	// Datadog configuration
+	DatadogApiKey string
+	DatadogAppKey string
+
 	// Build information
 	BuildEnvironment string
 )
@@ -35,6 +39,12 @@ func ValidateConstants() error {
 	}
 	if DoormanPassword == "" {
 		return fmt.Errorf("DOORMAN_PASSWORD not set at build time")
+	}
+	if DatadogApiKey == "" {
+		return fmt.Errorf("DD_API_KEY not set at build time")
+	}
+	if DatadogAppKey == "" {
+		return fmt.Errorf("DD_APPLICATION_KEY not set at build time")
 	}
 	if BuildEnvironment == "" {
 		return fmt.Errorf("BUILD_ENVIRONMENT not set at build time")
