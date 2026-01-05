@@ -1,132 +1,130 @@
 ---
 name: buddy-oncall-assistant
-description: Operational CLI tools (mybuddy/sgbuddy) for Jira management, transaction investigation, RPP recovery, and DML creation in G-Bank payment operations.
+description: CLI tools (mybuddy/sgbuddy) for database queries, transaction investigation, Jira integration, and payment operations.
 ---
 
-# Buddy On-Call Assistant Skill
+# MyBuddy & SGBuddy CLI Tools
 
-## Context & Tool Selection
-Select the tool based on the Jira project or region.
+## Tool Selection
 
-| Scope | Region | Tool Command | Env File | Jira Project |
-| :--- | :--- | :--- | :--- | :--- |
-| **Malaysia** | MY | `mybuddy` | `.env.my` | `TS` |
-| **Singapore** | SG | `sgbuddy` | `.env.sg` | `TSE` |
+| Region | Tool | Env File | Jira Project |
+|:---|:---|:---|:---|
+| Malaysia | `mybuddy` | `.env.my` | `TS` |
+| Singapore | `sgbuddy` | `.env.sg` | `TSE` |
 
 ## Environment Variables
-Ensure these are set before execution:
-* `JIRA_USERNAME` / `JIRA_API_KEY`
-* `DOORMAN_USERNAME` / `DOORMAN_PASSWORD`
-* `JIRA_DOMAIN` (Optional defaults: `gxbank.atlassian.net` for MY, `gxsbank.atlassian.net` for SG)
-
-## Core Commands
-
-### 1. Jira Operations
-Interact with tickets. Use interactive pickers when possible.
 
 ```bash
-# List assigned tickets (interactive)
+JIRA_USERNAME / JIRA_API_KEY
+DOORMAN_USERNAME / DOORMAN_PASSWORD
+JIRA_DOMAIN  # Optional: gxbank.atlassian.net (MY) or gxsbank.atlassian.net (SG)
+```
+
+## Commands
+
+### Jira Integration
+
+```bash
+# List tickets (interactive)
 mybuddy jira list
+sgbuddy jira list
 
-# Search (Summary/Description)
-mybuddy jira search "keyword" "keyword2"
+# Search tickets
+mybuddy jira search "keyword"
 
-# View Details (Direct)
+# View ticket
 mybuddy jira view TS-1234
+sgbuddy jira view TSE-5678
 ```
 
-### 2. Transaction Investigation
-Diagnose status and generate remediation SQL. Input: Transaction ID (or Batch ID as given in Jira) (TXN...), E2E ID (2025...), or file path.
+### Transaction Investigation
 
 ```bash
-# Single Transaction
-mybuddy txn <txn_id_or_e2e_id>
+# Single transaction (accepts TXN ID, E2E ID, or Batch ID)
+mybuddy txn TXN123
+mybuddy txn 20250101120000
 
-# Batch Processing (File containing IDs)
+# Batch processing (file with one ID per line)
 mybuddy txn ids.txt
+sgbuddy txn ids.txt
 ```
 
-### 3. RPP Recovery (Malaysia Only)
-Resume stuck RPP adapter workflows.
+### RPP Operations (Malaysia Only)
 
 ```bash
-# Analyze and generate Deploy/Rollback SQL
 mybuddy rpp resume
 ```
 
-### 4. PartnerPay (Eco) Inspection
-Investigate PartnerPay workflow runs.
+Output: Deploy SQL + Rollback SQL
+
+### PartnerPay Inspection
 
 ```bash
 mybuddy ecotxn <run_id>
+sgbuddy ecotxn <run_id>
 ```
 
-### 5. Doorman DML Creation (Malaysia Only)
-Generate production database change tickets.
+### Database Queries
 
-Syntax:
+#### Query (Read-Only)
+
+```bash
+mybuddy doorman query --service <service> --query "<sql>"
+sgbuddy doorman query --service <service> --query "<sql>"
+```
+
+**Services:**
+- MyBuddy: `payment_engine`, `payment_core`, `rpp_adapter`, `partnerpay_engine`
+- SGBuddy: `payment_engine`, `payment_core`, `fast_adapter`, `partnerpay_engine`
+
+**Flags:**
+- `--service, -s`: Service name (required)
+- `--query, -q`: SQL query (required)
+- `--format, -f`: `table` (default) or `json`
+
+**Examples:**
+```bash
+mybuddy doorman query -s payment_core -q "SELECT * FROM transactions WHERE id = 'TXN123'"
+sgbuddy doorman query -s fast_adapter -q "SELECT * FROM orders WHERE status = 'pending'" --format json
+```
+
+#### Create DML Ticket (Malaysia Only)
 
 ```bash
 mybuddy doorman create-dml \
-  --service <service_name> \
-  --original "<update_query>" \
-  --rollback "<rollback_query>" \
-  --note "<description_and_reference>"
+  --service payment_core \
+  --original "UPDATE transactions SET status = 'done' WHERE id = 'TXN123'" \
+  --rollback "UPDATE transactions SET status = 'pending' WHERE id = 'TXN123'" \
+  --note "Fix TXN123 - Ref TS-456"
 ```
-Valid Services: payment_engine, payment_core, rpp_adapter, partnerpay_engine.
 
-## Advanced Workflows
-
-### Batch CSV Processing (Jira Attachments)
-Use for tickets with attached CSVs of failed transactions.
-
-#### 1. Download Attachment
-Prefer the Python script for reliability and auto-region detection.
+## CSV Processing
 
 ```bash
-# Download specific file
-python .kilocode/skills/buddy-oncall-assistant/scripts/download_jira_attachment.py TS-1234 --filename transactions.csv
+# Download attachment
+python .roo/skills/buddy-oncall-assistant/scripts/download_jira_attachment.py TS-1234 --filename data.csv
 
-# List available attachments
-python .kilocode/skills/buddy-oncall-assistant/scripts/download_jira_attachment.py TS-1234 --list-only
+# Extract IDs (first column)
+awk -F',' 'NR>1 {print $1}' data.csv | sort -u > ids.txt
+
+# Batch process
+mybuddy txn ids.txt
 ```
 
-#### 2. Extract IDs
-Parse CSV (handle headers and delimiters) to create a clean list.
+## Tool Selection Guide
 
-```bash
-# Extract column 1 (standard)
-awk -F',' 'NR>1 {print $1}' transactions.csv > txn_ids.txt
+| Task | Command |
+|:---|:---|
+| Find tickets | `jira search` |
+| View ticket | `jira view <id>` |
+| Investigate transaction | `txn <id>` |
+| Batch process | `txn <file>` |
+| RPP recovery | `rpp resume` (MY) |
+| Query database | `doorman query` |
+| Create DML ticket | `doorman create-dml` (MY) |
 
-# Extract column by header name "transaction_id"
-awk -F',' 'NR==1 {for(i=1;i<=NF;i++)if($i=="transaction_id")col=i} NR>1{print $col}' transactions.csv > txn_ids.txt
+## Notes
 
-# Clean/Deduplicate
-sort -u txn_ids.txt | grep -v '^$' | sed 's/\r$//' > clean_ids.txt
-```
-
-#### 3. Execute Batch
-
-```bash
-mybuddy txn clean_ids.txt > results.log
-```
-
-### Resolution Routine (End-to-End)
-Trigger: "Resolve TS-XXXX"
-
-1. **Context**: `mybuddy jira view TS-XXXX` (Check description/region).
-2. **Fetch Data**:
-    * If IDs in text -> Copy to file.
-    * If CSV -> Run Batch CSV Processing.
-3. **Investigate**: Run `mybuddy txn` (or `rpp resume` / `ecotxn` based on context).
-4. **Analyze**: Review generated SQL against SOP case type (Timeout, Declined, etc.).
-5. **Action**:
-    * If valid -> Apply SQL.
-    * If complex -> Create DML ticket (`doorman create-dml`).
-6. **Close**: Update Jira with findings, SQL used, and result.
-
-## Troubleshooting & Rules
-* **SgBuddy Attachments**: `sgbuddy` CLI cannot download attachments. Use Browser or curl.
-* **Hex Strings**: If CSV contains 32-char hex strings, check for a "Batch ID" column 
-* **Safety**: Always generate and save Rollback SQL for RPP operations.
-* **Privacy**: Never output raw customer PII or credentials in chat.
+- **Regional:** MyBuddy has RPP, SGBuddy has Fast Adapter
+- **SGBuddy:** Cannot download attachments (use browser/curl)
+- **Privacy:** Never output PII or credentials
