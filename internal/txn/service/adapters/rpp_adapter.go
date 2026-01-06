@@ -275,10 +275,9 @@ func (r *RPPAdapter) queryProcessRegistryByE2EID(externalID string) (*domain.RPP
 	// Collect all matching workflow rows across all 1-hour windows
 	allWorkflowRows := make([]map[string]interface{}, 0)
 
-	// Iterate through all 1-hour windows until end of day
 	timeWindowStart := startDate
 	for timeWindowStart.Before(endOfDay) {
-		timeWindowEnd := timeWindowStart.Add(1 * time.Hour)
+		timeWindowEnd := timeWindowStart.Add(60 * time.Minute)
 
 		// Query workflow_execution table for wf_process_registry workflows
 		workflowQuery := fmt.Sprintf(
@@ -294,7 +293,9 @@ func (r *RPPAdapter) queryProcessRegistryByE2EID(externalID string) (*domain.RPP
 
 		workflowRows, err := r.client.QueryRppAdapter(workflowQuery)
 		if err != nil {
-			return nil, fmt.Errorf("failed to query wf_process_registry workflow: %w", err)
+			// Continue to next time window if query fails (e.g., too many rows scanned)
+			timeWindowStart = timeWindowEnd
+			continue
 		}
 
 		// Collect results from this window
