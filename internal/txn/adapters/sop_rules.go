@@ -675,5 +675,44 @@ func getDefaultSOPRules() []CaseRule {
 				},
 			},
 		},
+		{
+			CaseType:    domain.CaseRppProcessRegistryStuckInit,
+			Description: "RPP Process Registry stuck at state 0 (stInit)",
+			Country:     "my",
+			Conditions: []RuleCondition{
+				{
+					FieldPath: "RPPAdapter.Workflow.WorkflowID",
+					Operator:  "eq",
+					Value:     "wf_process_registry",
+				},
+				{
+					FieldPath: "RPPAdapter.Workflow.State",
+					Operator:  "eq",
+					Value:     "0",
+				},
+			},
+		},
+		{
+			CaseType:    domain.CaseRppCashinStuck100_0,
+			Description: "RPP Cashin stuck at state 100 (stTransferPersisted) with attempt 0",
+			Country:     "my",
+			Conditions: []RuleCondition{
+				{
+					FieldPath: "RPPAdapter.Workflow.WorkflowID",
+					Operator:  "eq",
+					Value:     "wf_ct_cashin",
+				},
+				{
+					FieldPath: "RPPAdapter.Workflow.State",
+					Operator:  "eq",
+					Value:     "100",
+				},
+				{
+					FieldPath: "RPPAdapter.Workflow.Attempt",
+					Operator:  "eq",
+					Value:     0,
+				},
+			},
+		},
 	}
 }
