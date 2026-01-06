@@ -197,45 +197,126 @@ func rpp210Pe220Pc201Reject(result domain.TransactionResult) *domain.DMLTicket {
 	return nil
 }
 
-// pe220Pc201Rpp0StuckInit handles PE 220, PC 201, RPP 0 - PE manual rejection
-// Use case: RPP adapter stuck in initialization (State 0), reject PE to fail gracefully
+// pe220Pc201Rpp0StuckInit handles PE 220, PC 201, RPP 0 - multi-database rejection
+// Use case: RPP adapter stuck in initialization (State 0), reject all workflows to fail gracefully
 func pe220Pc201Rpp0StuckInit(result domain.TransactionResult) *domain.DMLTicket {
-	if runID := result.PaymentEngine.Workflow.RunID; runID != "" {
-		return &domain.DMLTicket{
-			Deploy: []domain.TemplateInfo{
-				{
-					TargetDB: "PE",
-					SQLTemplate: "-- pe220_pc201_rpp0_stuck_init, manual PE rejection\n" +
-						"UPDATE workflow_execution\n" +
-						"SET state = 221, attempt = 1, `data` = JSON_SET(\n" +
-						"      `data`, '$.StreamMessage',\n" +
-						"      JSON_OBJECT(\n" +
-						"         'Status', 'FAILED',\n" +
-						"         'ErrorCode', \"ADAPTER_ERROR\",\n" +
-						"         'ErrorMessage', 'Manual Rejected'\n" +
-						"      ),\n" +
-						"   '$.State', 221)\n" +
-						"WHERE run_id IN (%s) AND state = 220 AND workflow_id = 'workflow_transfer_payment';",
-					Params: []domain.ParamInfo{
-						{Name: "run_id", Value: runID, Type: "string"},
-					},
-				},
-			},
-			Rollback: []domain.TemplateInfo{
-				{
-					TargetDB: "PE",
-					SQLTemplate: "UPDATE workflow_execution\n" +
-						"SET state = 220, attempt = 0, `data` = JSON_SET(\n" +
-						"      `data`, '$.StreamMessage', null,\n" +
-						"   '$.State', 220)\n" +
-						"WHERE run_id IN (%s) AND workflow_id = 'workflow_transfer_payment';",
-					Params: []domain.ParamInfo{
-						{Name: "run_id", Value: runID, Type: "string"},
-					},
-				},
-			},
-			CaseType: domain.CasePe220Pc201Rpp0StuckInit,
-		}
+	peRunID := result.PaymentEngine.Workflow.RunID
+	if peRunID == "" {
+		return nil
 	}
-	return nil
+
+	// Get PC run_id from ExternalTransfer workflow (state 201, attempt 0)
+	var pcRunID string
+	if result.PaymentCore != nil && result.PaymentCore.ExternalTransfer.Workflow.RunID != "" {
+		pcRunID = result.PaymentCore.ExternalTransfer.Workflow.RunID
+	}
+
+	// Get RPP run_id from workflow (state 0, any attempt)
+	var rppRunID string
+	if result.RPPAdapter != nil {
+		rppRunID = getRPPWorkflowRunIDByCriteria(
+			result.RPPAdapter.Workflow,
+			"", // any workflow_id
+			"0", // state 0
+			-1,  // any attempt
+		)
+	}
+
+	deploy := []domain.TemplateInfo{
+		{
+			TargetDB: "PE",
+			SQLTemplate: "-- pe220_pc201_rpp0_stuck_init, manual PE rejection\n" +
+				"UPDATE workflow_execution\n" +
+				"SET state = 221, attempt = 1, `data` = JSON_SET(\n" +
+				"      `data`, '$.StreamMessage',\n" +
+				"      JSON_OBJECT(\n" +
+				"         'Status', 'FAILED',\n" +
+				"         'ErrorCode', \"ADAPTER_ERROR\",\n" +
+				"         'ErrorMessage', 'Manual Rejected'\n" +
+				"      ),\n" +
+				"   '$.State', 221)\n" +
+				"WHERE run_id IN (%s) AND state = 220 AND workflow_id = 'workflow_transfer_payment';",
+			Params: []domain.ParamInfo{
+				{Name: "run_id", Value: peRunID, Type: "string"},
+			},
+		},
+	}
+
+	rollback := []domain.TemplateInfo{
+		{
+			TargetDB: "PE",
+			SQLTemplate: "UPDATE workflow_execution\n" +
+				"SET state = 220, attempt = 0, `data` = JSON_SET(\n" +
+				"      `data`, '$.StreamMessage', null,\n" +
+				"   '$.State', 220)\n" +
+				"WHERE run_id IN (%s) AND workflow_id = 'workflow_transfer_payment';",
+			Params: []domain.ParamInfo{
+				{Name: "run_id", Value: peRunID, Type: "string"},
+			},
+		},
+	}
+
+	// Add PC rejection if run_id is available
+	if pcRunID != "" {
+		deploy = append(deploy, domain.TemplateInfo{
+			TargetDB: "PC",
+			SQLTemplate: "-- pc_external_payment_flow_201_0, manual PC rejection\n" +
+				"UPDATE workflow_execution\n" +
+				"SET state = 202, attempt = 1,\n" +
+				"    `data` = JSON_SET(`data`,\n" +
+				"      '$.StreamResp', JSON_OBJECT(\n" +
+				"        'TxID', '',\n" +
+				"        'Status', 'FAILED',\n" +
+				"        'ErrorCode', 'ADAPTER_ERROR',\n" +
+				"        'ExternalID', '',\n" +
+				"        'ErrorMessage', 'Reject from adapter'\n" +
+				"      ),\n" +
+				"      '$.State', 202)\n" +
+				"WHERE run_id IN (%s) AND state = 201 AND attempt = 0;",
+			Params: []domain.ParamInfo{
+				{Name: "run_id", Value: pcRunID, Type: "string"},
+			},
+		})
+		rollback = append(rollback, domain.TemplateInfo{
+			TargetDB: "PC",
+			SQLTemplate: "UPDATE workflow_execution\n" +
+				"SET state = 201, attempt = 0,\n" +
+				"    `data` = JSON_SET(`data`, '$.State', 201)\n" +
+				"WHERE run_id IN (%s);",
+			Params: []domain.ParamInfo{
+				{Name: "run_id", Value: pcRunID, Type: "string"},
+			},
+		})
+	}
+
+	// Add RPP move to state 700 if run_id is available
+	if rppRunID != "" {
+		deploy = append(deploy, domain.TemplateInfo{
+			TargetDB: "RPP",
+			SQLTemplate: "-- rpp_stuck_init_move_to_700\n" +
+				"UPDATE workflow_execution\n" +
+				"SET state = 700,\n" +
+				"    `data` = JSON_SET(`data`, '$.State', 700)\n" +
+				"WHERE run_id IN (%s) AND state = 0;",
+			Params: []domain.ParamInfo{
+				{Name: "run_id", Value: rppRunID, Type: "string"},
+			},
+		})
+		rollback = append(rollback, domain.TemplateInfo{
+			TargetDB: "RPP",
+			SQLTemplate: "UPDATE workflow_execution\n" +
+				"SET state = 0,\n" +
+				"    `data` = JSON_SET(`data`, '$.State', 0)\n" +
+				"WHERE run_id IN (%s);",
+			Params: []domain.ParamInfo{
+				{Name: "run_id", Value: rppRunID, Type: "string"},
+			},
+		})
+	}
+
+	return &domain.DMLTicket{
+		Deploy:   deploy,
+		Rollback: rollback,
+		CaseType: domain.CasePe220Pc201Rpp0StuckInit,
+	}
 }
