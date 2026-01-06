@@ -205,19 +205,57 @@ func TestRPPAdapterQuery(t *testing.T) {
 			},
 			wantErr: false,
 		},
+		{
+			name: "Fallback to wf_process_registry when credit_transfer not found",
+			mockClient: &mockClient{
+				creditTransferResult: []map[string]interface{}{}, // Empty result triggers fallback
+				workflowResults: []map[string]interface{}{
+					{
+						"run_id":        "run123",
+						"workflow_id":   "wf_process_registry",
+						"state":         float64(0),
+						"attempt":       float64(0),
+						"prev_trans_id": "",
+						"data":          `{"EndToEndID":"20251231HBMBMYKL040OQR32713402"}`,
+					},
+				},
+				fallbackMode: true, // Enable fallback mode for this test
+			},
+			want: &domain.RPPAdapterInfo{
+				EndToEndID: "20251231HBMBMYKL040OQR32713402",
+				Status:     "STUCK_IN_PROCESS_REGISTRY",
+				Info:       "Found in wf_process_registry workflow (stuck transaction)",
+				Workflow: []domain.WorkflowInfo{
+					{
+						WorkflowID:  "wf_process_registry",
+						State:       "0",
+						Attempt:     0,
+						RunID:       "run123",
+						PrevTransID: "",
+						Data:        `{"EndToEndID":"20251231HBMBMYKL040OQR32713402"}`,
+					},
+				},
+			},
+			wantErr: false,
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			adapter := NewRPPAdapter(tt.mockClient)
 
-			// Extract input ID from want, or use empty string for error cases
+			// Extract input ID from want, or use specific ID for fallback test
 			inputID := ""
 			if tt.want != nil {
 				inputID = tt.want.EndToEndID
 			} else {
 				// For nil want case, use a dummy ID
 				inputID = "dummy_id"
+			}
+
+			// Special case for fallback test - use the EndToEndID from the test data
+			if tt.name == "Fallback to wf_process_registry when credit_transfer not found" {
+				inputID = "20251231HBMBMYKL040OQR32713402"
 			}
 
 			got, err := adapter.Query(domain.RPPQueryParams{EndToEndID: inputID})
@@ -276,6 +314,8 @@ type mockClient struct {
 	workflowResults      []map[string]interface{}
 	// Track if ExecuteQuery has been called to avoid double-counting in tests
 	executedQuery bool
+	// Enable fallback mode for testing the new functionality
+	fallbackMode bool
 }
 
 func (m *mockClient) ExecuteQuery(cluster, service, database, query string) ([]map[string]interface{}, error) {
@@ -287,6 +327,11 @@ func (m *mockClient) ExecuteQuery(cluster, service, database, query string) ([]m
 }
 
 func (m *mockClient) QueryRppAdapter(query string) ([]map[string]interface{}, error) {
+	// In fallback mode, return workflow results directly (simulating wf_process_registry query)
+	if m.fallbackMode {
+		return m.workflowResults, nil
+	}
+
 	// Only return workflow results if ExecuteQuery was called first
 	// This simulates the real behavior where credit transfer must exist first
 	if !m.executedQuery {

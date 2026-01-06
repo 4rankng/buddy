@@ -54,7 +54,8 @@ func (r *RPPAdapter) queryByE2EID(externalID string) (*domain.RPPAdapterInfo, er
 	query := fmt.Sprintf("SELECT req_biz_msg_id, partner_tx_id, partner_tx_sts AS status, created_at FROM credit_transfer WHERE end_to_end_id = '%s'", externalID)
 	rppResults, err := r.client.ExecuteQuery("prd-payments-rpp-adapter-rds-mysql", "prd-payments-rpp-adapter-rds-mysql", "rpp_adapter", query)
 	if err != nil || len(rppResults) == 0 {
-		return nil, err
+		// Fallback: Query wf_process_registry workflow using date extracted from EndToEndID
+		return r.queryProcessRegistryByE2EID(externalID)
 	}
 	row := rppResults[0]
 	info := &domain.RPPAdapterInfo{
@@ -250,4 +251,88 @@ func (r *RPPAdapter) populateWorkflowInfo(info *domain.RPPAdapterInfo) {
 			}
 		}
 	}
+}
+
+// queryProcessRegistryByE2EID queries wf_process_registry workflow using date extracted from EndToEndID
+// This is a fallback method when the main credit_transfer query fails
+func (r *RPPAdapter) queryProcessRegistryByE2EID(externalID string) (*domain.RPPAdapterInfo, error) {
+	// Extract date from EndToEndID (first 8 characters should be YYYYMMDD)
+	if len(externalID) < 8 {
+		return nil, fmt.Errorf("EndToEndID too short to extract date: %s", externalID)
+	}
+
+	dateStr := externalID[:8]
+
+	// Parse the date string (YYYYMMDD format)
+	startDate, err := time.Parse("20060102", dateStr)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse date from EndToEndID %s: %w", externalID, err)
+	}
+
+	// Create time window: start of day to start of day + 1 hour
+	timeWindowStart := startDate
+	timeWindowEnd := startDate.Add(1 * time.Hour)
+
+	// Query workflow_execution table for wf_process_registry workflows
+	workflowQuery := fmt.Sprintf(
+		"SELECT run_id, workflow_id, state, attempt, prev_trans_id, data FROM workflow_execution "+
+			"WHERE created_at >= '%s' "+
+			"AND created_at <= '%s' "+
+			"AND workflow_id = 'wf_process_registry' "+
+			"AND data LIKE '%%%s%%'",
+		timeWindowStart.Format(time.RFC3339),
+		timeWindowEnd.Format(time.RFC3339),
+		externalID,
+	)
+
+	workflowRows, err := r.client.QueryRppAdapter(workflowQuery)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query wf_process_registry workflow: %w", err)
+	}
+
+	if len(workflowRows) == 0 {
+		return nil, fmt.Errorf("no wf_process_registry workflow found for EndToEndID: %s", externalID)
+	}
+
+	// Create RPPAdapterInfo with workflow data
+	info := &domain.RPPAdapterInfo{
+		EndToEndID: externalID,
+		Status:     "STUCK_IN_PROCESS_REGISTRY",
+		Info:       fmt.Sprintf("Found in wf_process_registry workflow (stuck transaction)"),
+		Workflow:   make([]domain.WorkflowInfo, 0),
+	}
+
+	// Populate workflow information
+	for _, workflow := range workflowRows {
+		wf := domain.WorkflowInfo{}
+		if runID, ok := workflow["run_id"]; ok {
+			wf.RunID = fmt.Sprintf("%v", runID)
+		}
+		if workflowID, ok := workflow["workflow_id"]; ok {
+			wf.WorkflowID = fmt.Sprintf("%v", workflowID)
+		}
+		if state, ok := workflow["state"]; ok {
+			if stateInt, ok := state.(float64); ok {
+				wf.State = fmt.Sprintf("%d", int(stateInt))
+			} else {
+				wf.State = fmt.Sprintf("%v", state)
+			}
+		}
+		if attempt, ok := workflow["attempt"]; ok {
+			if attemptFloat, ok := attempt.(float64); ok {
+				wf.Attempt = int(attemptFloat)
+			}
+		}
+		if prevTransID, ok := workflow["prev_trans_id"]; ok {
+			wf.PrevTransID = fmt.Sprintf("%v", prevTransID)
+		}
+		if data, ok := workflow["data"]; ok {
+			if dataStr, ok := data.(string); ok {
+				wf.Data = dataStr
+			}
+		}
+		info.Workflow = append(info.Workflow, wf)
+	}
+
+	return info, nil
 }
