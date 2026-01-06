@@ -10,6 +10,7 @@ func registerRPPBasicTemplates(templates map[domain.Case]TemplateFunc) {
 	templates[domain.CaseRppNoResponseResume] = rppNoResponseResume
 	templates[domain.CaseRppCashinValidationFailed122_0] = rppCashinValidationFailed122_0
 	templates[domain.CaseRppProcessRegistryStuckInit] = rppProcessRegistryStuckInit
+	templates[domain.CaseRppCashinStuck100_0] = rppCashinStuck100_0
 }
 
 // rppCashoutReject101_19 handles RPP cashout reject at state 101, attempt 19
@@ -332,5 +333,60 @@ AND state = 0;`,
 			},
 		},
 		CaseType: domain.CaseRppProcessRegistryStuckInit,
+	}
+}
+
+// rppCashinStuck100_0 handles RPP wf_ct_cashin stuck at state 100 (stTransferPersisted) with attempt 0
+func rppCashinStuck100_0(result domain.TransactionResult) *domain.DMLTicket {
+	if result.RPPAdapter == nil {
+		return nil
+	}
+
+	// Find workflow with state 100 and attempt 0 for wf_ct_cashin
+	runID := getRPPWorkflowRunIDByCriteria(
+		result.RPPAdapter.Workflow,
+		"wf_ct_cashin",
+		"100",
+		0,
+	)
+
+	if runID == "" {
+		return nil
+	}
+
+	return &domain.DMLTicket{
+		Deploy: []domain.TemplateInfo{
+			{
+				TargetDB: "RPP",
+				SQLTemplate: `-- rpp_cashin_stuck_100_0, update timestamp to resolve optimistic lock
+UPDATE workflow_execution
+SET state = 100,
+    attempt = 1,
+    updated_at = NOW(),
+    data = JSON_SET(data, '$.State', 100)
+WHERE run_id = %s
+AND workflow_id = 'wf_ct_cashin'
+AND state = 100;`,
+				Params: []domain.ParamInfo{
+					{Name: "run_id", Value: runID, Type: "string"},
+				},
+			},
+		},
+		Rollback: []domain.TemplateInfo{
+			{
+				TargetDB: "RPP",
+				SQLTemplate: `-- rpp_cashin_stuck_100_0_rollback, reset attempt back to 0
+UPDATE workflow_execution
+SET attempt = 0,
+    data = JSON_SET(data, '$.State', 100)
+WHERE run_id = %s
+AND workflow_id = 'wf_ct_cashin'
+AND state = 100;`,
+				Params: []domain.ParamInfo{
+					{Name: "run_id", Value: runID, Type: "string"},
+				},
+			},
+		},
+		CaseType: domain.CaseRppCashinStuck100_0,
 	}
 }
