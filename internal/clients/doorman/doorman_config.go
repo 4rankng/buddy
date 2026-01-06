@@ -186,14 +186,18 @@ func (c *DoormanClient) Authenticate() error {
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return err
+		return fmt.Errorf("authentication failed: network error during login: %w", err)
 	}
 	defer func() {
 		_ = resp.Body.Close()
 	}()
 
 	if resp.StatusCode >= 300 {
-		return errors.New("doorman auth failed: " + resp.Status)
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return fmt.Errorf("authentication failed: %s (failed to read error response)", resp.Status)
+		}
+		return fmt.Errorf("authentication failed: %s - %s", resp.Status, string(body))
 	}
 
 	c.authenticated = true
@@ -321,6 +325,7 @@ func (c *DoormanClient) QueryPartnerpayEngine(query string) ([]map[string]interf
 type CreateTicketRequest struct {
 	AccountID               string  `json:"accountID"`
 	ClusterName             string  `json:"clusterName"`
+	Database                string  `json:"database"`
 	Schema                  string  `json:"schema"`
 	OriginalQuery           string  `json:"originalQuery"`
 	RollbackQuery           string  `json:"rollbackQuery"`
@@ -333,10 +338,61 @@ type CreateTicketRequest struct {
 
 // CreateTicketResponse represents the response structure for creating a DML ticket
 type CreateTicketResponse struct {
-	Code   int `json:"code"`
-	Result []struct {
-		ID int `json:"id"`
-	} `json:"result"`
+	Code      int           `json:"code"`
+	Errors    interface{}   `json:"errors"`
+	Message   interface{}   `json:"message"`
+	Result    []TicketResult `json:"result"`
+	RequestID string        `json:"requestID"`
+}
+
+// TicketResult represents the detailed ticket information in the response
+type TicketResult struct {
+	ID                      int      `json:"id"`
+	Submitter              string   `json:"submitter"`
+	Status                 string   `json:"status"`
+	Owners                 []string `json:"owners"`
+	OncallUsers            []string `json:"oncallUsers"`
+	Env                    string   `json:"env"`
+	AccountID              string   `json:"accountID"`
+	AccountName            string   `json:"accountName"`
+	DbsManaged             bool     `json:"dbsManaged"`
+	ClusterName            string   `json:"clusterName"`
+	ClusterType            string   `json:"clusterType"`
+	ClusterID              int      `json:"clusterID"`
+	InstanceName           string   `json:"instanceName"`
+	InstanceID             int      `json:"instanceID"`
+	OncallGroup            string   `json:"oncallGroup"`
+	TechFamily             string   `json:"techFamily"`
+	PagePath               string   `json:"pagePath"`
+	Note                   string   `json:"note"`
+	Batch                  int      `json:"batch"`
+	Schema                 string   `json:"schema"`
+	EvaluateRows           int      `json:"evaluateRows"`
+	AffectRows             int      `json:"affectRows"`
+	Percentage             float64  `json:"percentage"`
+	OriginalQuery          string   `json:"originalQuery"`
+	RollbackQuery          string   `json:"rollbackQuery"`
+	SubQuery               string   `json:"subQuery"`
+	SubMinID               int      `json:"subMinID"`
+	SubMaxID               int      `json:"subMaxID"`
+	Encrypted              bool     `json:"encrypted"`
+	Pattern                string   `json:"pattern"`
+	EoApprover             string   `json:"eoApprover"`
+	DbaApprover            string   `json:"dbaApprover"`
+	ToolLabel              string   `json:"toolLabel"`
+	Database               string   `json:"database"`
+	FileDir                string   `json:"fileDir"`
+	FileType               string   `json:"fileType"`
+	FileSize               int      `json:"fileSize"`
+	PauseLabel             int      `json:"pauseLabel"`
+	WarningMsg             string   `json:"warningMsg"`
+	Remark                 string   `json:"remark"`
+	PeakTime               *string  `json:"peakTime"`
+	Archived               bool     `json:"archived"`
+	CreatedAt              string   `json:"createdAt"`
+	SkipWhereClause        bool     `json:"skipWhereClause"`
+	SkipRollbackQuery      bool     `json:"skipRollbackQuery"`
+	SkipRollbackQueryReason string  `json:"skipRollbackQueryReason"`
 }
 
 // getServiceDBInfo returns the DBInfo for a given service name
@@ -369,29 +425,45 @@ func (c *DoormanClient) getServiceDBInfo(serviceName string) (DBInfo, error) {
 
 // CreateTicket creates a DML ticket in doorman for the specified service
 func (c *DoormanClient) CreateTicket(serviceName, originalQuery, rollbackQuery, note string) (string, error) {
+	// Input validation
+	if serviceName == "" {
+		return "", fmt.Errorf("validation error: serviceName is required")
+	}
+	if originalQuery == "" {
+		return "", fmt.Errorf("validation error: originalQuery is required")
+	}
+	if rollbackQuery == "" {
+		return "", fmt.Errorf("validation error: rollbackQuery is required")
+	}
+	if note == "" {
+		return "", fmt.Errorf("validation error: note is required")
+	}
+
 	if err := c.Authenticate(); err != nil {
-		return "", err
+		return "", fmt.Errorf("authentication error: %w", err)
 	}
 
 	dbInfo, err := c.getServiceDBInfo(serviceName)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("validation error: %w", err)
 	}
 
 	cfg := c.GetConfig()
 	createTicketURL, _ := url.JoinPath(cfg.Host, "/api/rds/dml/create_ticket")
 
-	toolLabel := "buddy"
+	// Set constant values as per requirements
 	createTicketReq := CreateTicketRequest{
 		AccountID:         cfg.AccountID,
 		ClusterName:       dbInfo.ClusterName,
+		Database:          "", // Always empty string
 		Schema:            dbInfo.Schema,
 		OriginalQuery:     originalQuery,
 		RollbackQuery:     rollbackQuery,
-		ToolLabel:         toolLabel,
-		SkipWhereClause:   false,
-		SkipRollbackQuery: false,
+		ToolLabel:         "direct", // Changed from "buddy" to "direct"
+		SkipWhereClause:   false,    // Always false
+		SkipRollbackQuery: false,    // Always false
 		Note:              note,
+		// SkipRollbackQueryReason is omitted (nil) as per requirements
 	}
 
 	reqBody, err := json.Marshal(createTicketReq)
@@ -407,7 +479,7 @@ func (c *DoormanClient) CreateTicket(serviceName, originalQuery, rollbackQuery, 
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("failed to send request: %w", err)
+		return "", fmt.Errorf("network error: failed to send request: %w", err)
 	}
 	defer func() {
 		_ = resp.Body.Close()
@@ -416,9 +488,9 @@ func (c *DoormanClient) CreateTicket(serviceName, originalQuery, rollbackQuery, 
 	if resp.StatusCode >= 300 {
 		body, err := io.ReadAll(resp.Body)
 		if err != nil {
-			return "", fmt.Errorf("doorman create ticket failed: %s (failed to read error response)", resp.Status)
+			return "", fmt.Errorf("api error: doorman create ticket failed: %s (failed to read error response)", resp.Status)
 		}
-		return "", fmt.Errorf("doorman create ticket failed: %s - %s", resp.Status, string(body))
+		return "", fmt.Errorf("api error: doorman create ticket failed: %s - %s", resp.Status, string(body))
 	}
 
 	var response CreateTicketResponse
@@ -427,7 +499,15 @@ func (c *DoormanClient) CreateTicket(serviceName, originalQuery, rollbackQuery, 
 	}
 
 	if response.Code != 200 || len(response.Result) == 0 {
-		return "", fmt.Errorf("create ticket failed with code: %d", response.Code)
+		// Try to extract error message from response
+		errorMsg := fmt.Sprintf("create ticket failed with code: %d", response.Code)
+		if response.Errors != nil {
+			errorMsg += fmt.Sprintf(", errors: %v", response.Errors)
+		}
+		if response.Message != nil {
+			errorMsg += fmt.Sprintf(", message: %v", response.Message)
+		}
+		return "", fmt.Errorf("api error: %s", errorMsg)
 	}
 
 	return fmt.Sprintf("%d", response.Result[0].ID), nil
