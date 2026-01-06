@@ -14,6 +14,7 @@ type PETransfersInfo struct {
 	Amount               float64 // payment-engine transfers.amount (in cents)
 	CreatedAt            string  // payment-engine transfers.created_at
 	UpdatedAt            string  // payment-engine transfers.updated_at
+	Properties           string  // payment-engine transfers.properties (JSON string)
 }
 
 // WorkflowInfo contains information about a specific workflow execution

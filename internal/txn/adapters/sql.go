@@ -2,6 +2,7 @@ package adapters
 
 import (
 	"buddy/internal/txn/domain"
+	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
@@ -63,9 +64,10 @@ func GenerateSQLStatements(results []domain.TransactionResult) domain.SQLStateme
 
 	// Generate transfer table UPDATE statements for transactions with payment-core internal_auth
 	// Skip for pe_stuck_at_limit_check_102_4 case as it's handled in the template
+	// Skip for pe220_pc201_rpp0_stuck_init case as it's a multi-database rejection
 	// Skip for NOT_FOUND (CaseNone) cases as they should not generate any SQL
 	for _, result := range results {
-		if shouldGenerateTransferUpdate(result) && result.CaseType != domain.CasePeStuckAtLimitCheck102 && result.CaseType != domain.CaseNone {
+		if shouldGenerateTransferUpdate(result) && result.CaseType != domain.CasePeStuckAtLimitCheck102 && result.CaseType != domain.CasePe220Pc201Rpp0StuckInit && result.CaseType != domain.CaseNone {
 			transferUpdateSQL := generateTransferUpdateSQL(result)
 			if transferUpdateSQL != "" {
 				statements.PEDeployStatements = append(statements.PEDeployStatements, transferUpdateSQL)
@@ -111,13 +113,27 @@ func shouldGenerateTransferUpdate(result domain.TransactionResult) bool {
 }
 
 // generateTransferUpdateSQL generates the SQL UPDATE statement for the transfer table
+// Checks if AuthorisationID exists in properties, only generates SQL if missing
 func generateTransferUpdateSQL(result domain.TransactionResult) string {
-	// Format the AuthorisationID and created_at timestamp
+	// Check if properties field exists and contains AuthorisationID
+	properties := result.PaymentEngine.Transfers.Properties
+	if properties != "" {
+		// Parse the JSON properties
+		var props map[string]interface{}
+		if err := json.Unmarshal([]byte(properties), &props); err == nil {
+			// Check if AuthorisationID already exists
+			if authID, exists := props["AuthorisationID"]; exists && authID != nil && authID != "" {
+				// AuthorisationID already exists, don't generate SQL
+				return ""
+			}
+		}
+	}
+
+	// AuthorisationID is missing, generate the SQL UPDATE statement
 	authorisationID := result.PaymentCore.InternalAuth.TxID
 	transactionID := result.PaymentEngine.Transfers.TransactionID
 	updatedAt := result.PaymentEngine.Transfers.UpdatedAt
 
-	// Build the SQL UPDATE statement
 	sql := fmt.Sprintf(
 		"-- Update transfer table with AuthorisationID from payment-core internal_auth\n"+
 			"UPDATE transfer\n"+
