@@ -269,28 +269,42 @@ func (r *RPPAdapter) queryProcessRegistryByE2EID(externalID string) (*domain.RPP
 		return nil, fmt.Errorf("failed to parse date from EndToEndID %s: %w", externalID, err)
 	}
 
-	// Create time window: start of day to start of day + 1 hour
+	// End of day (start of next day)
+	endOfDay := startDate.Add(24 * time.Hour)
+
+	// Collect all matching workflow rows across all 1-hour windows
+	allWorkflowRows := make([]map[string]interface{}, 0)
+
+	// Iterate through all 1-hour windows until end of day
 	timeWindowStart := startDate
-	timeWindowEnd := startDate.Add(1 * time.Hour)
+	for timeWindowStart.Before(endOfDay) {
+		timeWindowEnd := timeWindowStart.Add(1 * time.Hour)
 
-	// Query workflow_execution table for wf_process_registry workflows
-	workflowQuery := fmt.Sprintf(
-		"SELECT run_id, workflow_id, state, attempt, prev_trans_id, data FROM workflow_execution "+
-			"WHERE created_at >= '%s' "+
-			"AND created_at <= '%s' "+
-			"AND workflow_id = 'wf_process_registry' "+
-			"AND data LIKE '%%%s%%'",
-		timeWindowStart.Format(time.RFC3339),
-		timeWindowEnd.Format(time.RFC3339),
-		externalID,
-	)
+		// Query workflow_execution table for wf_process_registry workflows
+		workflowQuery := fmt.Sprintf(
+			"SELECT run_id, workflow_id, state, attempt, prev_trans_id, data FROM workflow_execution "+
+				"WHERE created_at >= '%s' "+
+				"AND created_at <= '%s' "+
+				"AND workflow_id = 'wf_process_registry' "+
+				"AND data LIKE '%%%s%%'",
+			timeWindowStart.Format(time.RFC3339),
+			timeWindowEnd.Format(time.RFC3339),
+			externalID,
+		)
 
-	workflowRows, err := r.client.QueryRppAdapter(workflowQuery)
-	if err != nil {
-		return nil, fmt.Errorf("failed to query wf_process_registry workflow: %w", err)
+		workflowRows, err := r.client.QueryRppAdapter(workflowQuery)
+		if err != nil {
+			return nil, fmt.Errorf("failed to query wf_process_registry workflow: %w", err)
+		}
+
+		// Collect results from this window
+		allWorkflowRows = append(allWorkflowRows, workflowRows...)
+
+		// Move to next 1-hour window
+		timeWindowStart = timeWindowEnd
 	}
 
-	if len(workflowRows) == 0 {
+	if len(allWorkflowRows) == 0 {
 		return nil, fmt.Errorf("no wf_process_registry workflow found for EndToEndID: %s", externalID)
 	}
 
@@ -298,12 +312,12 @@ func (r *RPPAdapter) queryProcessRegistryByE2EID(externalID string) (*domain.RPP
 	info := &domain.RPPAdapterInfo{
 		EndToEndID: externalID,
 		Status:     "STUCK_IN_PROCESS_REGISTRY",
-		Info:       fmt.Sprintf("Found in wf_process_registry workflow (stuck transaction)"),
+		Info:       "Found in wf_process_registry workflow (stuck transaction)",
 		Workflow:   make([]domain.WorkflowInfo, 0),
 	}
 
 	// Populate workflow information
-	for _, workflow := range workflowRows {
+	for _, workflow := range allWorkflowRows {
 		wf := domain.WorkflowInfo{}
 		if runID, ok := workflow["run_id"]; ok {
 			wf.RunID = fmt.Sprintf("%v", runID)
