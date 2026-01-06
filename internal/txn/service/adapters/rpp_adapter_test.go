@@ -379,3 +379,81 @@ func TestCalculateTimeWindow(t *testing.T) {
 		t.Errorf("Time window end = %v, want %v", timeWindowEnd.Format(time.RFC3339Nano), expectedEnd)
 	}
 }
+
+func TestQueryProcessRegistryByE2EID(t *testing.T) {
+	tests := []struct {
+		name       string
+		externalID string
+		mockClient *mockClient
+		wantErr    bool
+		wantStatus string
+	}{
+		{
+			name:       "Valid EndToEndID with date extraction",
+			externalID: "20251231HBMBMYKL040OQR32713402",
+			mockClient: &mockClient{
+				workflowResults: []map[string]interface{}{
+					{
+						"run_id":      "run123",
+						"workflow_id": "wf_process_registry",
+						"state":       float64(0),
+						"attempt":     float64(0),
+						"data":        `{"EndToEndID":"20251231HBMBMYKL040OQR32713402"}`,
+					},
+				},
+				fallbackMode: true,
+			},
+			wantErr:    false,
+			wantStatus: "STUCK_IN_PROCESS_REGISTRY",
+		},
+		{
+			name:       "EndToEndID too short",
+			externalID: "2025123",
+			mockClient: &mockClient{fallbackMode: true},
+			wantErr:    true,
+		},
+		{
+			name:       "Invalid date format in EndToEndID",
+			externalID: "ABCD1231HBMBMYKL040OQR32713402",
+			mockClient: &mockClient{fallbackMode: true},
+			wantErr:    true,
+		},
+		{
+			name:       "No workflow found",
+			externalID: "20251231HBMBMYKL040OQR32713402",
+			mockClient: &mockClient{
+				workflowResults: []map[string]interface{}{},
+				fallbackMode:    true,
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			adapter := NewRPPAdapter(tt.mockClient)
+
+			got, err := adapter.queryProcessRegistryByE2EID(tt.externalID)
+
+			if tt.wantErr {
+				if err == nil {
+					t.Errorf("queryProcessRegistryByE2EID() expected error, got nil")
+				}
+				return
+			}
+
+			if err != nil {
+				t.Errorf("queryProcessRegistryByE2EID() unexpected error: %v", err)
+				return
+			}
+
+			if got.Status != tt.wantStatus {
+				t.Errorf("Status = %v, want %v", got.Status, tt.wantStatus)
+			}
+
+			if got.EndToEndID != tt.externalID {
+				t.Errorf("EndToEndID = %v, want %v", got.EndToEndID, tt.externalID)
+			}
+		})
+	}
+}
