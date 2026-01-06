@@ -338,61 +338,61 @@ type CreateTicketRequest struct {
 
 // CreateTicketResponse represents the response structure for creating a DML ticket
 type CreateTicketResponse struct {
-	Code      int           `json:"code"`
-	Errors    interface{}   `json:"errors"`
-	Message   interface{}   `json:"message"`
+	Code      int            `json:"code"`
+	Errors    interface{}    `json:"errors"`
+	Message   interface{}    `json:"message"`
 	Result    []TicketResult `json:"result"`
-	RequestID string        `json:"requestID"`
+	RequestID string         `json:"requestID"`
 }
 
 // TicketResult represents the detailed ticket information in the response
 type TicketResult struct {
 	ID                      int      `json:"id"`
-	Submitter              string   `json:"submitter"`
-	Status                 string   `json:"status"`
-	Owners                 []string `json:"owners"`
-	OncallUsers            []string `json:"oncallUsers"`
-	Env                    string   `json:"env"`
-	AccountID              string   `json:"accountID"`
-	AccountName            string   `json:"accountName"`
-	DbsManaged             bool     `json:"dbsManaged"`
-	ClusterName            string   `json:"clusterName"`
-	ClusterType            string   `json:"clusterType"`
-	ClusterID              int      `json:"clusterID"`
-	InstanceName           string   `json:"instanceName"`
-	InstanceID             int      `json:"instanceID"`
-	OncallGroup            string   `json:"oncallGroup"`
-	TechFamily             string   `json:"techFamily"`
-	PagePath               string   `json:"pagePath"`
-	Note                   string   `json:"note"`
-	Batch                  int      `json:"batch"`
-	Schema                 string   `json:"schema"`
-	EvaluateRows           int      `json:"evaluateRows"`
-	AffectRows             int      `json:"affectRows"`
-	Percentage             float64  `json:"percentage"`
-	OriginalQuery          string   `json:"originalQuery"`
-	RollbackQuery          string   `json:"rollbackQuery"`
-	SubQuery               string   `json:"subQuery"`
-	SubMinID               int      `json:"subMinID"`
-	SubMaxID               int      `json:"subMaxID"`
-	Encrypted              bool     `json:"encrypted"`
-	Pattern                string   `json:"pattern"`
-	EoApprover             string   `json:"eoApprover"`
-	DbaApprover            string   `json:"dbaApprover"`
-	ToolLabel              string   `json:"toolLabel"`
-	Database               string   `json:"database"`
-	FileDir                string   `json:"fileDir"`
-	FileType               string   `json:"fileType"`
-	FileSize               int      `json:"fileSize"`
-	PauseLabel             int      `json:"pauseLabel"`
-	WarningMsg             string   `json:"warningMsg"`
-	Remark                 string   `json:"remark"`
-	PeakTime               *string  `json:"peakTime"`
-	Archived               bool     `json:"archived"`
-	CreatedAt              string   `json:"createdAt"`
-	SkipWhereClause        bool     `json:"skipWhereClause"`
-	SkipRollbackQuery      bool     `json:"skipRollbackQuery"`
-	SkipRollbackQueryReason string  `json:"skipRollbackQueryReason"`
+	Submitter               string   `json:"submitter"`
+	Status                  string   `json:"status"`
+	Owners                  []string `json:"owners"`
+	OncallUsers             []string `json:"oncallUsers"`
+	Env                     string   `json:"env"`
+	AccountID               string   `json:"accountID"`
+	AccountName             string   `json:"accountName"`
+	DbsManaged              bool     `json:"dbsManaged"`
+	ClusterName             string   `json:"clusterName"`
+	ClusterType             string   `json:"clusterType"`
+	ClusterID               int      `json:"clusterID"`
+	InstanceName            string   `json:"instanceName"`
+	InstanceID              int      `json:"instanceID"`
+	OncallGroup             string   `json:"oncallGroup"`
+	TechFamily              string   `json:"techFamily"`
+	PagePath                string   `json:"pagePath"`
+	Note                    string   `json:"note"`
+	Batch                   int      `json:"batch"`
+	Schema                  string   `json:"schema"`
+	EvaluateRows            int      `json:"evaluateRows"`
+	AffectRows              int      `json:"affectRows"`
+	Percentage              float64  `json:"percentage"`
+	OriginalQuery           string   `json:"originalQuery"`
+	RollbackQuery           string   `json:"rollbackQuery"`
+	SubQuery                string   `json:"subQuery"`
+	SubMinID                int      `json:"subMinID"`
+	SubMaxID                int      `json:"subMaxID"`
+	Encrypted               bool     `json:"encrypted"`
+	Pattern                 string   `json:"pattern"`
+	EoApprover              string   `json:"eoApprover"`
+	DbaApprover             string   `json:"dbaApprover"`
+	ToolLabel               string   `json:"toolLabel"`
+	Database                string   `json:"database"`
+	FileDir                 string   `json:"fileDir"`
+	FileType                string   `json:"fileType"`
+	FileSize                int      `json:"fileSize"`
+	PauseLabel              int      `json:"pauseLabel"`
+	WarningMsg              string   `json:"warningMsg"`
+	Remark                  string   `json:"remark"`
+	PeakTime                *string  `json:"peakTime"`
+	Archived                bool     `json:"archived"`
+	CreatedAt               string   `json:"createdAt"`
+	SkipWhereClause         bool     `json:"skipWhereClause"`
+	SkipRollbackQuery       bool     `json:"skipRollbackQuery"`
+	SkipRollbackQueryReason string   `json:"skipRollbackQueryReason"`
 }
 
 // getServiceDBInfo returns the DBInfo for a given service name

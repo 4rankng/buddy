@@ -211,7 +211,7 @@ func pe220Pc201Rpp0StuckInit(result domain.TransactionResult) *domain.DMLTicket 
 	if result.RPPAdapter != nil {
 		rppRunID = getRPPWorkflowRunIDByCriteria(
 			result.RPPAdapter.Workflow,
-			"", // any workflow_id
+			"",  // any workflow_id
 			"0", // state 0
 			-1,  // any attempt
 		)
