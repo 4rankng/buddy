@@ -9,6 +9,7 @@ func registerRPPBasicTemplates(templates map[domain.Case]TemplateFunc) {
 	templates[domain.CaseRppNoResponseRejectNotFound] = rppNoResponseRejectNotFound
 	templates[domain.CaseRppNoResponseResume] = rppNoResponseResume
 	templates[domain.CaseRppCashinValidationFailed122_0] = rppCashinValidationFailed122_0
+	templates[domain.CaseRppProcessRegistryStuckInit] = rppProcessRegistryStuckInit
 }
 
 // rppCashoutReject101_19 handles RPP cashout reject at state 101, attempt 19
@@ -280,5 +281,56 @@ AND workflow_id = 'wf_ct_cashin';`,
 			},
 		},
 		CaseType: domain.CaseRppCashinValidationFailed122_0,
+	}
+}
+
+// rppProcessRegistryStuckInit handles RPP wf_process_registry stuck at state 0 (stInit)
+func rppProcessRegistryStuckInit(result domain.TransactionResult) *domain.DMLTicket {
+	if result.RPPAdapter == nil {
+		return nil
+	}
+
+	// Find workflow with state 0 for wf_process_registry
+	runID := getRPPWorkflowRunIDByCriteria(
+		result.RPPAdapter.Workflow,
+		"wf_process_registry",
+		"0",
+		-1, // any attempt
+	)
+
+	if runID == "" {
+		return nil
+	}
+
+	return &domain.DMLTicket{
+		Deploy: []domain.TemplateInfo{
+			{
+				TargetDB: "RPP",
+				SQLTemplate: `-- rpp_process_registry_stuck_init, set attempt=1 to retry initialization
+UPDATE workflow_execution
+SET attempt = 1
+WHERE run_id = %s
+AND workflow_id = 'wf_process_registry'
+AND state = 0;`,
+				Params: []domain.ParamInfo{
+					{Name: "run_id", Value: runID, Type: "string"},
+				},
+			},
+		},
+		Rollback: []domain.TemplateInfo{
+			{
+				TargetDB: "RPP",
+				SQLTemplate: `-- rpp_process_registry_stuck_init_rollback, reset attempt back to 0
+UPDATE workflow_execution
+SET attempt = 0
+WHERE run_id = %s
+AND workflow_id = 'wf_process_registry'
+AND state = 0;`,
+				Params: []domain.ParamInfo{
+					{Name: "run_id", Value: runID, Type: "string"},
+				},
+			},
+		},
+		CaseType: domain.CaseRppProcessRegistryStuckInit,
 	}
 }
