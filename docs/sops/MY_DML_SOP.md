@@ -124,9 +124,13 @@ This section covers issues related to cashout transactions involving PC external
 - **Condition**: PE workflow_transfer_payment stuck at state 102 (limit check) with multiple attempts.
 - **Diagnosis**: Payment authorization succeeded but PE workflow stuck. Need to inject AuthorisationID.
 - **Resolution**: Reject PE workflow and update transfer table with AuthorisationID from PC internal_auth.
+- **Important**:
+  - Retrieve AuthorisationID from PC internal_payment table (TxID where TxType='AUTH'). This maintains the critical link between Payment Engine and Payment Core.
+  - Only update transfer table if AuthorisationID is missing in transfer table properties AND set AuthorisationID in workflow_execution data properties only if it is missing
 - **Sample Deploy Script** (TargetDB: PE):
   ```sql
   -- Reject/Reset the Workflow Execution (cashout_pe102_reject)
+  -- Note: Only set AuthorisationID if it's missing in workflow_execution data properties
   UPDATE workflow_execution
   SET state = 221,
       attempt = 1,
@@ -146,6 +150,7 @@ This section covers issues related to cashout transactions involving PC external
     AND workflow_id = 'workflow_transfer_payment';
 
   -- Update transfer table with AuthorisationID from payment-core internal_auth
+  -- Note: Only execute if AuthorisationID is missing in transfer table properties
   UPDATE transfer
   SET properties = JSON_SET(properties, '$.AuthorisationID', '{AUTHORISATION_ID}'),
       updated_at = '{UPDATED_AT}'
@@ -175,28 +180,14 @@ This section covers issues related to cashout transactions involving PC external
 
 ### `pe220_pc201_rpp0_stuck_init`
 - **Condition**: PE 220/0, PC 201/0, RPP wf_ct_qr_payment stuck at State 0 (stInit). RPP adapter never initialized properly.
-- **Diagnosis**: RPP adapter stuck in initialization loop; transaction does not exist at PayNet side. PE must be rejected to fail gracefully.
-- **Resolution**: Manually reject Payment Engine by moving to State 221 with ADAPTER_ERROR. Optionally reject PC and move RPP to State 700.
+- **Diagnosis**: RPP adapter stuck in initialization loop; transaction does not exist at PayNet side. PE workflow fails naturally; PC and RPP need manual cleanup.
+- **Resolution**: Clean up PC and RPP to fail gracefully. PC moves to State 202 (Failed), RPP moves to terminal State 700. PE rejection is handled separately.
 - **References**:
   - Related: `rpp_no_response_reject_not_found` (RPP State 210 variant)
   - Related: `rpp_no_response_reject_not_found_state_0` (RPP State 0 SOP-only variant)
 - **Sample Deploy Script** (Multi-Database):
   ```sql
-  -- PE Side - Manual rejection
-  UPDATE workflow_execution
-  SET state = 221, attempt = 1, `data` = JSON_SET(
-    `data`, '$.StreamMessage',
-    JSON_OBJECT(
-       'Status', 'FAILED',
-       'ErrorCode', 'ADAPTER_ERROR',
-       'ErrorMessage', 'Manual Rejected'
-    ),
-    '$.State', 221)
-  WHERE run_id IN ('{PE_RUN_ID}')
-  AND workflow_id = 'workflow_transfer_payment'
-  AND state = 220;
-
-  -- PC Side (Optional) - Manual PC rejection
+  -- PC Side - Manual PC rejection
   UPDATE workflow_execution
   SET state = 202, attempt = 1,
       `data` = JSON_SET(`data`,
@@ -210,12 +201,13 @@ This section covers issues related to cashout transactions involving PC external
         '$.State', 202)
   WHERE run_id IN ('{PC_RUN_ID}') AND state = 201 AND attempt = 0;
 
-  -- RPP Side (Optional) - Move to terminal state
+  -- RPP Side - Move to terminal state
   UPDATE workflow_execution
   SET state = 700,
       `data` = JSON_SET(`data`, '$.State', 700)
   WHERE run_id IN ('{RPP_RUN_ID}') AND state = 0;
   ```
+- **Note**: Supports batch operations using `WHERE run_id IN (...)` for multiple transactions.
 
 ### `cashout_pe220_pc201_reject`
 - **Condition**: Cashout with PE 220, PC 201. Transaction needs manual rejection.
@@ -235,6 +227,7 @@ This section covers issues related to cashout transactions involving PC external
      '$.State', 221)
   WHERE run_id IN ('{RUN_ID}') AND state = 220 AND workflow_id = 'workflow_transfer_payment';
   ```
+- **Note**: Supports batch operations using `WHERE run_id IN (...)` for multiple transactions.
 
 ### `cashout_rpp210_pe220_pc201`
 - **Condition**: RPP 210, PE 220, PC 201. RPP did not respond in time, but status at Paynet is ACSP or ACTC.
@@ -269,6 +262,7 @@ This section covers issues related to cashout transactions involving PC external
      '$.State', 221)
   WHERE run_id IN ('{RUN_ID}') AND state = 220 AND workflow_id = 'workflow_transfer_payment';
   ```
+  - **Note**: Supports batch operations using `WHERE run_id IN (...)` for multiple transactions.
 
 ### `rpp_cashout_reject_101_19`
 - **Condition**: RPP wf_ct_cashout stuck at state 101 with attempt 19 (max retries).
@@ -573,6 +567,7 @@ This section covers infrastructure-level issues and problems that span multiple 
 - **Condition**: RPP wf_process_registry stuck at state 0 (stInit) with any attempt count.
 - **Diagnosis**: Process registry workflow initialization retry exhausted.
 - **Resolution**: Set attempt to 1 to allow retry of initialization.
+- **Important**: When a cashout or QR payment is stuck, check for related wf_process_registry issues. Resuming the registry workflow may be the cleaner fix before attempting other interventions.
 - **Sample Deploy Script** (TargetDB: RPP):
   ```sql
   -- rpp_process_registry_stuck_init, set attempt=1 to retry initialization
@@ -619,5 +614,11 @@ For cases involving multiple databases (PC, PE, RPP, PPE):
 - Verify each script's success before proceeding to the next
 - Keep track of all run_ids for rollback purposes
 
-### 5. Interactive Cases
+### 5. Timestamp Consistency
+When updating the transfer table or workflow_execution data, ensure the updated_at value used is consistent across related records. Use the same timestamp from the transfer record when updating workflow_execution to prevent audit discrepancies.
+
+### 6. Rollback Capability
+All SQL templates have corresponding rollback scripts auto-generated by the tooling. Test rollback procedures before executing deploy scripts in production.
+
+### 7. Interactive Cases
 Some cases like `cashout_rpp210_pe220_pc201` require user choice between resume and reject. Always verify the actual status at Paynet before choosing resume (ACSP/ACTC) vs reject (not found).
