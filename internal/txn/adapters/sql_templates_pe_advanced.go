@@ -198,13 +198,8 @@ func rpp210Pe220Pc201Reject(result domain.TransactionResult) *domain.DMLTicket {
 }
 
 // pe220Pc201Rpp0StuckInit handles PE 220, PC 201, RPP 0 - multi-database rejection
-// Use case: RPP adapter stuck in initialization (State 0), reject all workflows to fail gracefully
+// Use case: RPP adapter stuck in initialization (State 0), reject PC and move RPP to 700
 func pe220Pc201Rpp0StuckInit(result domain.TransactionResult) *domain.DMLTicket {
-	peRunID := result.PaymentEngine.Workflow.RunID
-	if peRunID == "" {
-		return nil
-	}
-
 	// Get PC run_id from ExternalTransfer workflow (state 201, attempt 0)
 	var pcRunID string
 	if result.PaymentCore != nil && result.PaymentCore.ExternalTransfer.Workflow.RunID != "" {
@@ -222,39 +217,8 @@ func pe220Pc201Rpp0StuckInit(result domain.TransactionResult) *domain.DMLTicket 
 		)
 	}
 
-	deploy := []domain.TemplateInfo{
-		{
-			TargetDB: "PE",
-			SQLTemplate: "-- pe220_pc201_rpp0_stuck_init, manual PE rejection\n" +
-				"UPDATE workflow_execution\n" +
-				"SET state = 221, attempt = 1, `data` = JSON_SET(\n" +
-				"      `data`, '$.StreamMessage',\n" +
-				"      JSON_OBJECT(\n" +
-				"         'Status', 'FAILED',\n" +
-				"         'ErrorCode', \"ADAPTER_ERROR\",\n" +
-				"         'ErrorMessage', 'Manual Rejected'\n" +
-				"      ),\n" +
-				"   '$.State', 221)\n" +
-				"WHERE run_id IN (%s) AND state = 220 AND workflow_id = 'workflow_transfer_payment';",
-			Params: []domain.ParamInfo{
-				{Name: "run_id", Value: peRunID, Type: "string"},
-			},
-		},
-	}
-
-	rollback := []domain.TemplateInfo{
-		{
-			TargetDB: "PE",
-			SQLTemplate: "UPDATE workflow_execution\n" +
-				"SET state = 220, attempt = 0, `data` = JSON_SET(\n" +
-				"      `data`, '$.StreamMessage', null,\n" +
-				"   '$.State', 220)\n" +
-				"WHERE run_id IN (%s) AND workflow_id = 'workflow_transfer_payment';",
-			Params: []domain.ParamInfo{
-				{Name: "run_id", Value: peRunID, Type: "string"},
-			},
-		},
-	}
+	deploy := []domain.TemplateInfo{}
+	rollback := []domain.TemplateInfo{}
 
 	// Add PC rejection if run_id is available
 	if pcRunID != "" {
@@ -312,6 +276,11 @@ func pe220Pc201Rpp0StuckInit(result domain.TransactionResult) *domain.DMLTicket 
 				{Name: "run_id", Value: rppRunID, Type: "string"},
 			},
 		})
+	}
+
+	// Return nil if no run_ids were found
+	if len(deploy) == 0 {
+		return nil
 	}
 
 	return &domain.DMLTicket{
