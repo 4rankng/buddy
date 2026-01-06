@@ -1,57 +1,53 @@
-Based on the discussion in the DML Thread Jan 2026, there are several critical updates and refinements that should be applied to your MY_DML_SOP.md to ensure data consistency and reflect current best practices used by the team.
+how to fix [MY] Querying transaction: 20251231MBBEMYKL010ORM15134561
 
-Here are the recommended changes:
+### [1] e2e_id: 20251231MBBEMYKL010ORM15134561
 
-1. Enhanced pe_stuck_at_limit_check_102_4 Protocol
-In the thread, Khor Jeng Yong pointed out that for state 102 (limit check) issues, simply rejecting the workflow is insufficient. You must ensure the AuthorisationID is correctly mapped to maintain the link between Payment Engine and Payment Core.
+[rpp-adapter]
 
-Update: Add a specific instruction to retrieve the AuthorisationID from the PC internal_auth table.
+e2e_id: 20251231MBBEMYKL010ORM15134561
 
-Update: Explicitly include the requirement to update the transfer table alongside the workflow_execution table to prevent data mismatch.
+partner_tx_id: 5c34e6ab0fea334f88b9b4cdb781902f
 
-2. New SOP: pe220_pc201_rpp0_stuck_init
-The discussion highlighted a specific scenario where the RPP adapter is stuck at State 0 (stInit) while PC is at 201. This requires a multi-step cleanup across PC and RPP to "fail gracefully."
+wf_process_registry:
 
-New Protocol:
+   state=wf_process_registry:900 (stSuccess) attempt=0
 
-PC Side: Manually reject the external payment flow (State 202).
+   run_id=6fd223683e033603b1d84e841c79a396
 
-RPP Side: Move the stuck stInit workflow to terminal State 700.
+wf_ct_cashin:
 
-PE Side: Manual rejection (State 221).
+   state=wf_ct_cashin:100 (stTransferPersisted) attempt=0
 
-3. Consolidation of RPP/PC Resumptions
-Khor Jeng Yong suggested that instead of running separate DMLs for multiple transactions under the rpp210_pe220_pc201_accept case, they should be combined into a single update statement using WHERE run_id IN (...) to reduce manual overhead and risk.
+   run_id=5c34e6ab0fea334f88b9b4cdb781902f
 
-4. Registry Workflow Awareness
-The thread mentions that some stuck transactions are accompanied by inbound wf_process_registry issues.
+Based on the transaction details provided, your Cashin transaction is stuck in the RPP Adapter. Here is the diagnosis and fix based on the MY_DML_SOP.md protocols.
 
-Update: Add a note to the rpp_process_registry_stuck_init section to check for related inbound registry workflows whenever a cashout or QR payment is stuck, as resuming the registry may be the cleaner fix.
+1. Diagnosis
+Workflow: wf_ct_cashin
 
-5. Refined Safety Guidelines: Timestamp Consistency
-A new safety check should be added regarding the updated_at field.
+Current State: 100 (stTransferPersisted)
 
-Safety Check: When updating the transfer table or workflow_execution data, ensure the updated_at value used is consistent across related records. Discrepancies between the workflow's timestamp and the table's timestamp can cause audit or logic issues.
+Problem: The transaction is stuck at the initial persistence state with attempt=0. This often occurs due to an optimistic lock failure (timestamp mismatch) or a stalled process during the initial transition.
 
-Proposed Document Additions
-I have drafted the specific SQL and documentation updates for these findings:
+2. Resolution Protocol
+According to the cash_in_stuck_100_update_mismatch protocol, you need to update the updated_at timestamp and reset the attempt count to 1 to trigger a retry.
 
-Update to pe_stuck_at_limit_check_102_4
-Note: You must retrieve the AuthorisationID from the PC internal_auth table for the corresponding transaction.
+Execution Script
+Target Database: RPP
 
 SQL
+-- cash_in_stuck_100_update_mismatch - Update timestamp to resolve optimistic lock
+UPDATE workflow_execution
+SET state = 100,
+    attempt = 1,
+    updated_at = NOW(),
+    data = JSON_SET(data, '$.State', 100)
+WHERE run_id = '5c34e6ab0fea334f88b9b4cdb781902f'
+AND workflow_id = 'wf_ct_cashin'
+AND state = 100;
+3. Verification & Safety Checks
+Safety Check: The WHERE clause includes the specific run_id and the current state=100 to ensure no accidental state changes occur if the workflow moves while you are preparing the DML.
 
--- Update transfer table to maintain link with PC
-UPDATE transfer 
-SET properties = JSON_SET(properties, '$.AuthorisationID', '{AUTHORISATION_ID}'),
-    updated_at = NOW() -- Ensure consistency with workflow update
-WHERE transaction_id = '{TRANSACTION_ID}';
-New Section: pe220_pc201_rpp0_stuck_init
-Condition: PE 220, PC 201, RPP adapter stuck at 0 (stInit). Diagnosis: Adapter failed to initialize; transaction never reached PayNet. Resolution: Reject PC and move RPP to terminal state 700.
+Dependency Check: Your wf_process_registry is already at state 900 (stSuccess), so no intervention is needed for the registry workflow.
 
-SQL
-
--- RPP Side: Move to terminal state
-UPDATE workflow_execution 
-SET state = 700, data = JSON_SET(data, '$.State', 700)
-WHERE run_id = '{RPP_RUN_ID}' AND state = 0;
+Rollback: Ensure your tooling has auto-generated a rollback script before executing this in production.
