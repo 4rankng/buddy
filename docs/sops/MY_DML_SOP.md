@@ -420,25 +420,44 @@ This section covers issues related to cashin transactions including RPP cashin, 
   AND attempt = 0;
   ```
 
-### `cash_in_stuck_100_update_mismatch`
-- **Condition**: Cash in workflow stuck at state 100 with attempts. Update operation failing due to updatedAt mismatch.
-- **Diagnosis**: Concurrent update causing optimistic lock failure.
-- **Resolution**: Update updatedAt in workflow data and resume from state 100.
-- **References**:
-  - [DML 42880](https://doorman.infra.prd.g-bank.app/rds/dml/42880)
-  - [DML 42697](https://doorman.infra.prd.g-bank.app/rds/dml/42697)
+### `cash_in_stuck_100_retry`
+- **Condition**: Cash in workflow stuck at state 100 with attempts. Update operation failing, but timestamps are consistent.
+- **Diagnosis**: Compare `credit_transfer.updated_at` (UTC) with `workflow_execution.data->>$.CreditTransfer.UpdatedAt` (GMT+8). If timestamps match after timezone conversion, this is a simple retry case.
+- **Resolution**: Simply set `attempt=1` to restart validation without modifying timestamp data.
+- **Reference**: [DML 43211](https://doorman.infra.prd.g-bank.app/rds/dml/43211)
 - **Sample Deploy Script** (TargetDB: RPP):
   ```sql
-  -- cash_in_stuck_100_update_mismatch - Update timestamp to resolve optimistic lock
+  -- rpp_cashin_stuck_100_0, retry (timestamps match after timezone conversion)
   UPDATE workflow_execution
-  SET state = 100,
-      attempt = 1,
-      updated_at = NOW(),
-      data = JSON_SET(data, '$.State', 100)
-  WHERE run_id = '{RUN_ID}'
+  SET attempt = 1
+  WHERE run_id IN ('{RUN_ID}')
   AND workflow_id = 'wf_ct_cashin'
   AND state = 100;
   ```
+
+### `cash_in_stuck_100_update_mismatch`
+- **Condition**: Cash in workflow stuck at state 100 with attempts. Update operation failing due to actual updatedAt mismatch.
+- **Diagnosis**: Compare `credit_transfer.updated_at` (UTC) with `workflow_execution.data->>$.CreditTransfer.UpdatedAt` (GMT+8). If timestamps don't match even after timezone conversion, this is an update mismatch case.
+- **Important**: `credit_transfer.updated_at` is in UTC, while `data->>$.CreditTransfer.UpdatedAt` is in GMT+8. Timezone conversion is critical.
+- **Resolution**: Update both `attempt=1` and sync the `UpdatedAt` in workflow data by converting from UTC to GMT+8.
+- **Sample Deploy Script** (TargetDB: RPP):
+  ```sql
+  -- cash_in_stuck_100_update_mismatch (actual timestamp mismatch)
+  UPDATE workflow_execution
+  SET
+      attempt = 1,
+      `data` = JSON_SET(`data`,
+          '$.CreditTransfer.UpdatedAt', '{CONVERTED_TIMESTAMP}'  -- Convert from credit_transfer.updated_at (UTC) to GMT+8
+      )
+  WHERE
+      run_id = '{RUN_ID}'
+      AND workflow_id = 'wf_ct_cashin'
+      AND state = 100;
+  ```
+- **Important Notes**:
+  - Always verify the mismatch exists before applying this fix
+  - Timezone conversion is critical: UTC → GMT+8 (add 8 hours to UTC timestamp)
+  - Try `cash_in_stuck_100_retry` first if unsure about the mismatch
 
 ---
 
