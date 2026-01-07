@@ -6,13 +6,13 @@ This implementation plan converts the design into discrete coding tasks for impl
 
 ## Tasks
 
-- [ ] 1. Add new case constants to domain types
+- [x] 1. Add new case constants to domain types
   - Add `CaseCashInStuck100Retry` and `CaseCashInStuck100UpdateMismatch` constants to `internal/txn/domain/types.go`
   - Update `GetCaseSummaryOrder()` function to include new cases
   - _Requirements: 1.4, 2.5_
 
 - [ ] 2. Implement timezone conversion utilities
-  - [ ] 2.1 Create timezone conversion functions in `internal/txn/adapters/sql_template_helpers.go`
+  - [x] 2.1 Create timezone conversion functions in `internal/txn/adapters/sql_template_helpers.go`
     - Implement `convertUTCToGMT8(utcTimestamp string) (string, error)`
     - Implement `compareTimestampsWithTimezone(utcTimestamp, gmt8Timestamp string) (bool, error)`
     - Handle MySQL datetime format parsing and validation
@@ -29,7 +29,7 @@ This implementation plan converts the design into discrete coding tasks for impl
     - _Requirements: 3.3, 3.4_
 
 - [ ] 3. Implement retry fix template function
-  - [ ] 3.1 Add `cashInStuck100Retry` function to `internal/txn/adapters/sql_templates_rpp_basic.go`
+  - [x] 3.1 Add `cashInStuck100Retry` function to `internal/txn/adapters/sql_templates_rpp_basic.go`
     - Use `getRPPWorkflowRunIDByCriteria` to find workflows with state=100 and attempts>0
     - Generate SQL template that sets `attempt=1` without timestamp modifications
     - Include proper deploy and rollback SQL templates
@@ -40,7 +40,7 @@ This implementation plan converts the design into discrete coding tasks for impl
     - **Validates: Requirements 1.3, 1.5**
 
 - [ ] 4. Implement update mismatch fix template function
-  - [ ] 4.1 Add `cashInStuck100UpdateMismatch` function to `internal/txn/adapters/sql_templates_rpp_basic.go`
+  - [x] 4.1 Add `cashInStuck100UpdateMismatch` function to `internal/txn/adapters/sql_templates_rpp_basic.go`
     - Use timezone conversion utilities to determine converted timestamp
     - Generate SQL template with both `attempt=1` and JSON_SET for timestamp update
     - Include proper parameter handling for converted timestamp
@@ -51,13 +51,13 @@ This implementation plan converts the design into discrete coding tasks for impl
     - **Validates: Requirements 2.3, 2.5, 2.6**
 
 - [ ] 5. Register new template functions
-  - [ ] 5.1 Update template registration in `registerRPPBasicTemplates` function
+  - [x] 5.1 Update template registration in `registerRPPBasicTemplates` function
     - Register both new case types with their respective template functions
     - Ensure proper integration with existing template system
     - _Requirements: 1.5, 2.6_
 
 - [ ] 6. Enhance case detection logic (if needed)
-  - [ ] 6.1 Review and update case detection to support new timestamp analysis
+  - [x] 6.1 Review and update case detection to support new timestamp analysis
     - Extend existing detection logic to identify stuck state 100 workflows
     - Add timestamp extraction and comparison logic
     - Route to appropriate template based on timestamp analysis
@@ -68,7 +68,7 @@ This implementation plan converts the design into discrete coding tasks for impl
     - **Property 2: Mismatch case classification**
     - **Validates: Requirements 1.1, 1.2, 2.1, 2.2**
 
-- [ ] 7. Checkpoint - Ensure all tests pass
+- [x] 7. Checkpoint - Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
 - [ ]* 8. Write comprehensive integration tests

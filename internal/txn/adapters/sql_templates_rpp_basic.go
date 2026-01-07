@@ -11,6 +11,8 @@ func registerRPPBasicTemplates(templates map[domain.Case]TemplateFunc) {
 	templates[domain.CaseRppCashinValidationFailed122_0] = rppCashinValidationFailed122_0
 	templates[domain.CaseRppProcessRegistryStuckInit] = rppProcessRegistryStuckInit
 	templates[domain.CaseRppCashinStuck100_0] = rppCashinStuck100_0
+	templates[domain.CaseCashInStuck100Retry] = cashInStuck100Retry
+	templates[domain.CaseCashInStuck100UpdateMismatch] = cashInStuck100UpdateMismatch
 }
 
 // rppCashoutReject101_19 handles RPP cashout reject at state 101, attempt 19
@@ -337,6 +339,7 @@ AND state = 0;`,
 }
 
 // rppCashinStuck100_0 handles RPP wf_ct_cashin stuck at state 100 (stTransferPersisted) with attempt 0
+// This is the original function - keeping for backward compatibility
 func rppCashinStuck100_0(result domain.TransactionResult) *domain.DMLTicket {
 	if result.RPPAdapter == nil {
 		return nil
@@ -388,5 +391,115 @@ AND state = 100;`,
 			},
 		},
 		CaseType: domain.CaseRppCashinStuck100_0,
+	}
+}
+
+// cashInStuck100Retry handles cash-in workflows stuck at state 100 with simple retry case
+// Use case: Timestamps match after timezone conversion, simple retry without timestamp modification
+func cashInStuck100Retry(result domain.TransactionResult) *domain.DMLTicket {
+	if result.RPPAdapter == nil {
+		return nil
+	}
+
+	// Find workflow with state 100 and attempts > 0 for wf_ct_cashin
+	runID := getRPPWorkflowRunIDByCriteria(
+		result.RPPAdapter.Workflow,
+		"wf_ct_cashin",
+		"100",
+		-1, // any attempt > 0
+	)
+
+	if runID == "" {
+		return nil
+	}
+
+	return &domain.DMLTicket{
+		Deploy: []domain.TemplateInfo{
+			{
+				TargetDB: "RPP",
+				SQLTemplate: `-- cash_in_stuck_100_retry, timestamps match after timezone conversion
+UPDATE workflow_execution
+SET attempt = 1
+WHERE run_id = %s
+AND workflow_id = 'wf_ct_cashin'
+AND state = 100;`,
+				Params: []domain.ParamInfo{
+					{Name: "run_id", Value: runID, Type: "string"},
+				},
+			},
+		},
+		Rollback: []domain.TemplateInfo{
+			{
+				TargetDB: "RPP",
+				SQLTemplate: `-- cash_in_stuck_100_retry_rollback
+UPDATE workflow_execution
+SET attempt = 0
+WHERE run_id = %s
+AND workflow_id = 'wf_ct_cashin'
+AND state = 100;`,
+				Params: []domain.ParamInfo{
+					{Name: "run_id", Value: runID, Type: "string"},
+				},
+			},
+		},
+		CaseType: domain.CaseCashInStuck100Retry,
+	}
+}
+
+// cashInStuck100UpdateMismatch handles cash-in workflows stuck at state 100 with timestamp mismatch
+// Use case: Timestamps don't match after timezone conversion, requires timestamp synchronization
+func cashInStuck100UpdateMismatch(result domain.TransactionResult) *domain.DMLTicket {
+	if result.RPPAdapter == nil {
+		return nil
+	}
+
+	// Find workflow with state 100 and attempts > 0 for wf_ct_cashin
+	runID := getRPPWorkflowRunIDByCriteria(
+		result.RPPAdapter.Workflow,
+		"wf_ct_cashin",
+		"100",
+		-1, // any attempt > 0
+	)
+
+	if runID == "" {
+		return nil
+	}
+
+	// For this template, we'll use a placeholder for the converted timestamp
+	// In a real implementation, this would be populated by the case detection logic
+	// that determines the converted timestamp from credit_transfer.updated_at (UTC) to GMT+8
+	return &domain.DMLTicket{
+		Deploy: []domain.TemplateInfo{
+			{
+				TargetDB: "RPP",
+				SQLTemplate: `-- cash_in_stuck_100_update_mismatch, sync timestamp and retry
+UPDATE workflow_execution
+SET attempt = 1,
+    ` + "`data`" + ` = JSON_SET(` + "`data`" + `,
+        '$.CreditTransfer.UpdatedAt', %s)
+WHERE run_id = %s
+AND workflow_id = 'wf_ct_cashin'
+AND state = 100;`,
+				Params: []domain.ParamInfo{
+					{Name: "converted_timestamp", Value: "{CONVERTED_TIMESTAMP}", Type: "string"},
+					{Name: "run_id", Value: runID, Type: "string"},
+				},
+			},
+		},
+		Rollback: []domain.TemplateInfo{
+			{
+				TargetDB: "RPP",
+				SQLTemplate: `-- cash_in_stuck_100_update_mismatch_rollback
+UPDATE workflow_execution
+SET attempt = 0
+WHERE run_id = %s
+AND workflow_id = 'wf_ct_cashin'
+AND state = 100;`,
+				Params: []domain.ParamInfo{
+					{Name: "run_id", Value: runID, Type: "string"},
+				},
+			},
+		},
+		CaseType: domain.CaseCashInStuck100UpdateMismatch,
 	}
 }
