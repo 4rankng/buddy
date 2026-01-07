@@ -1,5 +1,5 @@
 ---
-name: buddy-oncall-assistant
+name: oncall-buddy
 description: CLI tools (mybuddy/sgbuddy) for database queries, transaction investigation, Jira integration, and payment operations.
 ---
 

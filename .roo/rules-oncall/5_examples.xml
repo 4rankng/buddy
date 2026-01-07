@@ -1,0 +1,181 @@
+<examples>
+  <example name="ticket_investigation_malaysia">
+    <description>Complete workflow for investigating a Malaysia Jira ticket</description>
+    <context>When a user provides a TS-XXXX ticket ID for investigation</context>
+    <code>
+mybuddy jira view TS-1234
+mybuddy jira download-attachment TS-1234
+awk -F',' 'NR>1 {print $1}' data.csv | sort -u > TS-1234.txt
+mybuddy txn TS-1234.txt
+    </code>
+    <explanation>
+      This workflow demonstrates the complete ticket investigation process:
+      1. View ticket details to understand the issue
+      2. Download CSV attachment containing transaction IDs
+      3. Extract IDs to a text file using awk
+      4. Run batch transaction investigation
+      The txn command processes all transactions and generates remediation SQL if needed.
+    </explanation>
+  </example>
+
+  <example name="ticket_investigation_singapore">
+    <description>Complete workflow for investigating a Singapore Jira ticket</description>
+    <context>When a user provides a TSE-XXXX ticket ID for investigation</context>
+    <code>
+sgbuddy jira view TSE-5678
+sgbuddy jira download-attachment TSE-5678
+awk -F',' 'NR>1 {print $1}' data.csv | sort -u > TSE-5678.txt
+sgbuddy txn TSE-5678.txt
+    </code>
+    <explanation>
+      Singapore workflow is identical to Malaysia but uses sgbuddy tool and TSE tickets.
+      The same batch processing approach applies.
+    </explanation>
+  </example>
+
+  <example name="single_transaction_investigation">
+    <description>Investigate a single payment transaction</description>
+    <context>When user provides a specific transaction ID to investigate</context>
+    <code>
+mybuddy txn TXN123
+    </code>
+    <explanation>
+      Simple single transaction investigation using the txn command.
+      Output includes transaction status, details, and any remediation SQL.
+    </explanation>
+  </example>
+
+  <example name="batch_processing_from_csv">
+    <description>Process multiple transactions from a CSV file</description>
+    <context>When user has a CSV with multiple transaction IDs</context>
+    <code>
+awk -F',' 'NR>1 {print $1}' transactions.csv | sort -u > ids.txt
+mybuddy txn ids.txt
+    </code>
+    <explanation>
+      Efficient batch processing workflow:
+      1. Extract first column from CSV (skipping header with NR>1)
+      2. Remove duplicates with sort -u
+      3. Save to text file
+      4. Process all transactions in one command
+    </explanation>
+  </example>
+
+  <example name="database_query">
+    <description>Query payment database for transaction status</description>
+    <context>When user needs to check transaction status in the database</context>
+    <code>
+mybuddy doorman query --service payment_core --query "SELECT * FROM transactions WHERE id = 'TXN123'"
+    </code>
+    <explanation>
+      Read-only database query using doorman subcommand.
+      Always consult DATABASE_SCHEMA.md first to verify table and column names.
+      Use --service to specify the target database service.
+    </explanation>
+  </example>
+
+  <example name="database_query_json_format">
+    <description>Query database with JSON output format</description>
+    <context>When user needs structured data for further processing</context>
+    <code>
+mybuddy doorman query --service payment_core --query "SELECT * FROM transactions WHERE status = 'pending'" --format json
+    </code>
+    <explanation>
+      Same query as above but with JSON output format for easier parsing.
+      Use --format or -f flag to specify output format.
+    </explanation>
+  </example>
+
+  <example name="dml_ticket_creation">
+    <description>Create DML ticket for production database change (Malaysia only)</description>
+    <context>When remediation SQL needs to be executed in production</context>
+    <code>
+mybuddy doorman create-dml \
+  --service payment_core \
+  --original "UPDATE transactions SET status = 'done' WHERE id = 'TXN123'" \
+  --rollback "UPDATE transactions SET status = 'pending' WHERE id = 'TXN123'" \
+  --note "Fix TXN123 - Ref TS-456"
+    </code>
+    <explanation>
+      Create DML ticket with both deploy and rollback SQL.
+      Always include a descriptive note referencing the original ticket.
+      This feature is only available in Malaysia (mybuddy).
+    </explanation>
+  </example>
+
+  <example name="rpp_resume">
+    <description>Resume stuck RPP workflow and generate SQL (Malaysia only)</description>
+    <context>When RPP workflow is stuck and needs to be resumed</context>
+    <code>
+mybuddy rpp resume
+    </code>
+    <explanation>
+      RPP resume command generates both deploy SQL and rollback SQL.
+      Review both before creating a DML ticket.
+      This feature is only available in Malaysia (mybuddy).
+    </explanation>
+  </example>
+
+  <example name="ecotxn_inspection_malaysia">
+    <description>Inspect PartnerPay/Eco transaction with auto DML ticket creation</description>
+    <context>When investigating a Grab/Eco transaction in Malaysia</context>
+    <code>
+mybuddy ecotxn RUN123456 --create-dml "TS-456"
+    </code>
+    <explanation>
+      View Eco transaction details and auto-create DML ticket.
+      The --create-dml flag automatically creates a DML ticket with the specified reference.
+      This is Malaysia-specific feature.
+    </explanation>
+  </example>
+
+  <example name="ecotxn_inspection_singapore">
+    <description>Inspect and publish PartnerPay/Eco transaction</description>
+    <context>When investigating a Grab/Eco transaction in Singapore</context>
+    <code>
+sgbuddy ecotxn RUN123456 --publish
+    </code>
+    <explanation>
+      View transaction details and publish to PartnerPay engine.
+      The --publish flag makes the transaction available to PartnerPay.
+      Singapore uses interactive mode for publishing.
+    </explanation>
+  </example>
+
+  <example name="jira_search">
+    <description>Search for Jira tickets by keyword</description>
+    <context>When user needs to find tickets related to a specific issue</context>
+    <code>
+mybuddy jira search "timeout"
+    </code>
+    <explanation>
+      Search Jira tickets matching the keyword in title or description.
+      Use quotes around multi-word search terms.
+      Works with both mybuddy and sgbuddy.
+    </explanation>
+  </example>
+
+  <example name="jira_list_tickets">
+    <description>List interactive Jira tickets</description>
+    <context>When user wants to browse available tickets</context>
+    <code>
+mybuddy jira list
+    </code>
+    <explanation>
+      Interactive list of Jira tickets.
+      User can navigate through the list to find relevant tickets.
+    </explanation>
+  </example>
+
+  <example name="csv_download_with_output">
+    <description>Download CSV attachment to specific directory</description>
+    <context>When user wants to organize downloaded files</context>
+    <code>
+mybuddy jira download-attachment TS-1234 --output ./downloads
+    </code>
+    <explanation>
+      Download CSV attachment to a specific directory using --output or -o flag.
+      Helps keep downloaded files organized by ticket or date.
+    </explanation>
+  </example>
+</examples>

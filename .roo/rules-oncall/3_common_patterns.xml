@@ -1,0 +1,164 @@
+<common_patterns>
+  <pattern name="ticket_investigation_workflow">
+    <description>Complete workflow for investigating a Jira ticket</description>
+    <steps>
+      <step>View ticket details: {tool} jira view [ticket_id]</step>
+      <step>Download CSV attachments: {tool} jira download-attachment [ticket_id]</step>
+      <step>Extract IDs: awk -F',' 'NR>1 {print $1}' data.csv | sort -u > ids.txt</step>
+      <step>Run investigation: {tool} txn ids.txt</step>
+      <step>For Grab transactions: {tool} ecotxn [run_id]</step>
+    </steps>
+    <example>
+      <scenario>Investigate TS-1234 ticket</scenario>
+      <code>
+mybuddy jira view TS-1234
+mybuddy jira download-attachment TS-1234
+awk -F',' 'NR>1 {print $1}' data.csv | sort -u > TS-1234.txt
+mybuddy txn TS-1234.txt
+      </code>
+    </example>
+  </pattern>
+
+  <pattern name="csv_id_extraction">
+    <description>Extract transaction IDs from CSV file</description>
+    <code>awk -F',' 'NR>1 {print $1}' data.csv | sort -u > ids.txt</code>
+    <explanation>
+      Extracts first column (skipping header), removes duplicates with sort -u
+      Use different column number if IDs are in different position
+    </explanation>
+    <variations>
+      <variation>Second column: awk -F',' 'NR>1 {print $2}' data.csv | sort -u > ids.txt</variation>
+      <variation>Specific column: awk -F',' '/BatchID/ {print $1}' data.csv | sort -u > ids.txt</variation>
+    </variations>
+  </pattern>
+
+  <pattern name="batch_transaction_investigation">
+    <description>Process multiple transactions from a file</description>
+    <code>{tool} txn ids.txt</code>
+    <explanation>
+      The txn command accepts a file with one transaction ID per line.
+      It processes all transactions and generates consolidated output.
+    </explanation>
+  </pattern>
+
+  <pattern name="database_query_pattern">
+    <description>Execute read-only database query</description>
+    <code>{tool} doorman query --service [service] --query "[SQL]"</code>
+    <explanation>
+      Use --service or -s to specify the service (required)
+      Use --query or -q to provide the SQL query (required)
+      Use --format or -f to specify output format (table or json, default: table)
+    </explanation>
+    <example>
+      <scenario>Query transaction status</scenario>
+      <code>mybuddy doorman query --service payment_core --query "SELECT * FROM transactions WHERE id = 'TXN123'"</code>
+    </example>
+  </pattern>
+
+  <pattern name="dml_ticket_creation">
+    <description>Create DML ticket with deploy and rollback SQL (Malaysia only)</description>
+    <code>
+mybuddy doorman create-dml \
+  --service payment_core \
+  --original "UPDATE transactions SET status = 'done' WHERE id = 'TXN123'" \
+  --rollback "UPDATE transactions SET status = 'pending' WHERE id = 'TXN123'" \
+  --note "Fix TXN123 - Ref TS-456"
+    </code>
+    <explanation>
+      --service: Target service for the change
+      --original: The deploy SQL to execute
+      --rollback: The rollback SQL for recovery
+      --note: Description for the DML ticket
+    </explanation>
+  </pattern>
+
+  <pattern name="rpp_resume_workflow">
+    <description>Handle RPP workflow resume (Malaysia only)</description>
+    <code>mybuddy rpp resume</code>
+    <explanation>
+      Generates both deploy SQL and rollback SQL for RPP workflows.
+      Review both before creating DML ticket.
+    </explanation>
+    <follow_up>
+      <step>Review generated deploy SQL</step>
+      <step>Review generated rollback SQL</step>
+      <step>Create DML ticket if needed</step>
+    </follow_up>
+  </pattern>
+
+  <pattern name="ecotxn_inspection">
+    <description>Inspect PartnerPay/Eco transaction</description>
+    <code>{tool} ecotxn [run_id]</code>
+    <explanation>
+      Displays transaction details including status, partner information, and related data.
+      Use --publish flag to publish to PartnerPay (Singapore).
+      Use --create-dml flag to auto-create DML ticket (Malaysia).
+    </explanation>
+    <regional_variations>
+      <variation region="malaysia">
+        <code>mybuddy ecotxn [run_id] --create-dml "TS-XXXX"</code>
+        <description>Auto-creates DML ticket with specified ticket reference</description>
+      </variation>
+      <variation region="singapore">
+        <code>sgbuddy ecotxn [txn_id] --publish</code>
+        <description>Publishes transaction to PartnerPay engine</description>
+      </variation>
+      <variation region="singapore_with_dml">
+        <code>sgbuddy ecotxn [txn_id] --publish --create-dml "TSE-XXXX"</code>
+        <description>Publishes and auto-creates DML ticket</description>
+      </variation>
+    </regional_variations>
+  </pattern>
+
+  <pattern name="jira_search_pattern">
+    <description>Search for Jira tickets</description>
+    <code>{tool} jira search "keyword"</code>
+    <explanation>
+      Searches for tickets matching the keyword in title or description.
+      Use quotes around multi-word search terms.
+    </explanation>
+    <examples>
+      <example>Search for timeout tickets</example>
+      <code>mybuddy jira search "timeout"</code>
+      <example>Search for specific transaction</example>
+      <code>sgbuddy jira search "TXN123"</code>
+    </examples>
+  </pattern>
+
+  <pattern name="service_selection_matrix">
+    <description>Available services by region</description>
+    <matrix>
+      <region name="malaysia">
+        <services>
+          <service>payment_engine</service>
+          <service>payment_core</service>
+          <service>rpp_adapter</service>
+          <service>partnerpay_engine</service>
+        </services>
+      </region>
+      <region name="singapore">
+        <services>
+          <service>payment_engine</service>
+          <service>payment_core</service>
+          <service>fast_adapter</service>
+          <service>partnerpay_engine</service>
+        </services>
+      </region>
+    </matrix>
+    <note>Always verify service availability for the region before querying</note>
+  </pattern>
+
+  <pattern name="quick_reference_commands">
+    <description>Quick reference for common tasks</description>
+    <commands>
+      <command task="Find tickets">{tool} jira list</command>
+      <command task="View ticket">{tool} jira view [ticket_id]</command>
+      <command task="Download CSV">{tool} jira download-attachment [ticket_id]</command>
+      <command task="Investigate single">{tool} txn [txn_id]</command>
+      <command task="Investigate batch">{tool} txn [file.txt]</command>
+      <command task="Query database">{tool} doorman query --service [service] --query "[SQL]"</command>
+      <command task="RPP resume (MY)">mybuddy rpp resume</command>
+      <command task="Inspect Eco">{tool} ecotxn [run_id]</command>
+    </commands>
+  </pattern>
+</common_patterns>

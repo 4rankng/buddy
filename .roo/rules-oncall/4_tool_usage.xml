@@ -1,0 +1,280 @@
+<tool_usage_guide>
+  <tool_priorities>
+    <priority level="1">
+      <tool>execute_command</tool>
+      <when>For all CLI operations (mybuddy/sgbuddy)</when>
+      <why>Primary interface for on-call operations</why>
+    </priority>
+    <priority level="2">
+      <tool>write_to_file</tool>
+      <when>For creating ID files from ticket data</when>
+      <why>Required for batch transaction processing</why>
+    </priority>
+  </tool_priorities>
+
+  <tool_specific_guidance>
+    <tool name="execute_command - mybuddy">
+      <purpose>CLI tool for Malaysia (TS tickets) operations</purpose>
+      <when_to_use>
+        - Investigating Malaysia payment transactions
+        - Managing Malaysia Jira tickets
+        - Querying Malaysia databases
+        - Handling Malaysia RPP workflows
+        - Creating Malaysia DML tickets
+      </when_to_use>
+      <syntax>
+        <command>mybuddy [command] [options]</command>
+        <parameters>
+          <parameter name="command" required="true">
+            <description>Subcommand to execute</description>
+            <type>string</type>
+            <example>txn, jira, doorman, rpp, ecotxn</example>
+          </parameter>
+          <parameter name="options" required="false">
+            <description>Command-specific options</description>
+            <type>varies</type>
+          </parameter>
+        </parameters>
+      </syntax>
+      <examples>
+        <example scenario="Investigate single transaction">
+          <code>mybuddy txn TXN123</code>
+        </example>
+        <example scenario="View Jira ticket">
+          <code>mybuddy jira view TS-1234</code>
+        </example>
+        <example scenario="Query database">
+          <code>mybuddy doorman query --service payment_core --query "SELECT * FROM transactions WHERE id = 'TXN123'"</code>
+        </example>
+        <example scenario="RPP resume">
+          <code>mybuddy rpp resume</code>
+        </example>
+      </examples>
+    </tool>
+
+    <tool name="execute_command - sgbuddy">
+      <purpose>CLI tool for Singapore (TSE tickets) operations</purpose>
+      <when_to_use>
+        - Investigating Singapore payment transactions
+        - Managing Singapore Jira tickets
+        - Querying Singapore databases
+        - Handling Singapore PartnerPay operations
+      </when_to_use>
+      <syntax>
+        <command>sgbuddy [command] [options]</command>
+        <parameters>
+          <parameter name="command" required="true">
+            <description>Subcommand to execute</description>
+            <type>string</type>
+            <example>txn, jira, doorman, ecotxn</example>
+          </parameter>
+          <parameter name="options" required="false">
+            <description>Command-specific options</description>
+            <type>varies</type>
+          </parameter>
+        </parameters>
+      </syntax>
+      <examples>
+        <example scenario="Investigate single transaction">
+          <code>sgbuddy txn TXN456</code>
+        </example>
+        <example scenario="View Jira ticket">
+          <code>sgbuddy jira view TSE-5678</code>
+        </example>
+        <example scenario="Query database">
+          <code>sgbuddy doorman query --service payment_core --query "SELECT * FROM transactions WHERE id = 'TXN456'"</code>
+        </example>
+        <example scenario="Publish Eco transaction">
+          <code>sgbuddy ecotxn RUN123 --publish</code>
+        </example>
+      </examples>
+    </tool>
+
+    <tool name="write_to_file">
+      <purpose>Create ID files for batch processing</purpose>
+      <when_to_use>
+        - When extracting transaction IDs from Jira tickets
+        - When preparing batch transaction investigations
+      </when_to_use>
+      <syntax>
+        <command>write_to_file [path] [content]</command>
+        <parameters>
+          <parameter name="path" required="true">
+            <description>File path to create</description>
+            <type>string</type>
+            <example>{ticket_id}.txt</example>
+          </parameter>
+          <parameter name="content" required="true">
+            <description>File content (one ID per line)</description>
+            <type>string</type>
+            <example>TXN001\nTXN002\nTXN003</example>
+          </parameter>
+        </parameters>
+      </syntax>
+      <examples>
+        <example scenario="Create ID file from ticket">
+          <code>write_to_file TS-1234.txt "TXN001\nTXN002\nTXN003"</code>
+        </example>
+      </examples>
+    </tool>
+
+    <tool name="execute_command - jira subcommands">
+      <purpose>Manage Jira tickets and attachments</purpose>
+      <when_to_use>
+        - Viewing ticket details
+        - Downloading CSV attachments
+        - Searching for tickets
+      </when_to_use>
+      <syntax>
+        <command>{tool} jira [subcommand] [options]</command>
+        <parameters>
+          <parameter name="subcommand" required="true">
+            <description>Jira operation</description>
+            <type>string</type>
+            <example>view, list, search, download-attachment</example>
+          </parameter>
+          <parameter name="options" required="false">
+            <description>Additional options</description>
+            <type>varies</type>
+          </parameter>
+        </parameters>
+      </syntax>
+      <examples>
+        <example scenario="View ticket details">
+          <code>mybuddy jira view TS-1234</code>
+        </example>
+        <example scenario="Download CSV attachment">
+          <code>mybuddy jira download-attachment TS-1234</code>
+        </example>
+        <example scenario="Download to specific directory">
+          <code>mybuddy jira download-attachment TS-1234 --output ./downloads</code>
+        </example>
+        <example scenario="Search for tickets">
+          <code>mybuddy jira search "timeout"</code>
+        </example>
+      </examples>
+    </tool>
+
+    <tool name="execute_command - txn subcommand">
+      <purpose>Investigate payment transactions</purpose>
+      <when_to_use>
+        - Single transaction investigation
+        - Batch transaction processing
+      </when_to_use>
+      <syntax>
+        <command>{tool} txn [identifier]</command>
+        <parameters>
+          <parameter name="identifier" required="true">
+            <description>Transaction ID, E2E ID, Batch ID, or file path</description>
+            <type>string</type>
+            <example>TXN123, 20250101120000, ids.txt</example>
+          </parameter>
+        </parameters>
+      </syntax>
+      <examples>
+        <example scenario="Single transaction by ID">
+          <code>mybuddy txn TXN123</code>
+        </example>
+        <example scenario="Single transaction by E2E ID">
+          <code>mybuddy txn E2E-456-789</code>
+        </example>
+        <example scenario="Batch processing from file">
+          <code>mybuddy txn TS-1234.txt</code>
+        </example>
+      </examples>
+    </tool>
+
+    <tool name="execute_command - doorman subcommand">
+      <purpose>Execute database queries and create DML tickets</purpose>
+      <when_to_use>
+        - Read-only database queries
+        - DML ticket creation (Malaysia only)
+      </when_to_use>
+      <syntax>
+        <command>{tool} doorman [subcommand] [options]</command>
+        <parameters>
+          <parameter name="subcommand" required="true">
+            <description>Doorman operation</description>
+            <type>string</type>
+            <example>query, create-dml</example>
+          </parameter>
+          <parameter name="options" required="false">
+            <description>Additional options</description>
+            <type>varies</type>
+          </parameter>
+        </parameters>
+      </syntax>
+      <examples>
+        <example scenario="Query database">
+          <code>mybuddy doorman query --service payment_core --query "SELECT * FROM transactions WHERE id = 'TXN123'"</code>
+        </example>
+        <example scenario="Query with JSON output">
+          <code>mybuddy doorman query --service payment_core --query "SELECT * FROM transactions WHERE id = 'TXN123'" --format json</code>
+        </example>
+        <example scenario="Create DML ticket (Malaysia)">
+          <code>mybuddy doorman create-dml --service payment_core --original "UPDATE transactions SET status = 'done' WHERE id = 'TXN123'" --rollback "UPDATE transactions SET status = 'pending' WHERE id = 'TXN123'" --note "Fix TXN123 - Ref TS-456"</code>
+        </example>
+      </examples>
+    </tool>
+
+    <tool name="execute_command - rpp subcommand">
+      <purpose>Handle RPP workflows (Malaysia only)</purpose>
+      <when_to_use>
+        - Resuming stuck RPP workflows
+        - Generating deploy and rollback SQL
+      </when_to_use>
+      <syntax>
+        <command>mybuddy rpp [subcommand]</command>
+        <parameters>
+          <parameter name="subcommand" required="true">
+            <description>RPP operation</description>
+            <type>string</type>
+            <example>resume</example>
+          </parameter>
+        </parameters>
+      </syntax>
+      <examples>
+        <example scenario="Resume RPP workflow">
+          <code>mybuddy rpp resume</code>
+        </example>
+      </examples>
+    </tool>
+
+    <tool name="execute_command - ecotxn subcommand">
+      <purpose>Inspect and publish PartnerPay transactions</purpose>
+      <when_to_use>
+        - Viewing Eco transaction details
+        - Publishing to PartnerPay engine
+        - Auto-creating DML tickets
+      </when_to_use>
+      <syntax>
+        <command>{tool} ecotxn [run_id] [options]</command>
+        <parameters>
+          <parameter name="run_id" required="true">
+            <description>Eco transaction run ID</description>
+            <type>string</type>
+            <example>RUN123456</example>
+          </parameter>
+          <parameter name="options" required="false">
+            <description>Additional options</description>
+            <type>varies</type>
+          </parameter>
+        </parameters>
+      </syntax>
+      <examples>
+        <example scenario="View Eco transaction (Malaysia)">
+          <code>mybuddy ecotxn RUN123456</code>
+        </example>
+        <example scenario="View and publish (Singapore)">
+          <code>sgbuddy ecotxn RUN123456 --publish</code>
+        </example>
+        <example scenario="Auto-create DML ticket (Malaysia)">
+          <code>mybuddy ecotxn RUN123456 --create-dml "TS-456"</code>
+        </example>
+        <example scenario="Publish and create DML (Singapore)">
+          <code>sgbuddy ecotxn RUN123456 --publish --create-dml "TSE-789"</code>
+        </example>
+      </examples>
+    </tool>
+  </tool_specific_guidance>
+</tool_usage_guide>

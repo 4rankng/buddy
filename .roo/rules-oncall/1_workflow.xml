@@ -1,0 +1,125 @@
+<workflow_instructions>
+  <mode_overview>
+    Oncall Buddy is a specialized mode for on-call operations at G-Bank payment systems.
+    It provides guidance for using mybuddy (Malaysia) and sgbuddy (Singapore) CLI tools
+    to investigate payment transactions, manage Jira tickets, perform database queries,
+    and handle PartnerPay operations.
+  </mode_overview>
+
+  <initialization_steps>
+    <step number="1">
+      <action>Identify task type and region</action>
+      <details>
+        Parse the user's input to determine:
+        - Primary objective (transaction investigation, Jira management, database query, etc.)
+        - Region (Malaysia/TS or Singapore/TSE)
+        - Specific identifiers (ticket IDs, transaction IDs, batch IDs)
+      </details>
+    </step>
+
+    <step number="2">
+      <action>Select appropriate CLI tool</action>
+      <details>
+        Based on region and task:
+        - Malaysia (TS tickets) → mybuddy
+        - Singapore (TSE tickets) → sgbuddy
+      </details>
+    </step>
+  </initialization_steps>
+
+  <main_workflow>
+    <phase name="ticket_investigation">
+      <description>Handle Jira ticket-based investigations</description>
+      <steps>
+        <step>Extract ticket ID (TS-XXXX or TSE-XXXX)</step>
+        <step>View ticket details using jira view command</step>
+        <step>Extract Batch IDs or TAR02 BMIDs from ticket</step>
+        <step>Save IDs to {ticket_id}.txt file (one per line)</step>
+        <step>Run transaction investigation: {tool} txn {ticket_id}.txt</step>
+        <step>If Grab transaction, use ecotxn command</step>
+      </steps>
+    </phase>
+
+    <phase name="transaction_investigation">
+      <description>Investigate individual or batch transactions</description>
+      <steps>
+        <step>For single transaction: {tool} txn [txn_id]</step>
+        <step>For batch processing: {tool} txn [file.txt]</step>
+        <step>Review transaction status and details</step>
+        <step>Generate remediation SQL if needed</step>
+      </steps>
+    </phase>
+
+    <phase name="database_query">
+      <description>Execute read-only database queries</description>
+      <steps>
+        <step>Consult DATABASE_SCHEMA.md for table/column names</step>
+        <step>Construct SQL query</step>
+        <step>Execute: {tool} doorman query --service [service] --query "[sql]"</step>
+        <step>Review results in table or JSON format</step>
+      </steps>
+    </phase>
+
+    <phase name="partnerpay_operations">
+      <description>Handle Eco/PartnerPay transactions</description>
+      <steps>
+        <step>View transaction: {tool} ecotxn [run_id]</step>
+        <step>For Malaysia: {tool} ecotxn [run_id] --create-dml "TS-XXXX"</step>
+        <step>For Singapore: {tool} ecotxn [txn_id] --publish</step>
+        <step>Optional: Add --create-dml flag for auto DML ticket creation</step>
+      </steps>
+    </phase>
+
+    <phase name="rpp_operations">
+      <description>Handle RPP workflows (Malaysia only)</description>
+      <steps>
+        <step>Execute: mybuddy rpp resume</step>
+        <step>Review generated deploy SQL</step>
+        <step>Review generated rollback SQL</step>
+        <step>Create DML ticket if needed</step>
+      </steps>
+    </phase>
+  </main_workflow>
+
+  <regional_differences>
+    <region name="malaysia">
+      <tool>mybuddy</tool>
+      <env_file>.env.my</env_file>
+      <jira_project>TS</jira_project>
+      <services>
+        <service>payment_engine</service>
+        <service>payment_core</service>
+        <service>rpp_adapter</service>
+        <service>partnerpay_engine</service>
+      </services>
+      <exclusive_features>
+        <feature>RPP adapter</feature>
+        <feature>DML ticket creation via doorman</feature>
+      </exclusive_features>
+    </region>
+
+    <region name="singapore">
+      <tool>sgbuddy</tool>
+      <env_file>.env.sg</env_file>
+      <jira_project>TSE</jira_project>
+      <services>
+        <service>payment_engine</service>
+        <service>payment_core</service>
+        <service>fast_adapter</service>
+        <service>partnerpay_engine</service>
+      </services>
+      <exclusive_features>
+        <feature>Fast adapter</feature>
+        <feature>Interactive ecotxn publish mode</feature>
+      </exclusive_features>
+    </region>
+  </regional_differences>
+
+  <completion_criteria>
+    <criterion>Transaction investigation completed with findings</criterion>
+    <criterion>Jira ticket processed and documented</criterion>
+    <criterion>Database query executed with results</criterion>
+    <criterion>Remediation SQL generated when needed</criterion>
+    <criterion>DML ticket created for production changes (if applicable)</criterion>
+  </completion_criteria>
+</workflow_instructions>

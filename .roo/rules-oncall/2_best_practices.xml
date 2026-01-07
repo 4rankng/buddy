@@ -1,0 +1,191 @@
+<best_practices>
+  <general_principles>
+    <principle priority="high">
+      <name>Always verify region before executing commands</name>
+      <description>
+        Malaysia uses mybuddy with TS tickets, Singapore uses sgbuddy with TSE tickets.
+        Using the wrong tool can lead to incorrect results or failed operations.
+      </description>
+      <rationale>
+        Each region has its own environment configuration and service differences.
+        Mixing regions can cause data access issues or incorrect remediation.
+      </rationale>
+      <example>
+        <scenario>User provides ticket ID TS-1234</scenario>
+        <good>Use mybuddy for all operations related to this ticket</good>
+        <bad>Use sgbuddy - this will fail to find the ticket</bad>
+      </example>
+    </principle>
+
+    <principle priority="high">
+      <name>Follow the critical workflow for ticket investigations</name>
+      <description>
+        1. Extract Batch IDs or TAR02 BMIDs from ticket
+        2. Save to file: {ticket_id}.txt (one ID per line)
+        3. Run investigation: mybuddy txn {ticket_id}.txt (or sgbuddy for TSE)
+        4. If Grab transaction, use ecotxn command
+      </description>
+      <rationale>
+        This workflow ensures proper batch processing and complete investigation coverage.
+        Skipping steps can lead to incomplete investigations or missed transactions.
+      </rationale>
+      <example>
+        <scenario>Investigating TS-4567 ticket</scenario>
+        <good>
+          Extract IDs from ticket, save to TS-4567.txt, run mybuddy txn TS-4567.txt
+        </good>
+        <bad>Run mybuddy txn with individual IDs manually - inefficient and error-prone</bad>
+      </example>
+    </principle>
+
+    <principle priority="high">
+      <name>Consult DATABASE_SCHEMA.md before database queries</name>
+      <description>
+        Always reference the schema file to verify table names, column names, and data types
+        before executing doorman query commands.
+      </description>
+      <rationale>
+        Incorrect table or column names will cause query failures.
+        The schema file provides the authoritative source for database structure.
+      </rationale>
+      <example>
+        <scenario>Querying transaction status</scenario>
+        <good>Check DATABASE_SCHEMA.md for correct table name, then construct query</good>
+        <bad>Guess table name based on assumptions - likely to fail</bad>
+      </example>
+    </principle>
+
+    <principle priority="medium">
+      <name>Use batch processing for multiple transactions</name>
+      <description>
+        When investigating multiple transactions, create a text file with one ID per line
+        and use the batch processing capability of the txn command.
+      </description>
+      <rationale>
+        Batch processing is more efficient than running individual commands.
+        It also provides consolidated output for easier analysis.
+      </rationale>
+      <example>
+        <scenario>Investigate 50 transactions from a CSV</scenario>
+        <good>Extract IDs to file, run mybuddy txn ids.txt</good>
+        <bad>Run mybuddy txn 50 times with individual IDs</bad>
+      </example>
+    </principle>
+
+    <principle priority="medium">
+      <name>Generate and review rollback SQL before production changes</name>
+      <description>
+        For any DML operation, always review both the deploy SQL and rollback SQL
+        before creating tickets or executing changes.
+      </description>
+      <rationale>
+        Rollback SQL is critical for recovery if something goes wrong.
+        Reviewing it beforehand ensures it's correct and safe to execute.
+      </rationale>
+      <example>
+        <scenario>RPP resume operation generates SQL</scenario>
+        <good>Review both deploy and rollback SQL before creating DML ticket</good>
+        <bad>Create DML ticket without reviewing rollback SQL</bad>
+      </example>
+    </principle>
+  </general_principles>
+
+  <code_conventions>
+    <convention category="file_naming">
+      <rule>Use ticket ID as filename for ID files</rule>
+      <examples>
+        <good>TS-1234.txt, TSE-5678.txt</good>
+        <bad>ids.txt, transactions.txt, batch.txt</bad>
+      </examples>
+    </convention>
+
+    <convention category="file_format">
+      <rule>One ID per line in text files</rule>
+      <examples>
+        <good>
+          TXN001
+          TXN002
+          TXN003
+        </good>
+        <bad>TXN001,TXN002,TXN003 (comma-separated)</bad>
+      </examples>
+    </convention>
+
+    <convention category="sql_formatting">
+      <rule>Use uppercase for SQL keywords, proper indentation</rule>
+      <examples>
+        <good>SELECT * FROM transactions WHERE status = 'pending'</good>
+        <bad>select * from transactions where status='pending'</bad>
+      </examples>
+    </convention>
+  </code_conventions>
+
+  <common_pitfalls>
+    <pitfall>
+      <description>Using wrong CLI tool for the region</description>
+      <why_problematic>
+        Commands will fail because the tool cannot access the correct environment
+        or find tickets from the wrong Jira project.
+      </why_problematic>
+      <correct_approach>
+        Verify ticket prefix (TS for Malaysia, TSE for Singapore) and use the corresponding tool.
+      </correct_approach>
+    </pitfall>
+
+    <pitfall>
+      <description>Skipping CSV download for ticket attachments</description>
+      <why_problematic>
+        Manual data entry is error-prone and time-consuming.
+        The jira download-attachment command automates this process.
+      </why_problematic>
+      <correct_approach>
+        Always use jira download-attachment for CSV files, then extract IDs with awk.
+      </correct_approach>
+    </pitfall>
+
+    <pitfall>
+      <description>Not checking regional service differences</description>
+      <why_problematic>
+        Malaysia has rpp_adapter, Singapore has fast_adapter.
+        Querying non-existent services will result in errors.
+      </why_problematic>
+      <correct_approach>
+        Verify available services for the region before running doorman queries.
+      </correct_approach>
+    </pitfall>
+
+    <pitfall>
+      <description>Creating DML tickets without proper review</description>
+      <why_problematic>
+        Incorrect SQL can cause production issues that are difficult to recover from.
+        Proper review prevents data corruption or service disruption.
+      </why_problematic>
+      <correct_approach>
+        Always review generated SQL with a peer or senior engineer before creating DML tickets.
+      </correct_approach>
+    </pitfall>
+  </common_pitfalls>
+
+  <quality_checklist>
+    <category name="before_starting">
+      <item>Identify correct region (MY/SG) from ticket ID</item>
+      <item>Verify appropriate CLI tool (mybuddy/sgbuddy)</item>
+      <item>Check DATABASE_SCHEMA.md for table/column names</item>
+      <item>Ensure environment file exists (.env.my or .env.sg)</item>
+    </category>
+
+    <category name="during_investigation">
+      <item>Extract all relevant IDs from ticket</item>
+      <item>Save IDs to properly named file</item>
+      <item>Use batch processing for multiple transactions</item>
+      <item>Review all generated output carefully</item>
+    </category>
+
+    <category name="before_completion">
+      <item>Verify all transactions investigated</item>
+      <item>Review generated SQL (deploy and rollback)</item>
+      <item>Document findings in ticket comments</item>
+      <item>Create DML ticket if production changes needed</item>
+    </category>
+  </quality_checklist>
+</best_practices>
