@@ -71,8 +71,13 @@ Output: Deploy SQL + Rollback SQL
 ### PartnerPay Inspection
 
 ```bash
+# View transaction
 mybuddy ecotxn <run_id>
 sgbuddy ecotxn <run_id>
+
+# Auto-create DML ticket with ticket reference
+mybuddy ecotxn <run_id> --create-dml "TS-4558"
+sgbuddy ecotxn <run_id> --publish --create-dml "TSE-1234"
 ```
 
 ### Database Queries

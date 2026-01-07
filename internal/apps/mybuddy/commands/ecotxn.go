@@ -26,6 +26,8 @@ func isEmptyStatements(statements domain.SQLStatements) bool {
 }
 
 func NewEcoTxnCmd(appCtx *common.Context, clients *di.ClientSet) *cobra.Command {
+	var createDML string
+
 	cmd := &cobra.Command{
 		Use:   "ecotxn [run-id]",
 		Short: "Query partnerpay-engine transaction status by run_id",
@@ -33,18 +35,21 @@ func NewEcoTxnCmd(appCtx *common.Context, clients *di.ClientSet) *cobra.Command 
 This command specifically queries to charge table and displays workflow_charge information.
 
 Example:
-  mybuddy ecotxn fd230a01dcd04282851b7b9dd6260c93`,
+  mybuddy ecotxn fd230a01dcd04282851b7b9dd6260c93
+  mybuddy ecotxn fd230a01dcd04282851b7b9dd6260c93 --create-dml "TS-4558"`,
 		Args: cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			runID := args[0]
-			processEcoTransaction(appCtx, clients, runID)
+			processEcoTransaction(appCtx, clients, runID, createDML)
 		},
 	}
+
+	cmd.Flags().StringVar(&createDML, "create-dml", "", "Auto-create Doorman DML tickets with ticket ID (e.g., \"TS-4558\")")
 
 	return cmd
 }
 
-func processEcoTransaction(appCtx *common.Context, clients *di.ClientSet, runID string) {
+func processEcoTransaction(appCtx *common.Context, clients *di.ClientSet, runID string, createDML string) {
 	// Get the TransactionService singleton
 	txnService := service.GetTransactionQueryService()
 
@@ -83,8 +88,9 @@ func processEcoTransaction(appCtx *common.Context, clients *di.ClientSet, runID 
 			fmt.Printf("\nNo DML files generated for case: %s\n", result.CaseType)
 		}
 
-		// Prompt to create Doorman DML tickets
-		PromptForDoormanTicket(appCtx, clients, statements)
+		// Prompt to create Doorman DML tickets or auto-create if flag provided
+		autoCreate := createDML != ""
+		PromptForDoormanTicket(appCtx, clients, statements, autoCreate, createDML)
 	} else if result.CaseType == domain.CaseNone {
 		fmt.Printf("\nSkipping DML generation for NOT_FOUND case\n")
 	}

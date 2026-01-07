@@ -46,7 +46,7 @@ func NewEcoTxnPublisher() *EcoTxnPublisher {
 }
 
 // ProcessEcoTxnPublish processes a single transaction for publishing
-func ProcessEcoTxnPublish(appCtx *common.Context, clients DoormanClients, transactionID, env string) error {
+func ProcessEcoTxnPublish(appCtx *common.Context, clients DoormanClients, transactionID, env string, createDML string) error {
 	publisher := NewEcoTxnPublisher()
 
 	result := publisher.processSingleTransaction(transactionID)
@@ -62,7 +62,7 @@ func ProcessEcoTxnPublish(appCtx *common.Context, clients DoormanClients, transa
 		if clients != nil {
 			doormanClient := clients.GetDoorman()
 			if doormanClient != nil && publisher.PPEDeploy.Len() > 0 {
-				promptForDoormanTicket(doormanClient, publisher.PPEDeploy.String(), publisher.PPERollback.String())
+				promptForDoormanTicket(doormanClient, publisher.PPEDeploy.String(), publisher.PPERollback.String(), createDML)
 			}
 		}
 
@@ -72,7 +72,8 @@ func ProcessEcoTxnPublish(appCtx *common.Context, clients DoormanClients, transa
 }
 
 // promptForDoormanTicket prompts user and creates Doorman ticket for PPE service
-func promptForDoormanTicket(doormanClient doorman.DoormanInterface, deploySQL, rollbackSQL string) {
+// If createDML is non-empty, auto-creates ticket with that ticket ID as the note
+func promptForDoormanTicket(doormanClient doorman.DoormanInterface, deploySQL, rollbackSQL string, createDML string) {
 	deployLines := strings.Split(deploySQL, "\n")
 	rollbackLines := strings.Split(rollbackSQL, "\n")
 
@@ -90,12 +91,13 @@ func promptForDoormanTicket(doormanClient doorman.DoormanInterface, deploySQL, r
 	}
 
 	if len(deployStmts) > 0 {
-		commondoorman.ProcessServiceDML(doormanClient, "partnerpay_engine", deployStmts, rollbackStmts)
+		autoCreate := createDML != ""
+		commondoorman.ProcessServiceDML(doormanClient, "partnerpay_engine", deployStmts, rollbackStmts, autoCreate, createDML)
 	}
 }
 
 // ProcessEcoTxnPublishBatch processes multiple transactions from a file
-func ProcessEcoTxnPublishBatch(appCtx *common.Context, clients DoormanClients, filePath, env string) {
+func ProcessEcoTxnPublishBatch(appCtx *common.Context, clients DoormanClients, filePath, env string, createDML string) {
 	transactionIDs, err := utils.ReadTransactionIDsFromFile(filePath)
 	if err != nil {
 		fmt.Printf("Error reading file: %v\n", err)
@@ -134,7 +136,7 @@ func ProcessEcoTxnPublishBatch(appCtx *common.Context, clients DoormanClients, f
 	// Prompt to create Doorman DML ticket
 	doormanClient := clients.GetDoorman()
 	if doormanClient != nil && publisher.PPEDeploy.Len() > 0 {
-		promptForDoormanTicket(doormanClient, publisher.PPEDeploy.String(), publisher.PPERollback.String())
+		promptForDoormanTicket(doormanClient, publisher.PPEDeploy.String(), publisher.PPERollback.String(), createDML)
 	}
 }
 

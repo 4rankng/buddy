@@ -14,6 +14,7 @@ import (
 
 func NewEcoTxnCmd(appCtx *common.Context, clients *di.ClientSet) *cobra.Command {
 	var publish bool
+	var createDML string
 
 	cmd := &cobra.Command{
 		Use:   "ecotxn <transaction-id>",
@@ -24,7 +25,10 @@ For viewing transaction information:
   sgbuddy ecotxn view <transaction-id>
 
 For publishing transactions (generating SQL scripts):
-  sgbuddy ecotxn <transaction-id> --publish`,
+  sgbuddy ecotxn <transaction-id> --publish
+
+For auto-creating DML tickets:
+  sgbuddy ecotxn <transaction-id> --publish --create-dml "TSE-1234"`,
 		Args: cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			input := args[0]
@@ -32,9 +36,9 @@ For publishing transactions (generating SQL scripts):
 			if publish {
 				// Publish mode - generate SQL scripts
 				if utils.IsSimpleFilePath(input) {
-					adapters.ProcessEcoTxnPublishBatch(appCtx, clients, input, "sg")
+					adapters.ProcessEcoTxnPublishBatch(appCtx, clients, input, "sg", createDML)
 				} else {
-					if err := adapters.ProcessEcoTxnPublish(appCtx, clients, input, "sg"); err != nil {
+					if err := adapters.ProcessEcoTxnPublish(appCtx, clients, input, "sg", createDML); err != nil {
 						os.Exit(1)
 					}
 				}
@@ -45,8 +49,9 @@ For publishing transactions (generating SQL scripts):
 		},
 	}
 
-	// Add --publish flag
+	// Add flags
 	cmd.Flags().BoolVar(&publish, "publish", false, "Generate SQL deployment and rollback scripts")
+	cmd.Flags().StringVar(&createDML, "create-dml", "", "Auto-create Doorman DML tickets with ticket ID (e.g., \"TSE-1234\")")
 
 	// Add subcommands
 	cmd.AddCommand(NewEcoTxnViewCmd(appCtx, clients))

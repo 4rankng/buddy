@@ -120,3 +120,8 @@ func (c *Container) GetClientSet() *ClientSet {
 func (cs *ClientSet) GetDoorman() doorman.DoormanInterface {
 	return cs.Doorman
 }
+
+// GetJiraConfig returns the JIRA configuration for the specified environment
+func (cs *ClientSet) GetJiraConfig(env string) jira.JiraConfig {
+	return jira.GetJiraConfig(env)
+}

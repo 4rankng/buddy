@@ -10,6 +10,6 @@ import (
 
 // PromptForDoormanTicket prompts user to create Doorman DML tickets for all services
 // Delegates to the common implementation to avoid code duplication
-func PromptForDoormanTicket(appCtx *common.Context, clients *di.ClientSet, statements domain.SQLStatements) {
-	commondoorman.PromptForDoormanTicket(clients.Doorman, statements)
+func PromptForDoormanTicket(appCtx *common.Context, clients *di.ClientSet, statements domain.SQLStatements, autoCreate bool, note string) {
+	commondoorman.PromptForDoormanTicket(clients.Doorman, statements, autoCreate, note)
 }

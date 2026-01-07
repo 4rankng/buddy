@@ -158,8 +158,8 @@ func (s *AttachmentDownloadService) isCSVFile(attachment jira.Attachment) bool {
 	// Check mime type
 	mimeType := strings.ToLower(attachment.MimeType)
 	return mimeType == "text/csv" ||
-		   mimeType == "application/csv" ||
-		   strings.Contains(mimeType, "csv")
+		mimeType == "application/csv" ||
+		strings.Contains(mimeType, "csv")
 }
 
 // ensureOutputDirectory creates the output directory if it doesn't exist
@@ -263,8 +263,12 @@ func (s *AttachmentDownloadService) checkDirectoryWritable(dir string) error {
 	}
 
 	// Clean up the test file
-	file.Close()
-	os.Remove(testFile)
+	if err := file.Close(); err != nil {
+		s.logger.Warn("Failed to close test file: %v", err)
+	}
+	if err := os.Remove(testFile); err != nil {
+		s.logger.Warn("Failed to remove test file: %v", err)
+	}
 
 	return nil
 }
