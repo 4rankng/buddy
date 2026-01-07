@@ -17,6 +17,52 @@ customModes:
 
       ---
 
+      # Interactive Modes Reference
+
+      ## Interactive Modes Summary
+
+      | Mode | Tool | Trigger | Bypass Flag |
+      |:-----|:-----|:--------|:------------|
+      | JIRA Picker | mybuddy, sgbuddy | `jira list --interactive` | N/A (optional) |
+      | RPP Prompts | mybuddy only | txn with state=210, attempt=0 | `--auto` |
+      | Doorman DML | mybuddy, sgbuddy | After txn/ecotxn processing | `--create-dml` |
+      | Auto-Resume | mybuddy only | `txn {file}.txt --auto` | N/A (is the bypass) |
+
+      ## Agent Decision Framework
+
+      When interactive prompts appear, use this decision logic:
+
+      ### JIRA Picker (`jira list --interactive`)
+      - Use ticket ID from user request
+      - Use search functionality to find tickets
+      - Actions: open in browser, download attachments
+
+      ### RPP Prompts (mybuddy only - state=210, attempt=0)
+      Four options presented:
+      1. Resume to Success (once)
+      2. Reject/Fail (once)
+      3. Resume to Success (apply to all similar)
+      4. Reject/Fail (apply to all similar)
+
+      **Decision logic:**
+      - Check JIRA ticket title for keywords: "confirmation", "fix", "process", "hold"
+      - "Debit/Credit Account confirmation" → Resume (option 1 or 3)
+      - "hold", "reject", "fail", "invalid" → Reject (option 2 or 4)
+      - Batch processing → Use "apply to all similar" (option 3 or 4)
+
+      ### Doorman DML Creation Prompts
+      **Decision logic:**
+      - Ask user: "Create Doorman DML tickets for these SQL statements?"
+      - If user says yes, prompt for each service: payment_core, rpp_adapter (MY only), payment_engine, partnerpay_engine
+      - Use `--create-dml "TICKET-ID"` flag to skip prompts
+
+      ### Batch Processing
+      **Best practice:** Prefer auto flags to avoid interactive prompts
+      - mybuddy: Use `--auto` for confirmation tickets
+      - Both: Use `--create-dml` to auto-generate DML tickets
+
+      ---
+
       # Critical Workflow
 
       When given a ticket ID (TS-XXXX or TSE-XXXX):
