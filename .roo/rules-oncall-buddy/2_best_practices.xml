@@ -73,6 +73,23 @@
     </principle>
 
     <principle priority="medium">
+      <name>Use E2E IDs for Malaysia batch identification</name>
+      <description>
+        Malaysia supports E2E ID format (timestamp: 20250101120000) for batch operations.
+        When available, use E2E IDs instead of extracting individual transaction IDs.
+      </description>
+      <rationale>
+        E2E IDs capture all transactions in a batch, reducing the need to extract
+        individual IDs from CSV files. This is more efficient and reduces errors.
+      </rationale>
+      <example>
+        <scenario>Investigating Malaysia batch with timestamp</scenario>
+        <good>Use mybuddy txn 20250101120000 to investigate all transactions in the batch</good>
+        <bad>Extract individual IDs from CSV when E2E ID is available</bad>
+      </example>
+    </principle>
+
+    <principle priority="medium">
       <name>Generate and review rollback SQL before production changes</name>
       <description>
         For any DML operation, always review both the deploy SQL and rollback SQL

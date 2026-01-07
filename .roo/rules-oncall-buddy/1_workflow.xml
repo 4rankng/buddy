@@ -79,6 +79,16 @@
         <step>Create DML ticket if needed</step>
       </steps>
     </phase>
+
+    <phase name="singapore_operations">
+      <description>Singapore-specific operations</description>
+      <steps>
+        <step>PayNow unlink: sgbuddy paynow unlink [safeid]</step>
+        <step>Datadog search: sgbuddy dd search "[query]" --last [hours]</step>
+        <step>Datadog aggregate: sgbuddy dd aggregate "[metric]"</step>
+        <step>Datadog submit: sgbuddy dd submit</step>
+      </steps>
+    </phase>
   </main_workflow>
 
   <regional_differences>
@@ -95,6 +105,7 @@
       <exclusive_features>
         <feature>RPP adapter</feature>
         <feature>DML ticket creation via doorman</feature>
+        <feature>E2E ID batch identification</feature>
       </exclusive_features>
     </region>
 
@@ -111,6 +122,8 @@
       <exclusive_features>
         <feature>Fast adapter</feature>
         <feature>Interactive ecotxn publish mode</feature>
+        <feature>PayNow unlink operations</feature>
+        <feature>Datadog log integration</feature>
       </exclusive_features>
     </region>
   </regional_differences>

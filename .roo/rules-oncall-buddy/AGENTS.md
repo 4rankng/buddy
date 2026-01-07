@@ -3,6 +3,18 @@ name: oncall-buddy
 description: CLI tools (mybuddy/sgbuddy) for database queries, transaction investigation, Jira integration, and payment operations.
 ---
 
+# Quick Decision Tree
+
+1. **Start with ticket ID?** → TS → mybuddy | TSE → sgbuddy
+2. **Need transaction info?** → txn [id_or_file]
+3. **Grab/PartnerPay transaction?** → ecotxn [run_id]
+4. **Need database query?** → doorman query -s [service] -q "[sql]"
+5. **RPP stuck (MY only)?** → rpp resume
+6. **PayNow unlink (SG only)?** → paynow unlink [safeid]
+7. **Search logs (SG only)?** → dd search "[query]" --last [hours]
+
+---
+
 # Critical Workflow
 
 When given a ticket ID (TS-XXXX or TSE-XXXX):
@@ -128,6 +140,44 @@ mybuddy txn ids.txt
 | RPP recovery | `rpp resume` (MY) |
 | Query database | `doorman query` |
 | Create DML ticket | `doorman create-dml` (MY) |
+| PayNow unlink | `paynow unlink <safeid>` (SG) |
+| Search logs | `dd search "<query>" --last <hours>` (SG) |
+
+---
+
+# Singapore-Exclusive Commands
+
+## PayNow Operations
+```bash
+sgbuddy paynow unlink <safeid>
+```
+Unlinks PayNow for a given SafeID. Triggers deregistration in Pairing Service.
+
+## Datadog Integration
+```bash
+# Search logs
+sgbuddy dd search "service:payment error" --last 3
+
+# Aggregate metrics
+sgbuddy dd aggregate "error"
+
+# Submit log events
+sgbuddy dd submit
+```
+Search logs, aggregate metrics, submit log events.
+
+---
+
+# Malaysia-Specific Notes
+
+## E2E ID Usage
+Malaysia supports E2E IDs (timestamp format: `20250101120000`) for batch identification:
+```bash
+mybuddy txn 20250101120000
+```
+This is more efficient than extracting individual transaction IDs when investigating batches.
+
+---
 
 # Regional Differences
 

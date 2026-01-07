@@ -159,6 +159,50 @@ mybuddy doorman create-dml \
       <command task="Query database">{tool} doorman query --service [service] --query "[SQL]"</command>
       <command task="RPP resume (MY)">mybuddy rpp resume</command>
       <command task="Inspect Eco">{tool} ecotxn [run_id]</command>
+      <command task="PayNow unlink (SG)">sgbuddy paynow unlink [safeid]</command>
+      <command task="Datadog search (SG)">sgbuddy dd search "[query]" --last [hours]</command>
     </commands>
+  </pattern>
+
+  <pattern name="paynow_unlink">
+    <description>Unlink PayNow for SafeID (Singapore only)</description>
+    <code>sgbuddy paynow unlink [safeid]</code>
+    <explanation>
+      Triggers PayNow deregistration flow in Pairing Service.
+      Queries Doorman for SafeID information first.
+    </explanation>
+    <example>
+      <scenario>Unlink PayNow for SAFE123</scenario>
+      <code>sgbuddy paynow unlink SAFE123</code>
+    </example>
+  </pattern>
+
+  <pattern name="datadog_log_search">
+    <description>Search Datadog logs (Singapore only)</description>
+    <code>sgbuddy dd search "[query]" --last [hours]</code>
+    <explanation>
+      Search logs with query, limit to last N hours.
+      Useful for investigating errors or tracing transaction flows.
+    </explanation>
+    <examples>
+      <example>Search for payment errors in last 3 hours</example>
+      <code>sgbuddy dd search "service:payment error" --last 3</code>
+      <example>Aggregate error metrics</example>
+      <code>sgbuddy dd aggregate "error"</code>
+    </examples>
+  </pattern>
+
+  <pattern name="e2e_id_investigation">
+    <description>Use E2E ID for Malaysia batch investigation</description>
+    <code>mybuddy txn [e2e_timestamp]</code>
+    <explanation>
+      E2E IDs are timestamps (format: 20250101120000) that identify batches.
+      More efficient than individual transaction IDs when available.
+      Captures all transactions in a batch for comprehensive investigation.
+    </explanation>
+    <example>
+      <scenario>Investigate batch from 2025-01-01 12:00:00</scenario>
+      <code>mybuddy txn 20250101120000</code>
+    </example>
   </pattern>
 </common_patterns>

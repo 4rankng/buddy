@@ -59,6 +59,8 @@
         - Managing Singapore Jira tickets
         - Querying Singapore databases
         - Handling Singapore PartnerPay operations
+        - PayNow unlink operations
+        - Datadog log integration
       </when_to_use>
       <syntax>
         <command>sgbuddy [command] [options]</command>
@@ -66,7 +68,7 @@
           <parameter name="command" required="true">
             <description>Subcommand to execute</description>
             <type>string</type>
-            <example>txn, jira, doorman, ecotxn</example>
+            <example>txn, jira, doorman, ecotxn, paynow, dd</example>
           </parameter>
           <parameter name="options" required="false">
             <description>Command-specific options</description>
@@ -86,6 +88,12 @@
         </example>
         <example scenario="Publish Eco transaction">
           <code>sgbuddy ecotxn RUN123 --publish</code>
+        </example>
+        <example scenario="Unlink PayNow">
+          <code>sgbuddy paynow unlink SAFE123</code>
+        </example>
+        <example scenario="Search Datadog logs">
+          <code>sgbuddy dd search "service:payment error" --last 3</code>
         </example>
       </examples>
     </tool>
@@ -273,6 +281,68 @@
         </example>
         <example scenario="Publish and create DML (Singapore)">
           <code>sgbuddy ecotxn RUN123456 --publish --create-dml "TSE-789"</code>
+        </example>
+      </examples>
+    </tool>
+
+    <tool name="execute_command - paynow subcommand">
+      <purpose>Unlink PayNow for SafeID (Singapore only)</purpose>
+      <when_to_use>
+        - When SafeID needs PayNow deregistration
+        - When user requests PayNow unlink
+      </when_to_use>
+      <syntax>
+        <command>sgbuddy paynow unlink [safeid]</command>
+        <parameters>
+          <parameter name="subcommand" required="true">
+            <description>PayNow operation</description>
+            <type>string</type>
+            <example>unlink</example>
+          </parameter>
+          <parameter name="safeid" required="true">
+            <description>SafeID to unlink</description>
+            <type>string</type>
+            <example>SAFE123</example>
+          </parameter>
+        </parameters>
+      </syntax>
+      <examples>
+        <example scenario="Unlink PayNow for SafeID">
+          <code>sgbuddy paynow unlink SAFE123</code>
+        </example>
+      </examples>
+    </tool>
+
+    <tool name="execute_command - dd subcommand">
+      <purpose>Datadog log integration (Singapore only)</purpose>
+      <when_to_use>
+        - Searching logs for errors
+        - Aggregating metrics
+        - Submitting log events
+      </when_to_use>
+      <syntax>
+        <command>sgbuddy dd [subcommand] [options]</command>
+        <parameters>
+          <parameter name="subcommand" required="true">
+            <description>Datadog operation</description>
+            <type>string</type>
+            <example>search, aggregate, submit</example>
+          </parameter>
+          <parameter name="options" required="false">
+            <description>Additional options</description>
+            <type>varies</type>
+          </parameter>
+        </parameters>
+      </syntax>
+      <examples>
+        <example scenario="Search logs for errors">
+          <code>sgbuddy dd search "service:payment error" --last 3</code>
+        </example>
+        <example scenario="Aggregate metrics">
+          <code>sgbuddy dd aggregate "error"</code>
+        </example>
+        <example scenario="Submit log events">
+          <code>sgbuddy dd submit</code>
         </example>
       </examples>
     </tool>

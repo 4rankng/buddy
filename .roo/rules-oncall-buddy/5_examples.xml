@@ -178,4 +178,56 @@ mybuddy jira download-attachment TS-1234 --output ./downloads
       Helps keep downloaded files organized by ticket or date.
     </explanation>
   </example>
+
+  <example name="paynow_unlink">
+    <description>Unlink PayNow for SafeID (Singapore)</description>
+    <context>When user requests PayNow unlink for a SafeID</context>
+    <code>
+sgbuddy paynow unlink SAFE123
+    </code>
+    <explanation>
+      Triggers PayNow deregistration in Pairing Service.
+      Queries Doorman to verify SafeID information first.
+      This feature is only available in Singapore (sgbuddy).
+    </explanation>
+  </example>
+
+  <example name="datadog_search">
+    <description>Search Datadog logs for payment errors</description>
+    <context>When investigating payment issues in Singapore environment</context>
+    <code>
+sgbuddy dd search "service:payment error" --last 3
+    </code>
+    <explanation>
+      Searches Datadog logs for payment service errors in the last 3 hours.
+      Useful for tracing transaction flows and identifying error patterns.
+      This feature is only available in Singapore (sgbuddy).
+    </explanation>
+  </example>
+
+  <example name="datadog_aggregate">
+    <description>Aggregate error metrics in Datadog</description>
+    <context>When analyzing error patterns in Singapore environment</context>
+    <code>
+sgbuddy dd aggregate "error"
+    </code>
+    <explanation>
+      Aggregates error metrics from Datadog for analysis.
+      Helps identify trends and high-impact issues.
+      This feature is only available in Singapore (sgbuddy).
+    </explanation>
+  </example>
+
+  <example name="e2e_batch_investigation">
+    <description>Investigate batch by E2E ID (Malaysia)</description>
+    <context>When user has an E2E ID (timestamp) for batch investigation</context>
+    <code>
+mybuddy txn 20250101120000
+    </code>
+    <explanation>
+      E2E ID is a timestamp (format: 20250101120000) identifying all transactions in a batch.
+      More efficient than extracting individual transaction IDs from CSV files.
+      This feature is only available in Malaysia (mybuddy).
+    </explanation>
+  </example>
 </examples>
