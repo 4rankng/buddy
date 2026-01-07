@@ -12,6 +12,7 @@ type JiraInterface interface {
 	GetAssignedIssues(ctx context.Context, projectKey string, emails []string) ([]JiraTicket, error)
 	GetIssueDetails(ctx context.Context, issueKey string) (*JiraTicket, error)
 	SearchIssues(ctx context.Context, searchTerm string) ([]JiraTicket, error)
+	ExecuteJQL(ctx context.Context, jql string) ([]JiraTicket, error)
 
 	// Attachment operations
 	GetAttachmentContent(ctx context.Context, attachmentURL string) ([]byte, error)

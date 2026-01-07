@@ -105,10 +105,16 @@ func NewJiraSearchCmd(appCtx *common.Context) *cobra.Command {
 		Long: `Search through your unresolved JIRA tickets (not Closed or Completed).
 Searches in ticket summary and description fields.
 
+Supports both text search and raw JQL queries:
+- Text search: buddy jira search "payment issue"
+- JQL query: buddy jira search "project = TS"
+
 Examples:
   buddy jira search "payment issue"
   buddy jira search mybuddy
-  buddy jira search "API" "error"`,
+  buddy jira search "API" "error"
+  buddy jira search "project = TS"
+  buddy jira search "reporter = currentUser()"`,
 		Args: cobra.MinimumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			// Check if JIRA client is initialized
@@ -132,8 +138,20 @@ Examples:
 			// Create context with timeout
 			ctx := cmd.Context()
 
-			// Search tickets
-			issues, err := jira.Jira.SearchIssues(ctx, searchTerm)
+			// Detect if this is a JQL query (contains field operators like =, !=, IN, etc.)
+			isJQL := looksLikeJQL(searchTerm)
+
+			var issues []jira.JiraTicket
+			var err error
+
+			if isJQL {
+				// Execute raw JQL query
+				issues, err = jira.Jira.ExecuteJQL(ctx, searchTerm)
+			} else {
+				// Search tickets in summary/description
+				issues, err = jira.Jira.SearchIssues(ctx, searchTerm)
+			}
+
 			if err != nil {
 				fmt.Printf("Error searching JIRA issues: %v\n", err)
 				os.Exit(1)
@@ -158,4 +176,20 @@ Examples:
 		},
 	}
 	return cmd
+}
+
+// looksLikeJQL heuristically determines if the search term is a JQL query
+func looksLikeJQL(term string) bool {
+	term = strings.TrimSpace(term)
+	
+	// JQL field operators that indicate this is likely a JQL query
+	jqlOperators := []string{" = ", " != ", " ~ ", " !~ ", " > ", " < ", " >= ", " <= ", " IN ", " NOT IN ", " WAS ", " WAS IN ", " WAS NOT IN ", " CHANGED "}
+	
+	for _, op := range jqlOperators {
+		if strings.Contains(term, op) {
+			return true
+		}
+	}
+	
+	return false
 }

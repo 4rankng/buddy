@@ -24,6 +24,11 @@ func (c *JiraClient) SearchIssues(ctx context.Context, searchTerm string) ([]Jir
 	return c.executeSearch(ctx, jql)
 }
 
+// ExecuteJQL executes a raw JQL query and returns matching tickets
+func (c *JiraClient) ExecuteJQL(ctx context.Context, jql string) ([]JiraTicket, error) {
+	return c.executeSearch(ctx, jql)
+}
+
 // GetIssueDetails fetches full details for a specific issue
 func (c *JiraClient) GetIssueDetails(ctx context.Context, issueKey string) (*JiraTicket, error) {
 	apiURL := fmt.Sprintf("%s/rest/api/3/issue/%s", c.config.Domain, issueKey)
@@ -78,11 +83,13 @@ func (c *JiraClient) buildAssignedIssuesJQL(projectKey string, emails []string) 
 
 // buildSearchJQL builds JQL query for text search
 func (c *JiraClient) buildSearchJQL(searchTerm string) string {
+	// Trim whitespace from search term to avoid exact matching issues
+	trimmedTerm := strings.TrimSpace(searchTerm)
 	// Escape search term to prevent JQL injection
-	escapedTerm := c.escapeJQLTerm(searchTerm)
+	escapedTerm := c.escapeJQLTerm(trimmedTerm)
 
 	return fmt.Sprintf(
-		`project = %s AND assignee = currentUser() AND status NOT IN (Completed, Closed) AND (summary ~ "%s" OR description ~ "%s") ORDER BY created DESC`,
+		`project = %s AND status NOT IN (Completed, Closed) AND (summary ~ "%s" OR description ~ "%s") ORDER BY created DESC`,
 		c.config.Project,
 		escapedTerm,
 		escapedTerm,
