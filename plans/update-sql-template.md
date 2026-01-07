@@ -1,92 +1,35 @@
-implement this 
+update /Users/frank.nguyen/Documents/buddy/docs/sops/MY_DML_SOP.md
 
-Request URL
-https://doorman.infra.prd.g-bank.app/api/rds/dml/create_ticket
-Request Method
-POST
-Status Code
-200 OK
-Remote Address
-10.148.163.34:443
-
-request payload
-{
-    "accountID": "559634300081",
-    "clusterName": "prd-payments-rpp-adapter-rds-mysql",
-    "database": "",
-    "schema": "rpp_adapter",
-    "originalQuery": "-- rpp_cashin_stuck_100_0, update timestamp to resolve optimistic lock\nUPDATE workflow_execution\nSET state = 100,\n    attempt = 1,\n    updated_at = NOW(),\n    data = JSON_SET(data, '$.State', 100)\nWHERE run_id IN ('5c34e6ab0fea334f88b9b4cdb781902f')\nAND workflow_id = 'wf_ct_cashin'\nAND state = 100;\n\n-- rpp_cashin_validation_failed_122_0, retry validation\nUPDATE workflow_execution\nSET state = 100,\n\t  attempt = 1,\n\t  data = JSON_SET(data, '$.State', 100)\nWHERE run_id IN ('240776d1927d3e8ea1871de454d6f8e0')\nAND workflow_id = 'wf_ct_cashin'\nAND state = 122;\n\n",
-    "rollbackQuery": "-- rpp_cashin_stuck_100_0_rollback, reset attempt back to 0\nUPDATE workflow_execution\nSET attempt = 0,\n    data = JSON_SET(data, '$.State', 100)\nWHERE run_id IN ('5c34e6ab0fea334f88b9b4cdb781902f')\nAND workflow_id = 'wf_ct_cashin'\nAND state = 100;\n\n-- rpp_cashin_validation_failed_122_0_rollback\nUPDATE workflow_execution\nSET state = 122,\n\t  attempt = 0,\n\t  data = JSON_SET(data, '$.State', 122)\nWHERE run_id IN ('240776d1927d3e8ea1871de454d6f8e0')\nAND workflow_id = 'wf_ct_cashin';\n\n",
-    "toolLabel": "direct",
-    "skipWhereClause": false,
-    "skipRollbackQuery": false,
-    "skipRollbackQueryReason": null,
-    "note": "TS-4560"
-}
+for 
+### `cash_in_stuck_100_update_mismatch`
+- **Condition**: Cash in workflow stuck at state 100 with attempts. Update operation failing due to updatedAt mismatch.
 
 
-response
-{
-    "code": 200,
-    "errors": null,
-    "message": null,
-    "result": [
-        {
-            "id": 43198,
-            "submitter": "ext.vietdung.nguyen",
-            "status": "wait for approval",
-            "owners": [
-                "azuan.zairein",
-                "ext.huang.kun",
-                "ext.sathish.kumar",
-                "ext.vietdung.nguyen",
-                "khorjeng.yong"
-            ],
-            "oncallUsers": [
-                "dummy"
-            ],
-            "env": "Production",
-            "accountID": "559634300081",
-            "accountName": "prd-payments",
-            "dbsManaged": false,
-            "clusterName": "prd-payments-rpp-adapter-rds-mysql",
-            "clusterType": "MySQL",
-            "clusterID": 112446,
-            "instanceName": "prd-payments-rpp-adapter-rds-mysql",
-            "instanceID": 7879,
-            "oncallGroup": "oncall-dummy",
-            "techFamily": "dbmy",
-            "pagePath": "https://doorman.myteksi.net/rds/dml",
-            "note": "TS-4560",
-            "batch": 50000,
-            "schema": "rpp_adapter",
-            "evaluateRows": 2,
-            "affectRows": 2,
-            "percentage": 0,
-            "originalQuery": "-- rpp_cashin_stuck_100_0, update timestamp to resolve optimistic lock\nUPDATE workflow_execution\nSET state = 100,\n    attempt = 1,\n    updated_at = NOW(),\n    data = JSON_SET(data, '$.State', 100)\nWHERE run_id IN ('5c34e6ab0fea334f88b9b4cdb781902f')\nAND workflow_id = 'wf_ct_cashin'\nAND state = 100;\n\n-- rpp_cashin_validation_failed_122_0, retry validation\nUPDATE workflow_execution\nSET state = 100,\n\t  attempt = 1,\n\t  data = JSON_SET(data, '$.State', 100)\nWHERE run_id IN ('240776d1927d3e8ea1871de454d6f8e0')\nAND workflow_id = 'wf_ct_cashin'\nAND state = 122;\n\n",
-            "rollbackQuery": "-- rpp_cashin_stuck_100_0_rollback, reset attempt back to 0\nUPDATE workflow_execution\nSET attempt = 0,\n    data = JSON_SET(data, '$.State', 100)\nWHERE run_id IN ('5c34e6ab0fea334f88b9b4cdb781902f')\nAND workflow_id = 'wf_ct_cashin'\nAND state = 100;\n\n-- rpp_cashin_validation_failed_122_0_rollback\nUPDATE workflow_execution\nSET state = 122,\n\t  attempt = 0,\n\t  data = JSON_SET(data, '$.State', 122)\nWHERE run_id IN ('240776d1927d3e8ea1871de454d6f8e0')\nAND workflow_id = 'wf_ct_cashin';\n\n",
-            "subQuery": "",
-            "subMinID": 0,
-            "subMaxID": 0,
-            "encrypted": false,
-            "pattern": "UPDATE `workflow_execution` SET `state`=?, `attempt`=?, `updated_at`=NOW(), `data`=JSON_SET(`data`, ?, ?) WHERE `run_id` IN (?) AND `workflow_id` = ? AND `state` = ?\nUPDATE `workflow_execution` SET `state`=?, `attempt`=?, `data`=JSON_SET(`data`, ?, ?) WHERE `run_id` IN (?) AND `workflow_id` = ? AND `state` = ?",
-            "eoApprover": "",
-            "dbaApprover": "auto_approve",
-            "toolLabel": "direct",
-            "database": "",
-            "fileDir": "prd-payments-rpp-adapter-rds-mysql_",
-            "fileType": "",
-            "fileSize": 0,
-            "pauseLabel": 1,
-            "warningMsg": "",
-            "remark": "",
-            "peakTime": null,
-            "archived": false,
-            "createdAt": "2026-01-06T08:50:18Z",
-            "skipWhereClause": false,
-            "skipRollbackQuery": false,
-            "skipRollbackQueryReason": ""
-        }
-    ],
-    "requestID": "dc33d197-35fa-491c-8ebb-aae80b23cdb1"
-}
+you must check the updated_at from credit_transfer table
+against the data->>$.CreditTransfer.UpdatedAt 
+and classified as cash_in_stuck_100_update_mismatch only if the value mismatch
+note that 
+data->>$.CreditTransfer.UpdatedAt is in GMT+8
+and credit_transfer.updated_at is in UTC
+
+if there is no mismatch, we call the case as cash_in_stuck_100_retry
+we can just set attempt=1 to restart the validation as shown here
+-- rpp_cashin_stuck_100_0, retry
+UPDATE workflow_execution
+SET attempt = 1
+WHERE run_id IN ('5c34e6ab0fea334f88b9b4cdb781902f')
+AND workflow_id = 'wf_ct_cashin'
+AND state = 100;
+DML: https://doorman.infra.prd.g-bank.app/rds/dml/43211
+
+if there is mismatch, we call it as cash_in_stuck_100_update_mismatch
+UPDATE workflow_execution 
+SET 
+    attempt = 1,
+    `data` = JSON_SET(`data`,
+            '$.CreditTransfer.UpdatedAt','2025-11-24T22:27:21.103964+08:00' // convert from credit_transfer.updated_at
+    )
+WHERE 
+	run_id = 'dd85dfadba453d969a635c49e3d87799' 
+	AND workflow_id = 'wf_ct_cashin' 
+	AND state = 100;
