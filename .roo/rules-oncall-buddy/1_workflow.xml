@@ -1,3 +1,4 @@
+<?xml version="1.0" encoding="UTF-8"?>
 <workflow_instructions>
   <mode_overview>
     Oncall Buddy is a specialized mode for on-call operations at G-Bank payment systems.
@@ -80,59 +81,48 @@
       </steps>
     </phase>
 
-    <phase name="singapore_operations">
-      <description>Singapore-specific operations</description>
-      <steps>
-        <step>PayNow unlink: sgbuddy paynow unlink [safeid]</step>
-        <step>Datadog search: sgbuddy dd search "[query]" --last [hours]</step>
-        <step>Datadog aggregate: sgbuddy dd aggregate "[metric]"</step>
-        <step>Datadog submit: sgbuddy dd submit</step>
-      </steps>
-    </phase>
-  </main_workflow>
+    <regional_differences>
+      <region name="malaysia">
+        <tool>mybuddy</tool>
+        <env_file>.env.my</env_file>
+        <jira_project>TS</jira_project>
+        <services>
+          <service>payment_engine</service>
+          <service>payment_core</service>
+          <service>rpp_adapter</service>
+          <service>partnerpay_engine</service>
+        </services>
+        <exclusive_features>
+          <feature>RPP adapter</feature>
+          <feature>DML ticket creation via doorman</feature>
+          <feature>E2E ID batch identification</feature>
+        </exclusive_features>
+      </region>
 
-  <regional_differences>
-    <region name="malaysia">
-      <tool>mybuddy</tool>
-      <env_file>.env.my</env_file>
-      <jira_project>TS</jira_project>
-      <services>
-        <service>payment_engine</service>
-        <service>payment_core</service>
-        <service>rpp_adapter</service>
-        <service>partnerpay_engine</service>
-      </services>
-      <exclusive_features>
-        <feature>RPP adapter</feature>
-        <feature>DML ticket creation via doorman</feature>
-        <feature>E2E ID batch identification</feature>
-      </exclusive_features>
-    </region>
+      <region name="singapore">
+        <tool>sgbuddy</tool>
+        <env_file>.env.sg</env_file>
+        <jira_project>TSE</jira_project>
+        <services>
+          <service>payment_engine</service>
+          <service>payment_core</service>
+          <service>fast_adapter</service>
+          <service>partnerpay_engine</service>
+        </services>
+        <exclusive_features>
+          <feature>Fast adapter</feature>
+          <feature>Interactive ecotxn publish mode</feature>
+          <feature>PayNow unlink operations</feature>
+          <feature>Datadog log integration</feature>
+        </exclusive_features>
+      </region>
+    </regional_differences>
 
-    <region name="singapore">
-      <tool>sgbuddy</tool>
-      <env_file>.env.sg</env_file>
-      <jira_project>TSE</jira_project>
-      <services>
-        <service>payment_engine</service>
-        <service>payment_core</service>
-        <service>fast_adapter</service>
-        <service>partnerpay_engine</service>
-      </services>
-      <exclusive_features>
-        <feature>Fast adapter</feature>
-        <feature>Interactive ecotxn publish mode</feature>
-        <feature>PayNow unlink operations</feature>
-        <feature>Datadog log integration</feature>
-      </exclusive_features>
-    </region>
-  </regional_differences>
-
-  <completion_criteria>
-    <criterion>Transaction investigation completed with findings</criterion>
-    <criterion>Jira ticket processed and documented</criterion>
-    <criterion>Database query executed with results</criterion>
-    <criterion>Remediation SQL generated when needed</criterion>
-    <criterion>DML ticket created for production changes (if applicable)</criterion>
-  </completion_criteria>
+    <completion_criteria>
+      <criterion>Transaction investigation completed with findings</criterion>
+      <criterion>Jira ticket processed and documented</criterion>
+      <criterion>Database query executed with results</criterion>
+      <criterion>Remediation SQL generated when needed</criterion>
+      <criterion>DML ticket created for production changes (if applicable)</criterion>
+    </completion_criteria>
 </workflow_instructions>
