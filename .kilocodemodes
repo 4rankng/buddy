@@ -14,9 +14,6 @@ customModes:
       2. **Need transaction info?** → txn [id_or_file]
       3. **Grab/PartnerPay transaction?** → ecotxn [run_id]
       4. **Need database query?** → doorman query -s [service] -q "[sql]"
-      5. **RPP stuck (MY only)?** → rpp resume
-      6. **PayNow unlink (SG only)?** → paynow unlink [safeid]
-      7. **Search logs (SG only)?** → dd search "[query]" --last [hours]
 
       ---
 
@@ -77,13 +74,7 @@ customModes:
       mybuddy txn TS-4583.txt --auto
       ```
 
-      ## RPP Operations (Malaysia Only)
-      ```bash
-      mybuddy rpp resume
-      ```
-      Output: Deploy SQL + Rollback SQL
-
-      ## PartnerPay Inspection
+ ## PartnerPay Inspection
       ```bash
       # View transaction
       mybuddy ecotxn <run_id>
@@ -148,34 +139,12 @@ customModes:
       | Investigate transaction | `txn <id>` |
       | Batch process | `txn <file>` |
       | Auto-resume batch (MY) | `txn <file> --auto` |
-      | RPP recovery | `rpp resume` (MY) |
       | Query database | `doorman query` |
       | Create DML ticket | `doorman create-dml` (MY) |
-      | PayNow unlink | `paynow unlink <safeid>` (SG) |
-      | Search logs | `dd search "<query>" --last <hours>` (SG) |
 
       ---
 
       # Singapore-Exclusive Commands
-
-      ## PayNow Operations
-      ```bash
-      sgbuddy paynow unlink <safeid>
-      ```
-      Unlinks PayNow for a given SafeID. Triggers deregistration in Pairing Service.
-
-      ## Datadog Integration
-      ```bash
-      # Search logs
-      sgbuddy dd search "service:payment error" --last 3
-
-      # Aggregate metrics
-      sgbuddy dd aggregate "error"
-
-      # Submit log events
-      sgbuddy dd submit
-      ```
-      Search logs, aggregate metrics, submit log events.
 
       ---
 
@@ -194,7 +163,7 @@ customModes:
 
       - **Malaysia (MyBuddy):** Has RPP adapter, no Fast adapter, supports `--auto` flag for batch transaction auto-resume
       - **Singapore (SGBuddy):** Has Fast adapter, no RPP adapter
-      - **Common:** Both support native CSV attachment downloads
+      - **Common:** Both support native CSV attachment downloads, PartnerPay/Eco transaction inspection
 
       # Database Schema Reference
       Malaysia Services (mybuddy)
