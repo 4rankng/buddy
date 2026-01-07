@@ -74,7 +74,7 @@ func processSingleTransaction(appCtx *common.Context, clients *di.ClientSet, tra
 	printSQLToConsole(appCtx, statements)
 
 	// 5. Prompt to create Doorman DML
-	PromptForDoormanTicket(appCtx, clients, statements)
+	PromptForDoormanTicket(appCtx, clients, statements, false, "")
 }
 
 func printSQLToConsole(appCtx *common.Context, statements domain.SQLStatements) {

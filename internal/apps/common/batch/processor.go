@@ -75,7 +75,7 @@ func ProcessTransactionFile(appCtx *common.Context, clients *di.ClientSet, fileP
 		}
 
 		// Prompt to create Doorman DML tickets for all services combined
-		doorman.PromptForDoormanTicket(clients.Doorman, statements)
+		doorman.PromptForDoormanTicket(clients.Doorman, statements, false, "")
 	}
 }
 

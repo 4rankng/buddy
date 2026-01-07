@@ -3,30 +3,26 @@ name: buddy-oncall-assistant
 description: CLI tools (mybuddy/sgbuddy) for database queries, transaction investigation, Jira integration, and payment operations.
 ---
 
-NOTE: When you are given a ticket ID (eg TS-4558 or TSE-1113) your job is to find a list of Batch ID or TAR02 BMID then save to a file
-eg TS-4558.txt
+# Critical Workflow
 
-if TS ticket you call mybuddy txn TS-4558.txt, it will generate solution for the stuck txn
-if TSE ticket you call sgbuddy txn TSE-1113.txt, it will generate solution for the stuck txn
+When given a ticket ID (TS-XXXX or TSE-XXXX):
+1. Extract Batch IDs or TAR02 BMIDs from ticket
+2. Save to file: `{ticket_id}.txt` (one ID per line)
+3. Run investigation:
+   - TS ticket → `mybuddy txn {ticket_id}.txt`
+   - TSE ticket → `sgbuddy txn {ticket_id}.txt`
+4. If Grab transaction → use `mybuddy ecotxn` or `sgbuddy ecotxn`
 
-if the transaction is Grab txn you should call mybuddy ecotxn or sgbuddy ecotxn
-
-
-
-# MyBuddy & SGBuddy CLI Tools
-
-## Tool Selection
+# Tool Selection
 
 | Region | Tool | Env File | Jira Project |
 |:---|:---|:---|:---|
 | Malaysia | `mybuddy` | `.env.my` | `TS` |
 | Singapore | `sgbuddy` | `.env.sg` | `TSE` |
 
+# Commands
 
-## Commands
-
-### Jira Integration
-
+## Jira Integration
 ```bash
 # List tickets (interactive)
 mybuddy jira list
@@ -39,7 +35,7 @@ mybuddy jira search "keyword"
 mybuddy jira view TS-1234
 sgbuddy jira view TSE-5678
 
-# Download CSV attachments (NEW - Native Go Implementation)
+# Download CSV attachments
 mybuddy jira download-attachment TS-1234
 sgbuddy jira download-attachment TSE-5678
 
@@ -48,10 +44,9 @@ mybuddy jira download-attachment TS-1234 --output ./downloads
 sgbuddy jira download-attachment TSE-5678 -o ./data
 ```
 
-### Transaction Investigation
-
+## Transaction Investigation
 ```bash
-# Single transaction (accepts TXN ID, E2E ID, or Batch ID)
+# Single transaction (TXN ID, E2E ID, or Batch ID)
 mybuddy txn TXN123
 mybuddy txn 20250101120000
 
@@ -60,30 +55,31 @@ mybuddy txn ids.txt
 sgbuddy txn ids.txt
 ```
 
-### RPP Operations (Malaysia Only)
-
+## RPP Operations (Malaysia Only)
 ```bash
 mybuddy rpp resume
 ```
-
 Output: Deploy SQL + Rollback SQL
 
-### PartnerPay Inspection
-
+## PartnerPay Inspection
 ```bash
 # View transaction
 mybuddy ecotxn <run_id>
 sgbuddy ecotxn <run_id>
 
-# Auto-create DML ticket with ticket reference
+# MyBuddy - Auto-create DML tickets
 mybuddy ecotxn <run_id> --create-dml "TS-4558"
-sgbuddy ecotxn <run_id> --publish --create-dml "TSE-1234"
+
+# SGBuddy - Interactive mode
+sgbuddy ecotxn <txn-id> --publish
+
+# SGBuddy - Auto-create DML ticket
+sgbuddy ecotxn <txn-id> --publish --create-dml "TSE-1234"
 ```
 
-### Database Queries
+## Database Queries
 
-#### Query (Read-Only)
-
+### Query (Read-Only)
 ```bash
 mybuddy doorman query --service <service> --query "<sql>"
 sgbuddy doorman query --service <service> --query "<sql>"
@@ -98,14 +94,7 @@ sgbuddy doorman query --service <service> --query "<sql>"
 - `--query, -q`: SQL query (required)
 - `--format, -f`: `table` (default) or `json`
 
-**Examples:**
-```bash
-mybuddy doorman query -s payment_core -q "SELECT * FROM transactions WHERE id = 'TXN123'"
-sgbuddy doorman query -s fast_adapter -q "SELECT * FROM orders WHERE status = 'pending'" --format json
-```
-
-#### Create DML Ticket (Malaysia Only)
-
+### Create DML Ticket (Malaysia Only)
 ```bash
 mybuddy doorman create-dml \
   --service payment_core \
@@ -115,14 +104,10 @@ mybuddy doorman create-dml \
 ```
 
 ## CSV Processing
-
 ```bash
-# Download attachment (Native Go - Recommended)
+# Download attachment
 mybuddy jira download-attachment TS-1234
 sgbuddy jira download-attachment TSE-5678
-
-# Download attachment (Legacy Python Script)
-python .roo/skills/buddy-oncall-assistant/scripts/download_jira_attachment.py TS-1234 --filename data.csv
 
 # Extract IDs (first column)
 awk -F',' 'NR>1 {print $1}' data.csv | sort -u > ids.txt
@@ -131,7 +116,7 @@ awk -F',' 'NR>1 {print $1}' data.csv | sort -u > ids.txt
 mybuddy txn ids.txt
 ```
 
-## Tool Selection Guide
+# Quick Decision Table
 
 | Task | Command |
 |:---|:---|
@@ -144,62 +129,17 @@ mybuddy txn ids.txt
 | Query database | `doorman query` |
 | Create DML ticket | `doorman create-dml` (MY) |
 
-## Notes
+# Regional Differences
 
-- **Regional:** MyBuddy has RPP, SGBuddy has Fast Adapter
-- **Attachments:** Both MyBuddy and SGBuddy now support native CSV attachment downloads
-- **Privacy:** Never output PII or credentials
+- **Malaysia (MyBuddy):** Has RPP adapter, no Fast adapter
+- **Singapore (SGBuddy):** Has Fast adapter, no RPP adapter
+- **Common:** Both support native CSV attachment downloads
 
-## Database Schema Reference
+# Database Schema Reference
 
-The `DATABASE_SCHEMA.md` file contains detailed table structures for all services across both Malaysia and Singapore regions. Use it to understand table schemas, column names, and data types before constructing queries.
+Consult `DATABASE_SCHEMA.md` for:
+- Table structures, column names, data types
+- Service-specific schema differences
+- Relationship mappings between tables
 
-### When to Reference DATABASE_SCHEMA.md
-
-**Before executing `doorman query` commands:**
-- Identify correct table names for the target service
-- Verify column names and data types
-- Understand relationships between tables
-- Example: Check `payment_core.external_transaction` schema before querying by `tx_id`
-
-**During transaction investigation (`txn` commands):**
-- Understand the data structure of transaction tables
-- Identify relevant columns for filtering (e.g., `status`, `error_code`)
-- Map transaction IDs to appropriate tables across services
-
-**For RPP operations (`rpp resume`):**
-- Review `rpp_adapter.credit_transfer` schema for RPP-specific fields
-- Understand workflow execution state transitions
-
-**When debugging workflows:**
-- Reference `workflow_execution` table structure across all services
-- Understand state numbers and transition IDs
-- Interpret the `data` JSON field structure
-
-**To understand regional differences:**
-- Malaysia: `rpp_adapter` (unique to MY)
-- Singapore: `fast_adapter` (unique to SG)
-- Common services: `payment_core`, `payment_engine`, `partnerpay_engine`
-
-### Recommended Workflow
-
-1. **Identify the service** for your task (e.g., `payment_core` for transaction queries)
-2. **Consult DATABASE_SCHEMA.md** to review the relevant table structure
-3. **Construct your query** using verified column names and data types
-4. **Execute** using the appropriate `doorman query` command
-5. **Iterate** by refining queries based on schema understanding
-
-### Example Usage
-
-```bash
-# Step 1: Check DATABASE_SCHEMA.md for payment_core.external_transaction
-# Step 2: Construct query using verified columns
-mybuddy doorman query -s payment_core -q "SELECT tx_id, status, amount FROM external_transaction WHERE tx_id = 'TXN123'"
-
-# For Singapore Fast Adapter
-sgbuddy doorman query -s fast_adapter -q "SELECT transaction_id, status FROM transactions WHERE status = 1"
-```
-
-**Key Services Reference:**
-- Malaysia: `payment_core`, `payment_engine`, `rpp_adapter`, `partnerpay_engine`
-- Singapore: `payment_core`, `payment_engine`, `fast_adapter`, `partnerpay_engine`
+Use before executing `doorman query` commands to verify table/column names.

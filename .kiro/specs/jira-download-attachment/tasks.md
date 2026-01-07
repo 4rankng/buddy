@@ -104,7 +104,7 @@ This implementation plan breaks down the development of the JIRA download attach
   - Document the new native Go alternative to Python script
   - _Requirements: All requirements (documentation)_
 
-- [-] 9. Final checkpoint - Ensure all tests pass
+- [ ] 9. Final checkpoint - Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
 ## Notes

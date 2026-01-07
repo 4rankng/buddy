@@ -217,7 +217,7 @@ func TestEcoTxn_ChargeUpdateSQLTimestampPreservation(t *testing.T) {
 	mockClient.SetResponse("SELECT * FROM charge WHERE transaction_id = 'test-timestamp-123'", chargeResponse)
 
 	// Process the transaction using the public API
-	err := ProcessEcoTxnPublish(nil, nil, "test-timestamp-123", "test")
+	err := ProcessEcoTxnPublish(nil, nil, "test-timestamp-123", "test", "")
 	require.NoError(t, err)
 
 	// Read the generated SQL files
@@ -288,7 +288,7 @@ func TestEcoTxn_FullIntegrationTest(t *testing.T) {
 	mockClient.SetResponse("SELECT * FROM charge WHERE transaction_id = '7eba1b67c9174d21bb66bb089ebd6fd3'", chargeResponse)
 
 	// Process the transaction using the public API
-	err := ProcessEcoTxnPublish(nil, nil, "7eba1b67c9174d21bb66bb089ebd6fd3", "test")
+	err := ProcessEcoTxnPublish(nil, nil, "7eba1b67c9174d21bb66bb089ebd6fd3", "test", "")
 	require.NoError(t, err)
 
 	// Read the generated SQL files

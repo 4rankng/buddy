@@ -2,9 +2,6 @@ package adapters
 
 import (
 	"buddy/internal/txn/domain"
-	"fmt"
-	"strings"
-	"time"
 )
 
 // getRPPWorkflowRunIDByCriteria finds and returns the run_id of a workflow matching specific criteria.
@@ -35,4 +32,3 @@ func getRPPWorkflowRunIDByCriteria(workflows []domain.WorkflowInfo, workflowID, 
 	// No matching workflow found
 	return ""
 }
-

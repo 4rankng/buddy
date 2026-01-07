@@ -328,8 +328,14 @@ func (m *mockClient) ExecuteQuery(cluster, service, database, query string) ([]m
 
 func (m *mockClient) QueryRppAdapter(query string) ([]map[string]interface{}, error) {
 	// In fallback mode, return workflow results directly (simulating wf_process_registry query)
+	// Only return once to avoid duplicates across multiple time window queries
 	if m.fallbackMode {
-		return m.workflowResults, nil
+		if len(m.workflowResults) > 0 {
+			result := m.workflowResults
+			m.workflowResults = nil // Clear to prevent duplicates
+			return result, nil
+		}
+		return nil, nil
 	}
 
 	// Only return workflow results if ExecuteQuery was called first
