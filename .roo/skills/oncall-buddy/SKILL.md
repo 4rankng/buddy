@@ -3,6 +3,16 @@ name: buddy-oncall-assistant
 description: CLI tools (mybuddy/sgbuddy) for database queries, transaction investigation, Jira integration, and payment operations.
 ---
 
+NOTE: When you are given a ticket ID (eg TS-4558 or TSE-1113) your job is to find a list of Batch ID or TAR02 BMID then save to a file
+eg TS-4558.txt
+
+if TS ticket you call mybuddy txn TS-4558.txt, it will generate solution for the stuck txn
+if TSE ticket you call sgbuddy txn TSE-1113.txt, it will generate solution for the stuck txn
+
+if the transaction is Grab txn you should call mybuddy ecotxn or sgbuddy ecotxn
+
+
+
 # MyBuddy & SGBuddy CLI Tools
 
 ## Tool Selection
@@ -28,6 +38,14 @@ mybuddy jira search "keyword"
 # View ticket
 mybuddy jira view TS-1234
 sgbuddy jira view TSE-5678
+
+# Download CSV attachments (NEW - Native Go Implementation)
+mybuddy jira download-attachment TS-1234
+sgbuddy jira download-attachment TSE-5678
+
+# Download to specific directory
+mybuddy jira download-attachment TS-1234 --output ./downloads
+sgbuddy jira download-attachment TSE-5678 -o ./data
 ```
 
 ### Transaction Investigation
@@ -94,7 +112,11 @@ mybuddy doorman create-dml \
 ## CSV Processing
 
 ```bash
-# Download attachment
+# Download attachment (Native Go - Recommended)
+mybuddy jira download-attachment TS-1234
+sgbuddy jira download-attachment TSE-5678
+
+# Download attachment (Legacy Python Script)
 python .roo/skills/buddy-oncall-assistant/scripts/download_jira_attachment.py TS-1234 --filename data.csv
 
 # Extract IDs (first column)
@@ -110,6 +132,7 @@ mybuddy txn ids.txt
 |:---|:---|
 | Find tickets | `jira search` |
 | View ticket | `jira view <id>` |
+| Download CSV attachments | `jira download-attachment <id>` |
 | Investigate transaction | `txn <id>` |
 | Batch process | `txn <file>` |
 | RPP recovery | `rpp resume` (MY) |
@@ -119,7 +142,7 @@ mybuddy txn ids.txt
 ## Notes
 
 - **Regional:** MyBuddy has RPP, SGBuddy has Fast Adapter
-- **SGBuddy:** Cannot download attachments (use browser/curl)
+- **Attachments:** Both MyBuddy and SGBuddy now support native CSV attachment downloads
 - **Privacy:** Never output PII or credentials
 
 ## Database Schema Reference
