@@ -89,7 +89,7 @@ func (c *JiraClient) buildSearchJQL(searchTerm string) string {
 	escapedTerm := c.escapeJQLTerm(trimmedTerm)
 
 	return fmt.Sprintf(
-		`project = %s AND status NOT IN (Completed, Closed) AND (summary ~ "%s" OR description ~ "%s") ORDER BY created DESC`,
+		`project = %s AND (summary ~ "%s" OR description ~ "%s") ORDER BY created DESC`,
 		c.config.Project,
 		escapedTerm,
 		escapedTerm,

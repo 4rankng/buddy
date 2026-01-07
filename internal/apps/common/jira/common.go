@@ -101,9 +101,9 @@ func RunJiraView(ctx context.Context, appCtx *common.Context, issueKey string, s
 func NewJiraSearchCmd(appCtx *common.Context) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "search [search terms...]",
-		Short: "Search your unresolved JIRA tickets",
-		Long: `Search through your unresolved JIRA tickets (not Closed or Completed).
-Searches in ticket summary and description fields.
+		Short: "Search JIRA tickets with custom criteria",
+		Long: `Search JIRA tickets using text search or raw JQL queries.
+Search criteria is defined by you - use text search for simple queries or JQL for advanced filtering.
 
 Supports both text search and raw JQL queries:
 - Text search: buddy jira search "payment issue"
@@ -114,7 +114,8 @@ Examples:
   buddy jira search mybuddy
   buddy jira search "API" "error"
   buddy jira search "project = TS"
-  buddy jira search "reporter = currentUser()"`,
+  buddy jira search "reporter = currentUser()"
+  buddy jira search "status = Closed"`,
 		Args: cobra.MinimumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			// Check if JIRA client is initialized
