@@ -1,54 +1,75 @@
-update /Users/frank.nguyen/Documents/buddy/docs/sops/MY_DML_SOP.md
+frank.nguyen@DBSG-H4M0DVF2C7 buddy % 
+mybuddy txn TS-4583.txt
+[MY] Processing batch file: TS-4583.txt
+[MY] Found 6 transaction IDs to process
+[MY] Processing 1/6: 20260102GXSPMYKL010ORB83560088
+[MY] Processing 2/6: 20260102GXSPMYKL010ORB90952799
+[MY] Processing 3/6: 20260102GXSPMYKL030OQR30035724
+[MY] Processing 4/6: 20260102GXSPMYKL040OQR15579388
+[MY] Processing 5/6: 20260102GXSPMYKL040OQR21626342
+[MY] Processing 6/6: 20260102GXSPMYKL040OQR73934108
+[MY] 
+Writing batch results to: TS-4583.txt_results.txt
+[MY] Batch processing completed. Results written to TS-4583.txt_results.txt
 
-for
-### `cash_in_stuck_100_update_mismatch`
-- **Condition**: Cash in workflow stuck at state 100 with attempts. Update operation failing due to updatedAt mismatch.
+================================================================================
+### [1] e2e_id: 20260102GXSPMYKL010ORB83560088
+[payment-engine]
+type: PAYMENT
+subtype: RPP_NETWORK
+domain: DEPOSITS
+status: PROCESSING
+created_at: 2026-01-02T08:13:42.9042Z
+reference_id: 7E651B98-61E7-45FE-A3C6-EE9FEEE68629
+workflow_transfer_payment:
+   state=workflow_transfer_payment:220 (stTransferProcessing) attempt=0
+   run_id=7E651B98-61E7-45FE-A3C6-EE9FEEE68629
+
+[payment-core]
+internal_auth: SUCCESS
+   tx_id=60f09005d0dc4b2d9e82153be492dc70
+   group_id=ba2c3de7f1f1417a92105223bc04bc7e
+   type=AUTH
+   error_code='' error_msg=''
+   workflow:
+      workflow_id=internal_payment_flow
+      state=internal_payment_flow:900 (stSuccess) attempt=0
+      run_id=60f09005d0dc4b2d9e82153be492dc70
+external_transaction:
+   ref_id=c100947c022545368d68da492043b701
+   group_id=ba2c3de7f1f1417a92105223bc04bc7e
+   type=TRANSFER status=PROCESSING
+   workflow:
+      workflow_id=external_payment_flow
+      state=external_payment_flow:201 (stProcessing) attempt=0
+      run_id=c100947c022545368d68da492043b701
+
+[rpp-adapter]
+e2e_id: 20260102GXSPMYKL010ORB83560088
+credit_transfer.status: PROCESSING
+partner_tx_id: ba2c3de7f1f1417a92105223bc04bc7e
+wf_process_registry:
+   state=wf_process_registry:0 (stInit) attempt=0
+   run_id=d9e1fbc16edf3f4fac8ff33f4c0b6f88
+wf_ct_cashout:
+   state=wf_ct_cashout:210 (stTransferProcessing) attempt=0
+   run_id=ba2c3de7f1f1417a92105223bc04bc7e
+
+[Classification]
+cashout_rpp210_pe220_pc201
 
 
-you must check the updated_at from credit_transfer table
-against the data->>$.CreditTransfer.UpdatedAt
-and classified as cash_in_stuck_100_update_mismatch only if the value mismatch
-note that
-data->>$.CreditTransfer.UpdatedAt is in GMT+8
-and credit_transfer.updated_at is in UTC
+Choose an option:
+1. Resume to Success (Manual Success) - This once
+2. Reject/Fail (Manual Rejection) - This once
+3. Resume to Success (Manual Success) - Apply to all similar
+4. Reject/Fail (Manual Rejection) - Apply to all similar
 
-if there is no mismatch, we call the case as cash_in_stuck_100_retry
-we can just set attempt=1 to restart the validation as shown here
--- rpp_cashin_stuck_100_0, retry
-UPDATE workflow_execution
-SET attempt = 1
-WHERE run_id IN ('5c34e6ab0fea334f88b9b4cdb781902f')
-AND workflow_id = 'wf_ct_cashin'
-AND state = 100;
-DML: https://doorman.infra.prd.g-bank.app/rds/dml/43211
+Enter your choice (1, 2, 3, or 4): 
 
-if there is mismatch, we call it as cash_in_stuck_100_update_mismatch
-UPDATE workflow_execution
-SET
-    attempt = 1,
-    `data` = JSON_SET(`data`,
-            '$.CreditTransfer.UpdatedAt','2025-11-24T22:27:21.103964+08:00' // convert from credit_transfer.updated_at
-    )
-WHERE
-	run_id = 'dd85dfadba453d969a635c49e3d87799'
-	AND workflow_id = 'wf_ct_cashin'
-	AND state = 100;
+add flag --auto to the command
+mybuddy txn TS-4583.txt --auto
 
+then we will choose to resume all if ticket title contains 
+"Debit Account confirmation" or " Crebit Account confirmation"
 
-Remove the function `rppCashinStuck100_0` from the file `internal/txn/adapters/sql_templates_rpp_basic.go`.
-
-Context:
-- The user has identified this function as redundant
-- The function is described as: "rppCashinStuck100_0 handles RPP wf_ct_cashin stuck at state 100 (stTransferPersisted) with attempt 0"
-- The comment states "This is the original function - keeping for backward compatibility"
-
-Scope:
-1. Read the file `internal/txn/adapters/sql_templates_rpp_basic.go` to understand the function and its usage
-2. Search the codebase to verify if this function is being called anywhere (to ensure safe removal)
-3. Remove the entire `rppCashinStuck100_0` function including its comments
-4. Check for any compilation errors after removal
-5. Report the outcome
-
-update /Users/dev/Documents/buddy/internal/txn/domain/types.go also
-
-update /Users/dev/Documents/buddy/internal/txn/domain/types.go also
