@@ -1,8 +1,12 @@
 package batch
 
 import (
+	"context"
 	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
+	"time"
 
 	"buddy/internal/apps/common"
 	"buddy/internal/apps/common/doorman"
@@ -12,8 +16,36 @@ import (
 	"buddy/internal/txn/utils"
 )
 
+// extractJiraIDFromFilename extracts a Jira ID from a filename
+// e.g., "TS-4583.txt" -> "TS-4583", "/path/to/TS-4583.txt" -> "TS-4583"
+func extractJiraIDFromFilename(filePath string) string {
+	basename := filepath.Base(filePath)
+	// Remove .txt extension if present
+	jiraID := strings.TrimSuffix(basename, ".txt")
+	return jiraID
+}
+
+// shouldAutoResumeFromTicket checks if the Jira ticket title indicates auto-resume should be applied
+// Returns true if the ticket summary contains "Debit Account confirmation" or "Credit Account confirmation"
+func shouldAutoResumeFromTicket(clients *di.ClientSet, jiraID string, prefix string) bool {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	ticket, err := clients.Jira.GetIssueDetails(ctx, jiraID)
+	if err != nil {
+		fmt.Printf("%sWarning: Failed to fetch Jira ticket %s: %v\n", prefix, jiraID, err)
+		return false
+	}
+
+	summary := strings.ToLower(ticket.Summary)
+	containsDebit := strings.Contains(summary, "debit account confirmation")
+	containsCredit := strings.Contains(summary, "credit account confirmation")
+
+	return containsDebit || containsCredit
+}
+
 // ProcessTransactionFile processes a file containing multiple transaction IDs
-func ProcessTransactionFile(appCtx *common.Context, clients *di.ClientSet, filePath string) {
+func ProcessTransactionFile(appCtx *common.Context, clients *di.ClientSet, filePath string, autoMode bool) {
 	fmt.Printf("%sProcessing batch file: %s\n", appCtx.GetPrefix(), filePath)
 
 	// Read transaction IDs from file
@@ -29,6 +61,21 @@ func ProcessTransactionFile(appCtx *common.Context, clients *di.ClientSet, fileP
 	}
 
 	fmt.Printf("%sFound %d transaction IDs to process\n", appCtx.GetPrefix(), len(transactionIDs))
+
+	// Check auto mode: extract Jira ID from filename and check ticket title
+	if autoMode {
+		jiraID := extractJiraIDFromFilename(filePath)
+		fmt.Printf("%sAuto mode: Checking Jira ticket %s for auto-resume keywords...\n", appCtx.GetPrefix(), jiraID)
+
+		if shouldAutoResumeFromTicket(clients, jiraID, appCtx.GetPrefix()) {
+			fmt.Printf("%sAuto mode: Ticket contains confirmation keywords - will auto-resume all eligible transactions\n", appCtx.GetPrefix())
+			// Pre-populate auto-choice for CaseCashoutRpp210Pe220Pc201
+			// Choice 1 = Resume to Success (which is what option 3 sets)
+			adapters.PrepopulateAutoChoice(domain.CaseCashoutRpp210Pe220Pc201, 1)
+		} else {
+			fmt.Printf("%sAuto mode: Ticket does not contain confirmation keywords - will use interactive prompts\n", appCtx.GetPrefix())
+		}
+	}
 
 	// Process each transaction ID
 	var results []domain.TransactionResult

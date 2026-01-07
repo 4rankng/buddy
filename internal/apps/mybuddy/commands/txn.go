@@ -14,27 +14,36 @@ import (
 )
 
 func NewTxnCmd(appCtx *common.Context, clients *di.ClientSet) *cobra.Command {
+	var autoMode bool
+
 	cmd := &cobra.Command{
 		Use:   "txn [transaction-id-or-e2e-id-or-file]",
 		Short: "Query transaction status and generate remediation SQL",
 		Long: `Query the status of a transaction by its ID from the payment engine database.
 Supports regular transaction IDs, RPP E2E IDs (format: YYYYMMDDGXSPMYXXXXXXXXXXXXXXXX),
-and file paths containing multiple transaction IDs.`,
+and file paths containing multiple transaction IDs.
+
+Auto Mode (--auto):
+When processing a batch file, automatically resume transactions if the Jira ticket title
+contains "Debit Account confirmation" or "Credit Account confirmation". The Jira ID is
+extracted from the filename (e.g., TS-4583.txt -> TS-4583).`,
 		Args: cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			input := args[0]
-			processInput(appCtx, clients, input)
+			processInput(appCtx, clients, input, autoMode)
 		},
 	}
+
+	cmd.Flags().BoolVar(&autoMode, "auto", false, "Auto-resume mode for batch processing based on Jira ticket title")
 
 	return cmd
 }
 
-func processInput(appCtx *common.Context, clients *di.ClientSet, input string) {
+func processInput(appCtx *common.Context, clients *di.ClientSet, input string, autoMode bool) {
 	// Check if input is a file
 	if _, err := os.Stat(input); err == nil {
 		// Process as batch file using the new batch processor
-		batch.ProcessTransactionFile(appCtx, clients, input)
+		batch.ProcessTransactionFile(appCtx, clients, input, autoMode)
 	} else {
 		// Process as single transaction ID
 		processSingleTransaction(appCtx, clients, input)

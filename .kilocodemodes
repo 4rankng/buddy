@@ -70,6 +70,11 @@ customModes:
       # Batch processing (file with one ID per line)
       mybuddy txn ids.txt
       sgbuddy txn ids.txt
+
+      # Auto-resume mode (Malaysia only)
+      # Automatically resumes if Jira ticket title contains "Debit Account confirmation" or "Credit Account confirmation"
+      # Extracts Jira ID from filename and checks ticket without interactive prompts
+      mybuddy txn TS-4583.txt --auto
       ```
 
       ## RPP Operations (Malaysia Only)
@@ -142,6 +147,7 @@ customModes:
       | Download CSV attachments | `jira download-attachment <id>` |
       | Investigate transaction | `txn <id>` |
       | Batch process | `txn <file>` |
+      | Auto-resume batch (MY) | `txn <file> --auto` |
       | RPP recovery | `rpp resume` (MY) |
       | Query database | `doorman query` |
       | Create DML ticket | `doorman create-dml` (MY) |
@@ -186,7 +192,7 @@ customModes:
 
       # Regional Differences
 
-      - **Malaysia (MyBuddy):** Has RPP adapter, no Fast adapter
+      - **Malaysia (MyBuddy):** Has RPP adapter, no Fast adapter, supports `--auto` flag for batch transaction auto-resume
       - **Singapore (SGBuddy):** Has Fast adapter, no RPP adapter
       - **Common:** Both support native CSV attachment downloads
 
@@ -240,7 +246,7 @@ customModes:
       Get table list: mybuddy doorman query -s <service> -q "SHOW TABLES" Get schema: mybuddy doorman query -s <service> -q "DESCRIBE <table>" Get indexes: mybuddy doorman query -s <service> -q "SHOW INDEX FROM <table>"
 
       Services Summary
-      Malaysia (mybuddy): payment_core, payment_engine, rpp_adapter, partnerpay_engine
+      Malaysia (mybuddy): payment_core, payment_engine, rpp_adapter, partnerpay_engine. Supports `--auto` flag for batch processing.
 
       Singapore (sgbuddy): payment_core, payment_engine, fast_adapter, partnerpay_engine
     whenToUse: Assist solving Jira ticket with CLI tools (mybuddy/sgbuddy) for database queries, transaction investigation, Jira integration, and payment operations.

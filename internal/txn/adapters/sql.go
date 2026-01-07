@@ -15,6 +15,12 @@ func ResetAutoChoices() {
 	autoChoices = make(map[domain.Case]int)
 }
 
+// PrepopulateAutoChoice allows external code to pre-populate an auto-choice for a specific case type
+// This is used by the --auto flag to automatically resume transactions based on Jira ticket title
+func PrepopulateAutoChoice(caseType domain.Case, choice int) {
+	autoChoices[caseType] = choice
+}
+
 // GenerateSQLStatements generates SQL statements for all supported cases using templates.
 func GenerateSQLStatements(results []domain.TransactionResult) domain.SQLStatements {
 	statements := domain.SQLStatements{}
