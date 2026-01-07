@@ -181,15 +181,15 @@ Examples:
 // looksLikeJQL heuristically determines if the search term is a JQL query
 func looksLikeJQL(term string) bool {
 	term = strings.TrimSpace(term)
-	
+
 	// JQL field operators that indicate this is likely a JQL query
 	jqlOperators := []string{" = ", " != ", " ~ ", " !~ ", " > ", " < ", " >= ", " <= ", " IN ", " NOT IN ", " WAS ", " WAS IN ", " WAS NOT IN ", " CHANGED "}
-	
+
 	for _, op := range jqlOperators {
 		if strings.Contains(term, op) {
 			return true
 		}
 	}
-	
+
 	return false
 }
