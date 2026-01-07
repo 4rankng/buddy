@@ -436,10 +436,10 @@ This section covers issues related to cashin transactions including RPP cashin, 
   ```
 
 ### `cash_in_stuck_100_update_mismatch`
-- **Condition**: Cash in workflow stuck at state 100 with attempts. Update operation failing due to actual updatedAt mismatch.
-- **Diagnosis**: Compare `credit_transfer.updated_at` (UTC) with `workflow_execution.data->>$.CreditTransfer.UpdatedAt` (GMT+8). If timestamps don't match even after timezone conversion, this is an update mismatch case.
-- **Important**: `credit_transfer.updated_at` is in UTC, while `data->>$.CreditTransfer.UpdatedAt` is in GMT+8. Timezone conversion is critical.
-- **Resolution**: Update both `attempt=1` and sync the `UpdatedAt` in workflow data by converting from UTC to GMT+8.
+- **Condition**: Cash in workflow stuck at state 100 with attempts. Update operation failing due to updatedAt mismatch.
+- **Diagnosis**: You must check the `updated_at` from `credit_transfer` table against the `data->>$.CreditTransfer.UpdatedAt` and classify as `cash_in_stuck_100_update_mismatch` only if the values mismatch. Note that `data->>$.CreditTransfer.UpdatedAt` is in GMT+8 and `credit_transfer.updated_at` is in UTC.
+- **Important**: If there is no mismatch, classify the case as `cash_in_stuck_100_retry` and simply set `attempt=1` to restart validation as shown above.
+- **Resolution**: If there is a mismatch, update both `attempt=1` and sync the `UpdatedAt` in workflow data by converting from UTC to GMT+8.
 - **Sample Deploy Script** (TargetDB: RPP):
   ```sql
   -- cash_in_stuck_100_update_mismatch (actual timestamp mismatch)
@@ -447,10 +447,10 @@ This section covers issues related to cashin transactions including RPP cashin, 
   SET
       attempt = 1,
       `data` = JSON_SET(`data`,
-          '$.CreditTransfer.UpdatedAt', '{CONVERTED_TIMESTAMP}'  -- Convert from credit_transfer.updated_at (UTC) to GMT+8
+          '$.CreditTransfer.UpdatedAt', '2025-11-24T22:27:21.103964+08:00'  -- Convert from credit_transfer.updated_at (UTC) to GMT+8
       )
   WHERE
-      run_id = '{RUN_ID}'
+      run_id = 'dd85dfadba453d969a635c49e3d87799'
       AND workflow_id = 'wf_ct_cashin'
       AND state = 100;
   ```
