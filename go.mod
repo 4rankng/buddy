@@ -1,6 +1,6 @@
 module buddy
 
-go 1.22
+go 1.24
 
 require (
 	github.com/DataDog/datadog-api-client-go/v2 v2.52.0

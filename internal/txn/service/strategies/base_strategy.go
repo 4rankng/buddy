@@ -4,6 +4,7 @@ import (
 	"buddy/internal/txn/adapters"
 	"buddy/internal/txn/domain"
 	"buddy/internal/txn/service/builders"
+	"log/slog"
 )
 
 // PaymentEnginePopulator handles PaymentEngine data population
@@ -202,4 +203,124 @@ func (s *BasePopulationStrategy) identifyCase(result *domain.TransactionResult) 
 // newResultBuilder creates a new result builder
 func (s *BasePopulationStrategy) newResultBuilder() *builders.TransactionResultBuilder {
 	return builders.NewResultBuilder()
+}
+
+// populatePaymentCoreFromRPP populates PaymentCore directly from RPP adapter data
+// This bypasses the need for PaymentEngine data and queries PaymentCore using RPP PartnerTxID
+func (s *BasePopulationStrategy) populatePaymentCoreFromRPP(result *domain.TransactionResult) error {
+	if s.pcPopulator == nil || result.RPPAdapter == nil {
+		return nil
+	}
+
+	if result.RPPAdapter.PartnerTxID == "" {
+		slog.Debug("Skipping PaymentCore population from RPP: PartnerTxID is empty",
+			"inputID", result.InputID)
+		return nil
+	}
+
+	if result.RPPAdapter.CreatedAt == "" {
+		slog.Debug("Skipping PaymentCore population from RPP: CreatedAt is empty",
+			"inputID", result.InputID)
+		return nil
+	}
+
+	transactionID := result.RPPAdapter.PartnerTxID
+	createdAt := result.RPPAdapter.CreatedAt
+
+	slog.Info("Populating PaymentCore from RPP",
+		"transactionID", transactionID,
+		"createdAt", createdAt,
+		"inputID", result.InputID)
+
+	// Initialize PaymentCore if nil
+	if result.PaymentCore == nil {
+		result.PaymentCore = &domain.PaymentCoreInfo{}
+	}
+
+	// Query internal transactions (AUTH, CAPTURE)
+	internalTxs, err := s.pcPopulator.QueryInternal(transactionID, createdAt)
+	if err != nil {
+		slog.Warn("Failed to query PaymentCore internal transactions from RPP",
+			"error", err,
+			"transactionID", transactionID)
+	} else if len(internalTxs) > 0 {
+		for _, internalTx := range internalTxs {
+			switch internalTx.TxType {
+			case "AUTH":
+				result.PaymentCore.InternalAuth = internalTx
+			case "CAPTURE":
+				result.PaymentCore.InternalCapture = internalTx
+			}
+		}
+		slog.Info("PaymentCore internal transactions populated from RPP",
+			"authFound", result.PaymentCore.InternalAuth.TxID != "",
+			"captureFound", result.PaymentCore.InternalCapture.TxID != "")
+	}
+
+	// Query external transactions (TRANSFER)
+	externalTxs, err := s.pcPopulator.QueryExternal(transactionID, createdAt)
+	if err != nil {
+		slog.Warn("Failed to query PaymentCore external transactions from RPP",
+			"error", err,
+			"transactionID", transactionID)
+	} else if len(externalTxs) > 0 {
+		for _, externalTx := range externalTxs {
+			if externalTx.TxType == "TRANSFER" {
+				result.PaymentCore.ExternalTransfer = externalTx
+				break // Only need first TRANSFER
+			}
+		}
+		slog.Info("PaymentCore external transactions populated from RPP",
+			"transferFound", result.PaymentCore.ExternalTransfer.RefID != "")
+	}
+
+	return nil
+}
+
+// populatePartnerpayFromRPP populates PartnerpayEngine from RPP workflow data
+// Uses workflow RunID to query PartnerpayEngine charges
+func (s *BasePopulationStrategy) populatePartnerpayFromRPP(result *domain.TransactionResult) error {
+	if s.partnerpayPopulator == nil || result.RPPAdapter == nil {
+		return nil
+	}
+
+	if len(result.RPPAdapter.Workflow) == 0 {
+		slog.Debug("Skipping PartnerpayEngine population from RPP: no workflows found",
+			"inputID", result.InputID)
+		return nil
+	}
+
+	slog.Info("Populating PartnerpayEngine from RPP workflows",
+		"workflowCount", len(result.RPPAdapter.Workflow),
+		"inputID", result.InputID)
+
+	// Query charges for each workflow run_id
+	for _, wf := range result.RPPAdapter.Workflow {
+		if wf.RunID == "" {
+			continue
+		}
+
+		chargeInfo, err := s.partnerpayPopulator.QueryCharge(wf.RunID)
+		if err != nil {
+			slog.Debug("Failed to query PartnerpayEngine charge for workflow",
+				"error", err,
+				"runID", wf.RunID)
+			continue
+		}
+
+		if chargeInfo != nil {
+			result.PartnerpayEngine = chargeInfo
+			slog.Info("PartnerpayEngine populated from RPP workflow",
+				"runID", wf.RunID,
+				"chargeFound", chargeInfo.Charge.TransactionID != "")
+			break // Found charge, no need to continue
+		}
+	}
+
+	if result.PartnerpayEngine == nil {
+		slog.Info("PartnerpayEngine not found from RPP workflows",
+			"inputID", result.InputID)
+	}
+
+	return nil
 }
