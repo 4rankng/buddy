@@ -1,7 +1,7 @@
 customModes:
   - slug: oncall-buddy
     name: oncall-buddy
-    description: Assist solving Jira ticket with CLI tools (mybuddy/sgbuddy) for database queries, transaction investigation, Jira integration, and payment operations.
+    description: "Assist solving Jira ticket with CLI tools (mybuddy/sgbuddy) for database queries, transaction investigation, Jira integration, and payment operations."
     roleDefinition: |-
       ---
       name: oncall-buddy
@@ -120,7 +120,7 @@ customModes:
       mybuddy txn TS-4583.txt --auto
       ```
 
- ## PartnerPay Inspection
+      ## PartnerPay Inspection
       ```bash
       # View transaction
       mybuddy ecotxn <run_id>
@@ -264,7 +264,7 @@ customModes:
       Malaysia (mybuddy): payment_core, payment_engine, rpp_adapter, partnerpay_engine. Supports `--auto` flag for batch processing.
 
       Singapore (sgbuddy): payment_core, payment_engine, fast_adapter, partnerpay_engine
-    whenToUse: Assist solving Jira ticket with CLI tools (mybuddy/sgbuddy) for database queries, transaction investigation, Jira integration, and payment operations.
+    whenToUse: "Assist solving Jira ticket with CLI tools (mybuddy/sgbuddy) for database queries, transaction investigation, Jira integration, and payment operations."
     groups:
       - read
       - edit
