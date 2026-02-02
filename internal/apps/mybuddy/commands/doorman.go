@@ -2,6 +2,7 @@ package mybuddy
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -9,6 +10,7 @@ import (
 	"buddy/internal/apps/common"
 	"buddy/internal/di"
 	"buddy/internal/logging"
+	"buddy/internal/clients/doorman"
 
 	"github.com/spf13/cobra"
 )

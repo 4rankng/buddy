@@ -44,12 +44,21 @@ type DoormanConfig struct {
 	PartnerpayEngine DBInfo
 }
 
+// AuthenticationUnauthorizedError is emitted ONLY during login on 401.
+type AuthenticationUnauthorizedError struct {
+	RequestID string
+}
+func (e AuthenticationUnauthorizedError) Error() string {
+	return "Authentication failed (401). Login attempt aborted."
+}
+
 // DoormanClient singleton with configuration
 type DoormanClient struct {
 	config        DoormanConfig
 	httpClient    *http.Client
 	mu            sync.RWMutex
 	authenticated bool
+	unauthorized  bool // set when login gets 401; blocks further login attempts
 }
 
 // Ensure DoormanClient implements DoormanInterface
@@ -197,7 +206,12 @@ func (c *DoormanClient) Authenticate() error {
 		if err != nil {
 			return fmt.Errorf("authentication failed: %s (failed to read error response)", resp.Status)
 		}
-		return fmt.Errorf("authentication failed: %s - %s", resp.Status, string(body))
+		errMsg := fmt.Sprintf("authentication failed: %s - %s", resp.Status, string(body))
+		// For 401 errors, add a special marker to indicate critical auth failure
+		if resp.StatusCode == http.StatusUnauthorized {
+			return fmt.Errorf("DOORMAN_AUTH_FAILURE_401: %s", errMsg)
+		}
+		return fmt.Errorf(errMsg)
 	}
 
 	c.authenticated = true
@@ -244,9 +258,18 @@ func (c *DoormanClient) ExecuteQuery(cluster, instance, schema, query string) ([
 		// Read the response body to get more details about the error
 		body, err := io.ReadAll(resp.Body)
 		if err != nil {
-			return nil, errors.New("doorman query failed: " + resp.Status + " (failed to read error response)")
+			errMsg := "doorman query failed: " + resp.Status + " (failed to read error response)"
+			if resp.StatusCode == http.StatusUnauthorized {
+				return nil, fmt.Errorf("DOORMAN_AUTH_FAILURE_401: %s", errMsg)
+			}
+			return nil, errors.New(errMsg)
 		}
-		return nil, errors.New("doorman query failed: " + resp.Status + " - " + string(body))
+		errMsg := "doorman query failed: " + resp.Status + " - " + string(body)
+		// For 401 errors, add a special marker to indicate critical auth failure
+		if resp.StatusCode == http.StatusUnauthorized {
+			return nil, fmt.Errorf("DOORMAN_AUTH_FAILURE_401: %s", errMsg)
+		}
+		return nil, errors.New(errMsg)
 	}
 
 	var response struct {

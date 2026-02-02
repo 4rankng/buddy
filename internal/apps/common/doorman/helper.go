@@ -1,6 +1,7 @@
 package doorman
 
 import (
+	"errors"
 	"buddy/internal/clients/doorman"
 	"buddy/internal/txn/domain"
 	"fmt"
@@ -36,11 +37,16 @@ func ProcessServiceDML(doormanClient doorman.DoormanInterface, serviceName strin
 		rollbackQuery := strings.Join(rollbackStmts, "\n")
 
 		fmt.Printf("Creating ticket for %s...\n", serviceName)
-		ticketID, err := doormanClient.CreateTicket(serviceName, originalQuery, rollbackQuery, note)
-		if err != nil {
-			fmt.Printf("Failed to create ticket: %v\n", err)
-			return
-		}
+			ticketID, err := doormanClient.CreateTicket(serviceName, originalQuery, rollbackQuery, note)
+			if err != nil {
+				var authErr doorman.AuthenticationUnauthorizedError
+				if errors.As(err, &authErr) {
+					fmt.Println("Authentication failed (401). Login attempt aborted.")
+					return
+				}
+				fmt.Printf("Failed to create ticket: %v\n", err)
+				return
+			}
 
 		ticketURL := fmt.Sprintf("https://doorman.infra.prd.g-bank.app/rds/dml/%s", ticketID)
 		fmt.Printf("Ticket created successfully!\nTicket ID: %s\nTicket URL: %s\n", ticketID, ticketURL)
