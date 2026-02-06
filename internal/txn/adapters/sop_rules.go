@@ -18,45 +18,131 @@ type RuleCondition struct {
 	Country   string      // optional: "", "my", "sg" for country-specific rules
 }
 
+// Helper constants for common field paths
+const (
+	pathPEWorkflowID         = "PaymentEngine.Workflow.WorkflowID"
+	pathPEWorkflowState      = "PaymentEngine.Workflow.State"
+	pathPEWorkflowAttempt    = "PaymentEngine.Workflow.Attempt"
+	pathPETransfersExtID     = "PaymentEngine.Transfers.ExternalID"
+	pathPCExtTransfersWfID   = "PaymentCore.ExternalTransfer.Workflow.WorkflowID"
+	pathPCExtTransfersState  = "PaymentCore.ExternalTransfer.Workflow.State"
+	pathPCExtTransfersAttempt = "PaymentCore.ExternalTransfer.Workflow.Attempt"
+	pathPCIntAuthState       = "PaymentCore.InternalAuth.Workflow.State"
+	pathPCIntCaptureWfID     = "PaymentCore.InternalCapture.Workflow.WorkflowID"
+	pathPCIntCaptureState    = "PaymentCore.InternalCapture.Workflow.State"
+	pathPCIntCaptureAttempt  = "PaymentCore.InternalCapture.Workflow.Attempt"
+	pathPCIntCaptureTxType   = "PaymentCore.InternalCapture.TxType"
+	pathPCIntCaptureTxStatus = "PaymentCore.InternalCapture.TxStatus"
+	pathRPPAdapterWfID       = "RPPAdapter.Workflow.WorkflowID"
+	pathRPPAdapterState      = "RPPAdapter.Workflow.State"
+	pathRPPAdapterAttempt    = "RPPAdapter.Workflow.Attempt"
+	pathRPPAdapterStatus     = "RPPAdapter.Status"
+	pathPartnerpayWfID       = "PartnerpayEngine.Workflow.WorkflowID"
+	pathPartnerpayState      = "PartnerpayEngine.Workflow.State"
+	pathPartnerpayAttempt    = "PartnerpayEngine.Workflow.Attempt"
+	pathFastAdapterStatus    = "FastAdapter.Status"
+)
+
+// Common state values
+const (
+	stateInit              = "0"
+	stateSuccess           = "900"
+	stateFailed            = "500"
+	stateProcessing        = "201"
+	stateTransferProcessing = "220"
+	stateCaptureFailed      = "701"
+	stateCaptureFailedCond  = "701"
+	stateCaptureProcessing = "230"
+	stateTransactionFailed = "500"
+)
+
+// Common workflow IDs
+const (
+	wfTransferPayment = "workflow_transfer_payment"
+	wfTransferCollection = "workflow_transfer_collection"
+	wfExternalPayment = "external_payment_flow"
+	wfInternalPayment = "internal_payment_flow"
+	wfInternalCapture = "internal_payment_flow"
+	wfCashout         = "wf_ct_cashout"
+	wfQrPayment       = "wf_ct_qr_payment"
+	wfCashin          = "wf_ct_cashin"
+	wfRtpCashin       = "wf_ct_rtp_cashin"
+	wfProcessRegistry = "wf_process_registry"
+)
+
+// Helper function to create an equality condition
+func cond(fieldPath string, value interface{}) RuleCondition {
+	return RuleCondition{FieldPath: fieldPath, Operator: "eq", Value: value}
+}
+
+// Helper function to create a not-equal condition
+func condNe(fieldPath string, value interface{}) RuleCondition {
+	return RuleCondition{FieldPath: fieldPath, Operator: "ne", Value: value}
+}
+
+// Helper function to create an "in" condition
+func condIn(fieldPath string, values []string) RuleCondition {
+	return RuleCondition{FieldPath: fieldPath, Operator: "in", Value: values}
+}
+
+// Helper function to create PE workflow conditions (state, attempt)
+func peWorkflowConds(state string, attempt int) []RuleCondition {
+	return []RuleCondition{
+		cond(pathPEWorkflowState, state),
+		cond(pathPEWorkflowAttempt, attempt),
+	}
+}
+
+// Helper function to create PC external transfer conditions
+func pcExtTransferConds(state string, attempt int) []RuleCondition {
+	return []RuleCondition{
+		cond(pathPCExtTransfersWfID, wfExternalPayment),
+		cond(pathPCExtTransfersState, state),
+		cond(pathPCExtTransfersAttempt, attempt),
+	}
+}
+
+// Helper function to create RPP adapter conditions
+func rppAdapterConds(workflowID, state string, attempt int) []RuleCondition {
+	return []RuleCondition{
+		cond(pathRPPAdapterWfID, workflowID),
+		cond(pathRPPAdapterState, state),
+		cond(pathRPPAdapterAttempt, attempt),
+	}
+}
+
 // getDefaultSOPRules returns the default SOP case rules
 func getDefaultSOPRules() []CaseRule {
 	return []CaseRule{
 		// 1. Complex Rules (PE + PC + RPP)
+		// Most specific rule first: PC 201/0, PE 220/0, RPP wf_ct_cashout at 900/0
+		{
+			CaseType:    domain.CasePcStuck201WaitingRppRepublishFromRpp,
+			Description: "PC stuck at 201/0, PE at 220/0, RPP wf_ct_cashout at 900/0 - republish RPP success message",
+			Country:     "my",
+			Conditions: []RuleCondition{
+				cond(pathPEWorkflowID, wfTransferPayment),
+				cond(pathPEWorkflowState, stateTransferProcessing),
+				cond(pathPEWorkflowAttempt, 0),
+				cond(pathPCExtTransfersWfID, wfExternalPayment),
+				cond(pathPCExtTransfersState, stateProcessing),
+				cond(pathPCExtTransfersAttempt, 0),
+				cond(pathRPPAdapterWfID, wfCashout),
+				cond(pathRPPAdapterState, stateSuccess),
+				cond(pathRPPAdapterAttempt, 0),
+			},
+		},
 		{
 			CaseType:    domain.CasePcExternalPaymentFlow201_0RPP900,
 			Description: "PC External Payment Flow 201/0 with RPP 900 (completed)",
 			Country:     "my",
 			Conditions: []RuleCondition{
-				{
-					FieldPath: "PaymentEngine.Workflow.State",
-					Operator:  "eq",
-					Value:     "220",
-				},
-				{
-					FieldPath: "PaymentEngine.Workflow.Attempt",
-					Operator:  "eq",
-					Value:     0,
-				},
-				{
-					FieldPath: "PaymentEngine.Transfers.ExternalID",
-					Operator:  "ne",
-					Value:     "",
-				},
-				{
-					FieldPath: "PaymentCore.ExternalTransfer.Workflow.State",
-					Operator:  "eq",
-					Value:     "201",
-				},
-				{
-					FieldPath: "PaymentCore.ExternalTransfer.Workflow.Attempt",
-					Operator:  "eq",
-					Value:     0,
-				},
-				{
-					FieldPath: "RPPAdapter.Status",
-					Operator:  "eq",
-					Value:     "900",
-				},
+				cond(pathPEWorkflowState, stateTransferProcessing),
+				cond(pathPEWorkflowAttempt, 0),
+				condNe(pathPETransfersExtID, ""),
+				cond(pathPCExtTransfersState, stateProcessing),
+				cond(pathPCExtTransfersAttempt, 0),
+				cond(pathRPPAdapterStatus, stateSuccess),
 			},
 		},
 		{
@@ -64,36 +150,12 @@ func getDefaultSOPRules() []CaseRule {
 			Description: "PC External Payment Flow 201/0 with RPP not completed (stuck)",
 			Country:     "my",
 			Conditions: []RuleCondition{
-				{
-					FieldPath: "PaymentEngine.Workflow.State",
-					Operator:  "eq",
-					Value:     "220",
-				},
-				{
-					FieldPath: "PaymentEngine.Workflow.Attempt",
-					Operator:  "eq",
-					Value:     0,
-				},
-				{
-					FieldPath: "PaymentEngine.Transfers.ExternalID",
-					Operator:  "ne",
-					Value:     "",
-				},
-				{
-					FieldPath: "PaymentCore.ExternalTransfer.Workflow.State",
-					Operator:  "eq",
-					Value:     "201",
-				},
-				{
-					FieldPath: "PaymentCore.ExternalTransfer.Workflow.Attempt",
-					Operator:  "eq",
-					Value:     0,
-				},
-				{
-					FieldPath: "RPPAdapter.Status",
-					Operator:  "ne",
-					Value:     "900",
-				},
+				cond(pathPEWorkflowState, stateTransferProcessing),
+				cond(pathPEWorkflowAttempt, 0),
+				condNe(pathPETransfersExtID, ""),
+				cond(pathPCExtTransfersState, stateProcessing),
+				cond(pathPCExtTransfersAttempt, 0),
+				condNe(pathRPPAdapterStatus, stateSuccess),
 			},
 		},
 		{
@@ -101,97 +163,29 @@ func getDefaultSOPRules() []CaseRule {
 			Description: "PE capture processing, PC capture failed, but RPP succeeded",
 			Country:     "my",
 			Conditions: []RuleCondition{
-				{
-					FieldPath: "PaymentEngine.Workflow.WorkflowID",
-					Operator:  "eq",
-					Value:     "workflow_transfer_payment",
-				},
-				{
-					FieldPath: "PaymentEngine.Workflow.State",
-					Operator:  "eq",
-					Value:     "230", // stCaptureProcessing
-				},
-				{
-					FieldPath: "PaymentEngine.Workflow.Attempt",
-					Operator:  "eq",
-					Value:     0,
-				},
-				{
-					FieldPath: "PaymentCore.InternalCapture.Workflow.WorkflowID",
-					Operator:  "eq",
-					Value:     "internal_payment_flow",
-				},
-				{
-					FieldPath: "PaymentCore.InternalCapture.Workflow.State",
-					Operator:  "eq",
-					Value:     "500", // stFailed
-				},
-				{
-					FieldPath: "PaymentCore.InternalCapture.Workflow.Attempt",
-					Operator:  "eq",
-					Value:     0,
-				},
-				{
-					FieldPath: "PaymentCore.InternalCapture.TxType",
-					Operator:  "eq",
-					Value:     "CAPTURE",
-				},
-				{
-					FieldPath: "PaymentCore.InternalCapture.TxStatus",
-					Operator:  "eq",
-					Value:     "FAILED",
-				},
-				{
-					FieldPath: "RPPAdapter.Workflow.WorkflowID",
-					Operator:  "in",
-					Value:     []string{"wf_ct_qr_payment", "wf_ct_cashout"},
-				},
-				{
-					FieldPath: "RPPAdapter.Workflow.State",
-					Operator:  "eq",
-					Value:     "900", // stSuccess
-				},
-				{
-					FieldPath: "RPPAdapter.Workflow.Attempt",
-					Operator:  "eq",
-					Value:     0,
-				},
+				cond(pathPEWorkflowID, wfTransferPayment),
+				cond(pathPEWorkflowState, stateCaptureProcessing),
+				cond(pathPEWorkflowAttempt, 0),
+				cond(pathPCIntCaptureWfID, wfInternalCapture),
+				cond(pathPCIntCaptureState, stateFailed),
+				cond(pathPCIntCaptureAttempt, 0),
+				cond(pathPCIntCaptureTxType, "CAPTURE"),
+				cond(pathPCIntCaptureTxStatus, "FAILED"),
+				condIn(pathRPPAdapterWfID, []string{wfQrPayment, wfCashout}),
+				cond(pathRPPAdapterState, stateSuccess),
+				cond(pathRPPAdapterAttempt, 0),
 			},
 		},
 		{
 			CaseType:    domain.CasePeStuck300RppNotFound,
 			Description: "PE stuck at state 300 with auth success, no capture, no RPP",
 			Conditions: []RuleCondition{
-				{
-					FieldPath: "PaymentEngine.Workflow.State",
-					Operator:  "eq",
-					Value:     "300",
-				},
-				{
-					FieldPath: "PaymentEngine.Workflow.Attempt",
-					Operator:  "eq",
-					Value:     0,
-				},
-				{
-					FieldPath: "PaymentEngine.Workflow.WorkflowID",
-					Operator:  "eq",
-					Value:     "workflow_transfer_payment",
-				},
-				{
-					FieldPath: "PaymentCore.InternalAuth.Workflow.State",
-					Operator:  "eq",
-					Value:     "900",
-				},
-				{
-					FieldPath: "PaymentCore.InternalCapture.Workflow.WorkflowID",
-					Operator:  "eq",
-					Value:     "", // Checks for empty InternalCapture.Workflow.WorkflowID
-				},
-				{
-					FieldPath: "RPPAdapter.Workflow.WorkflowID",
-					Operator:  "eq",
-					Value:     "", // Checks for nil/empty RPPAdapter
-				},
+				cond(pathPEWorkflowState, "300"),
+				cond(pathPEWorkflowAttempt, 0),
+				cond(pathPEWorkflowID, wfTransferPayment),
+				cond("PaymentCore.InternalAuth.Workflow.State", stateSuccess),
+				cond(pathPCIntCaptureWfID, ""), // Checks for empty InternalCapture.Workflow.WorkflowID
+				cond(pathRPPAdapterWfID, ""),   // Checks for nil/empty RPPAdapter
 			},
 		},
 		{
@@ -199,41 +193,13 @@ func getDefaultSOPRules() []CaseRule {
 			Description: "Cashout PE 220/0, PC 201/0, RPP PROCESSING - manual reject",
 			Country:     "sg",
 			Conditions: []RuleCondition{
-				{
-					FieldPath: "PaymentEngine.Workflow.WorkflowID",
-					Operator:  "eq",
-					Value:     "workflow_transfer_payment",
-				},
-				{
-					FieldPath: "PaymentEngine.Workflow.State",
-					Operator:  "eq",
-					Value:     "220",
-				},
-				{
-					FieldPath: "PaymentEngine.Workflow.Attempt",
-					Operator:  "eq",
-					Value:     0,
-				},
-				{
-					FieldPath: "PaymentCore.ExternalTransfer.Workflow.WorkflowID",
-					Operator:  "eq",
-					Value:     "external_payment_flow",
-				},
-				{
-					FieldPath: "PaymentCore.ExternalTransfer.Workflow.State",
-					Operator:  "eq",
-					Value:     "201",
-				},
-				{
-					FieldPath: "PaymentCore.ExternalTransfer.Workflow.Attempt",
-					Operator:  "eq",
-					Value:     0,
-				},
-				{
-					FieldPath: "RPPAdapter.Status",
-					Operator:  "eq",
-					Value:     "PROCESSING",
-				},
+				cond(pathPEWorkflowID, wfTransferPayment),
+				cond(pathPEWorkflowState, stateTransferProcessing),
+				cond(pathPEWorkflowAttempt, 0),
+				cond(pathPCExtTransfersWfID, wfExternalPayment),
+				cond(pathPCExtTransfersState, stateProcessing),
+				cond(pathPCExtTransfersAttempt, 0),
+				cond(pathRPPAdapterStatus, "PROCESSING"),
 			},
 		},
 		{
@@ -241,51 +207,15 @@ func getDefaultSOPRules() []CaseRule {
 			Description: "Cashout PE 220/0, PC 201/0, RPP process registry 0/0, RPP cashout 210/0 - manual intervention required",
 			Country:     "my",
 			Conditions: []RuleCondition{
-				{
-					FieldPath: "PaymentEngine.Workflow.WorkflowID",
-					Operator:  "eq",
-					Value:     "workflow_transfer_payment",
-				},
-				{
-					FieldPath: "PaymentEngine.Workflow.State",
-					Operator:  "eq",
-					Value:     "220",
-				},
-				{
-					FieldPath: "PaymentEngine.Workflow.Attempt",
-					Operator:  "eq",
-					Value:     0,
-				},
-				{
-					FieldPath: "PaymentCore.ExternalTransfer.Workflow.WorkflowID",
-					Operator:  "eq",
-					Value:     "external_payment_flow",
-				},
-				{
-					FieldPath: "PaymentCore.ExternalTransfer.Workflow.State",
-					Operator:  "eq",
-					Value:     "201",
-				},
-				{
-					FieldPath: "PaymentCore.ExternalTransfer.Workflow.Attempt",
-					Operator:  "eq",
-					Value:     0,
-				},
-				{
-					FieldPath: "RPPAdapter.Workflow.WorkflowID",
-					Operator:  "in",
-					Value:     []string{"wf_process_registry", "wf_ct_cashout", "wf_ct_qr_payment"},
-				},
-				{
-					FieldPath: "RPPAdapter.Workflow.State",
-					Operator:  "in",
-					Value:     []string{"0", "210"},
-				},
-				{
-					FieldPath: "RPPAdapter.Workflow.Attempt",
-					Operator:  "eq",
-					Value:     0,
-				},
+				cond(pathPEWorkflowID, wfTransferPayment),
+				cond(pathPEWorkflowState, stateTransferProcessing),
+				cond(pathPEWorkflowAttempt, 0),
+				cond(pathPCExtTransfersWfID, wfExternalPayment),
+				cond(pathPCExtTransfersState, stateProcessing),
+				cond(pathPCExtTransfersAttempt, 0),
+				condIn(pathRPPAdapterWfID, []string{wfProcessRegistry, wfCashout, wfQrPayment}),
+				condIn(pathRPPAdapterState, []string{stateInit, "210"}),
+				cond(pathRPPAdapterAttempt, 0),
 			},
 		},
 		{
@@ -293,26 +223,10 @@ func getDefaultSOPRules() []CaseRule {
 			Description: "RPP 210, PE 220, PC 201 - Manual Accept",
 			Country:     "my",
 			Conditions: []RuleCondition{
-				{
-					FieldPath: "PaymentEngine.Workflow.State",
-					Operator:  "eq",
-					Value:     "220",
-				},
-				{
-					FieldPath: "PaymentCore.ExternalTransfer.Workflow.State",
-					Operator:  "eq",
-					Value:     "201",
-				},
-				{
-					FieldPath: "RPPAdapter.Workflow.State",
-					Operator:  "eq",
-					Value:     "210",
-				},
-				{
-					FieldPath: "RPPAdapter.Workflow.WorkflowID",
-					Operator:  "in",
-					Value:     []string{"wf_ct_cashout", "wf_ct_qr_payment"},
-				},
+				cond(pathPEWorkflowState, stateTransferProcessing),
+				cond(pathPCExtTransfersState, stateProcessing),
+				cond(pathRPPAdapterState, "210"),
+				condIn(pathRPPAdapterWfID, []string{wfCashout, wfQrPayment}),
 			},
 		},
 		{
@@ -320,26 +234,10 @@ func getDefaultSOPRules() []CaseRule {
 			Description: "RPP 210, PE 220, PC 201 - Manual Reject",
 			Country:     "my",
 			Conditions: []RuleCondition{
-				{
-					FieldPath: "PaymentEngine.Workflow.State",
-					Operator:  "eq",
-					Value:     "220",
-				},
-				{
-					FieldPath: "PaymentCore.ExternalTransfer.Workflow.State",
-					Operator:  "eq",
-					Value:     "201",
-				},
-				{
-					FieldPath: "RPPAdapter.Workflow.State",
-					Operator:  "eq",
-					Value:     "210",
-				},
-				{
-					FieldPath: "RPPAdapter.Workflow.WorkflowID",
-					Operator:  "in",
-					Value:     []string{"wf_ct_cashout", "wf_ct_qr_payment"},
-				},
+				cond(pathPEWorkflowState, stateTransferProcessing),
+				cond(pathPCExtTransfersState, stateProcessing),
+				cond(pathRPPAdapterState, "210"),
+				condIn(pathRPPAdapterWfID, []string{wfCashout, wfQrPayment}),
 			},
 		},
 		{
@@ -347,46 +245,14 @@ func getDefaultSOPRules() []CaseRule {
 			Description: "PE 220/0, PC 201/0, RPP wf_ct_qr_payment stuck at State 0 - manual PE rejection required",
 			Country:     "my",
 			Conditions: []RuleCondition{
-				{
-					FieldPath: "PaymentEngine.Workflow.WorkflowID",
-					Operator:  "eq",
-					Value:     "workflow_transfer_payment",
-				},
-				{
-					FieldPath: "PaymentEngine.Workflow.State",
-					Operator:  "eq",
-					Value:     "220",
-				},
-				{
-					FieldPath: "PaymentEngine.Workflow.Attempt",
-					Operator:  "eq",
-					Value:     0,
-				},
-				{
-					FieldPath: "PaymentCore.ExternalTransfer.Workflow.WorkflowID",
-					Operator:  "eq",
-					Value:     "external_payment_flow",
-				},
-				{
-					FieldPath: "PaymentCore.ExternalTransfer.Workflow.State",
-					Operator:  "eq",
-					Value:     "201",
-				},
-				{
-					FieldPath: "PaymentCore.ExternalTransfer.Workflow.Attempt",
-					Operator:  "eq",
-					Value:     0,
-				},
-				{
-					FieldPath: "RPPAdapter.Workflow.WorkflowID",
-					Operator:  "eq",
-					Value:     "wf_ct_qr_payment",
-				},
-				{
-					FieldPath: "RPPAdapter.Workflow.State",
-					Operator:  "eq",
-					Value:     "0", // stInit
-				},
+				cond(pathPEWorkflowID, wfTransferPayment),
+				cond(pathPEWorkflowState, stateTransferProcessing),
+				cond(pathPEWorkflowAttempt, 0),
+				cond(pathPCExtTransfersWfID, wfExternalPayment),
+				cond(pathPCExtTransfersState, stateProcessing),
+				cond(pathPCExtTransfersAttempt, 0),
+				cond(pathRPPAdapterWfID, wfQrPayment),
+				cond(pathRPPAdapterState, stateInit),
 			},
 		},
 
@@ -396,82 +262,26 @@ func getDefaultSOPRules() []CaseRule {
 			Description: "Thought Machine returning errors/false negatives, but transaction was successful",
 			Country:     "my",
 			Conditions: []RuleCondition{
-				{
-					FieldPath: "PaymentEngine.Workflow.WorkflowID",
-					Operator:  "eq",
-					Value:     "workflow_transfer_payment",
-				},
-				{
-					FieldPath: "PaymentEngine.Workflow.State",
-					Operator:  "eq",
-					Value:     "701", // stCaptureFailed
-				},
-				{
-					FieldPath: "PaymentEngine.Workflow.Attempt",
-					Operator:  "eq",
-					Value:     0,
-				},
-				{
-					FieldPath: "PaymentCore.InternalCapture.Workflow.WorkflowID",
-					Operator:  "eq",
-					Value:     "internal_payment_flow",
-				},
-				{
-					FieldPath: "PaymentCore.InternalCapture.Workflow.State",
-					Operator:  "eq",
-					Value:     "500", // stFailed
-				},
-				{
-					FieldPath: "PaymentCore.InternalCapture.Workflow.Attempt",
-					Operator:  "eq",
-					Value:     0,
-				},
+				cond(pathPEWorkflowID, wfTransferPayment),
+				cond(pathPEWorkflowState, stateCaptureFailedCond),
+				cond(pathPEWorkflowAttempt, 0),
+				cond(pathPCIntCaptureWfID, wfInternalCapture),
+				cond(pathPCIntCaptureState, stateFailed),
+				cond(pathPCIntCaptureAttempt, 0),
 			},
 		},
 		{
 			CaseType:    domain.CaseEcotxnChargeFailedCaptureFailedTMError,
 			Description: "Ecotxn Charge Failed Capture Failed with TMError",
 			Conditions: []RuleCondition{
-				{
-					FieldPath: "PartnerpayEngine.Workflow.WorkflowID",
-					Operator:  "eq",
-					Value:     "workflow_charge",
-				},
-				{
-					FieldPath: "PartnerpayEngine.Workflow.State",
-					Operator:  "eq",
-					Value:     "502",
-				},
-				{
-					FieldPath: "PartnerpayEngine.Workflow.Attempt",
-					Operator:  "eq",
-					Value:     0,
-				},
-				{
-					FieldPath: "PartnerpayEngine.Charge.StatusReason",
-					Operator:  "eq",
-					Value:     "SYSTEM_ERROR",
-				},
-				{
-					FieldPath: "PartnerpayEngine.Charge.StatusReasonDescription",
-					Operator:  "eq",
-					Value:     "error occurred in Thought Machine.",
-				},
-				{
-					FieldPath: "PaymentCore.InternalCapture.Workflow.WorkflowID",
-					Operator:  "eq",
-					Value:     "internal_payment_flow",
-				},
-				{
-					FieldPath: "PaymentCore.InternalCapture.Workflow.State",
-					Operator:  "eq",
-					Value:     "500",
-				},
-				{
-					FieldPath: "PaymentCore.InternalCapture.Workflow.Attempt",
-					Operator:  "eq",
-					Value:     0,
-				},
+				cond(pathPartnerpayWfID, "workflow_charge"),
+				cond(pathPartnerpayState, "502"),
+				cond(pathPartnerpayAttempt, 0),
+				cond("PartnerpayEngine.Charge.StatusReason", "SYSTEM_ERROR"),
+				cond("PartnerpayEngine.Charge.StatusReasonDescription", "error occurred in Thought Machine."),
+				cond(pathPCIntCaptureWfID, wfInternalCapture),
+				cond(pathPCIntCaptureState, stateFailed),
+				cond(pathPCIntCaptureAttempt, 0),
 			},
 		},
 		{
@@ -479,57 +289,21 @@ func getDefaultSOPRules() []CaseRule {
 			Description: "PE stuck at state 230 (capture) requires PC republish",
 			Country:     "my",
 			Conditions: []RuleCondition{
-				{
-					FieldPath: "PaymentEngine.Workflow.WorkflowID",
-					Operator:  "eq",
-					Value:     "workflow_transfer_payment",
-				},
-				{
-					FieldPath: "PaymentEngine.Workflow.State",
-					Operator:  "eq",
-					Value:     "230",
-				},
-				{
-					FieldPath: "PaymentEngine.Workflow.Attempt",
-					Operator:  "eq",
-					Value:     0,
-				},
-				{
-					FieldPath: "PaymentCore.InternalCapture.Workflow.State",
-					Operator:  "eq",
-					Value:     "900",
-				},
-				{
-					FieldPath: "PaymentCore.InternalCapture.Workflow.Attempt",
-					Operator:  "eq",
-					Value:     0,
-				},
+				cond(pathPEWorkflowID, wfTransferPayment),
+				cond(pathPEWorkflowState, stateCaptureProcessing),
+				cond(pathPEWorkflowAttempt, 0),
+				cond(pathPCIntCaptureState, stateSuccess),
+				cond(pathPCIntCaptureAttempt, 0),
 			},
 		},
 		{
 			CaseType:    domain.CasePe2200FastCashinFailed,
 			Description: "PE Transfer Collection at state 220 with attempt 0 and Fast Adapter failed",
 			Conditions: []RuleCondition{
-				{
-					FieldPath: "PaymentEngine.Workflow.WorkflowID",
-					Operator:  "eq",
-					Value:     "workflow_transfer_collection",
-				},
-				{
-					FieldPath: "PaymentEngine.Workflow.State",
-					Operator:  "eq",
-					Value:     "220",
-				},
-				{
-					FieldPath: "PaymentEngine.Workflow.Attempt",
-					Operator:  "eq",
-					Value:     0,
-				},
-				{
-					FieldPath: "FastAdapter.Status",
-					Operator:  "eq",
-					Value:     "FAILED",
-				},
+				cond(pathPEWorkflowID, wfTransferCollection),
+				cond(pathPEWorkflowState, stateTransferProcessing),
+				cond(pathPEWorkflowAttempt, 0),
+				cond(pathFastAdapterStatus, "FAILED"),
 			},
 		},
 
@@ -538,53 +312,25 @@ func getDefaultSOPRules() []CaseRule {
 			CaseType:    domain.CasePeTransferPayment210_0,
 			Description: "PE Transfer Payment stuck at state 210 with attempt 0",
 			Conditions: []RuleCondition{
-				{
-					FieldPath: "PaymentEngine.Workflow.State",
-					Operator:  "eq",
-					Value:     "210",
-				},
-				{
-					FieldPath: "PaymentEngine.Workflow.WorkflowID",
-					Operator:  "eq",
-					Value:     "workflow_transfer_payment",
-				},
-				{
-					FieldPath: "PaymentEngine.Workflow.Attempt",
-					Operator:  "eq",
-					Value:     0,
-				},
+				cond(pathPEWorkflowState, "210"),
+				cond(pathPEWorkflowID, wfTransferPayment),
+				cond(pathPEWorkflowAttempt, 0),
 			},
 		},
 		{
 			CaseType:    domain.CasePcExternalPaymentFlow200_11,
 			Description: "PC External Payment Flow stuck at state 200 with attempt 11",
 			Conditions: []RuleCondition{
-				{
-					FieldPath: "PaymentCore.ExternalTransfer.Workflow.State",
-					Operator:  "eq",
-					Value:     "200",
-				},
-				{
-					FieldPath: "PaymentCore.ExternalTransfer.Workflow.Attempt",
-					Operator:  "eq",
-					Value:     11,
-				},
+				cond(pathPCExtTransfersState, "200"),
+				cond(pathPCExtTransfersAttempt, 11),
 			},
 		},
 		{
 			CaseType:    domain.CasePeStuckAtLimitCheck102,
 			Description: "PE stuck at state 102 (stTransactionLimitChecked)",
 			Conditions: []RuleCondition{
-				{
-					FieldPath: "PaymentEngine.Workflow.State",
-					Operator:  "eq",
-					Value:     "102",
-				},
-				{
-					FieldPath: "PaymentEngine.Workflow.WorkflowID",
-					Operator:  "eq",
-					Value:     "workflow_transfer_payment",
-				},
+				cond(pathPEWorkflowState, "102"),
+				cond(pathPEWorkflowID, wfTransferPayment),
 			},
 		},
 		{

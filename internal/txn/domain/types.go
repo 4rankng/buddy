@@ -170,6 +170,7 @@ const (
 	CaseRppProcessRegistryStuckInit                  Case = "rpp_process_registry_stuck_init"
 	CaseCashInStuck100Retry                          Case = "cash_in_stuck_100_retry"
 	CaseCashInStuck100UpdateMismatch                 Case = "cash_in_stuck_100_update_mismatch"
+	CasePcStuck201WaitingRppRepublishFromRpp         Case = "pc_stuck_201_waiting_rpp_republish_from_rpp"
 )
 
 // GetCaseSummaryOrder returns the order in which SOP cases should be displayed in summaries
@@ -200,6 +201,7 @@ func GetCaseSummaryOrder() []Case {
 		CaseRppProcessRegistryStuckInit,
 		CaseCashInStuck100Retry,
 		CaseCashInStuck100UpdateMismatch,
+		CasePcStuck201WaitingRppRepublishFromRpp,
 	}
 }
 

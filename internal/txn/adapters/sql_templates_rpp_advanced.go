@@ -8,6 +8,7 @@ func registerRPPAdvancedTemplates(templates map[domain.Case]TemplateFunc) {
 	templates[domain.CasePcExternalPaymentFlow201_0RPP900] = pcExternalPaymentFlow201_0RPP900
 	templates[domain.CaseRppRtpCashinStuck200_0] = rppRtpCashinStuck200_0
 	templates[domain.CaseRpp210Pe220Pc201Accept] = rpp210Pe220Pc201Accept
+	templates[domain.CasePcStuck201WaitingRppRepublishFromRpp] = pcStuck201WaitingRppRepublishFromRpp
 }
 
 // pcExternalPaymentFlow201_0RPP210 handles PC 201, RPP 210 - no response from RPP
@@ -244,5 +245,61 @@ AND workflow_id IN ('wf_ct_cashout', 'wf_ct_qr_payment');`,
 			},
 		},
 		CaseType: domain.CaseRpp210Pe220Pc201Accept,
+	}
+}
+
+// pcStuck201WaitingRppRepublishFromRpp handles PC stuck at 201/0, PE at 220/0, RPP wf_ct_cashout at 900/0
+// Payment-core is waiting for RPP adapter message but RPP has already completed successfully
+// Resolution: Republish the success message from RPP by moving to state 301
+func pcStuck201WaitingRppRepublishFromRpp(result domain.TransactionResult) *domain.DMLTicket {
+	if result.RPPAdapter == nil {
+		return nil
+	}
+
+	// Find wf_ct_cashout workflow with state 900, attempt 0
+	runID := getRPPWorkflowRunIDByCriteria(
+		result.RPPAdapter.Workflow,
+		"wf_ct_cashout",
+		"900",
+		0,
+	)
+
+	if runID == "" {
+		return nil
+	}
+
+	return &domain.DMLTicket{
+		Deploy: []domain.TemplateInfo{
+			{
+				TargetDB: "RPP",
+				SQLTemplate: `-- pc_stuck_201_waiting_rpp_republish_from_rpp - Republish success message from RPP to unblock PC
+UPDATE workflow_execution
+SET state = 301,
+    attempt = 1,
+    data = JSON_SET(data, '$.State', 301)
+WHERE workflow_id = 'wf_ct_cashout'
+AND run_id = %s
+AND attempt = 0
+AND state = 900;`,
+				Params: []domain.ParamInfo{
+					{Name: "run_id", Value: runID, Type: "string"},
+				},
+			},
+		},
+		Rollback: []domain.TemplateInfo{
+			{
+				TargetDB: "RPP",
+				SQLTemplate: `UPDATE workflow_execution
+SET state = 900,
+    attempt = 0,
+    data = JSON_SET(data, '$.State', 900)
+WHERE workflow_id = 'wf_ct_cashout'
+AND run_id = %s;`,
+				Params: []domain.ParamInfo{
+					{Name: "run_id", Value: runID, Type: "string"},
+				},
+			},
+		},
+		CaseType: domain.CasePcStuck201WaitingRppRepublishFromRpp,
 	}
 }
