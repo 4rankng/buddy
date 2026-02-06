@@ -356,6 +356,23 @@ This section covers issues related to cashout transactions involving PC external
   AND workflow_id = 'wf_ct_cashout';
   ```
 
+### `pc_stuck_201_waiting_rpp_republish_from_rpp`
+- **Condition**: PC external_payment_flow stuck at state 201/0, PE workflow_transfer_payment at state 220/0, RPP wf_ct_cashout at state 900/0. Payment-core is waiting for RPP adapter message but RPP has already completed successfully.
+- **Diagnosis**: RPP workflow reached success state (900) but failed to publish the success message to payment-core. Payment-core remains stuck in processing state (201) waiting for the response. PE workflow also stuck waiting for the callback.
+- **Resolution**: Republish the success message from RPP by moving RPP workflow state to 301 (stSuccessPublish), which will trigger the message publication to downstream systems and unblock payment-core.
+- **Sample Deploy Script** (TargetDB: RPP):
+  ```sql
+  -- pc_stuck_201_waiting_rpp_republish_from_rpp - Republish success message from RPP to unblock PC
+  UPDATE workflow_execution
+  SET state = 301,
+      attempt = 1,
+      data = JSON_SET(data, '$.State', 301)
+  WHERE workflow_id = 'wf_ct_cashout'
+  AND run_id = '{RPP_RUN_ID}'
+  AND attempt = 0
+  AND state = 900;
+  ```
+
 ---
 
 ## **Cashin Workflows**

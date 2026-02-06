@@ -96,13 +96,14 @@ type RPPQueryParams struct {
 
 // RPPAdapterInfo contains RPP adapter related information
 type RPPAdapterInfo struct {
-	ReqBizMsgID string // RPP request business message ID
-	PartnerTxID string // RPP partner transaction ID
-	EndToEndID  string // = payment-engine.transfers.external_id
-	Status      string // RPP status
-	CreatedAt   string // created_at timestamp
-	Workflow    []WorkflowInfo
-	Info        string // optional extra context (e.g. status reason description)
+	ReqBizMsgID  string // RPP request business message ID
+	PartnerMsgID string // RPP partner message ID
+	PartnerTxID  string // RPP partner transaction ID
+	EndToEndID   string // = payment-engine.transfers.external_id
+	Status       string // RPP status
+	CreatedAt    string // created_at timestamp
+	Workflow     []WorkflowInfo
+	Info         string // optional extra context (e.g. status reason description)
 }
 
 // PPEChargeInfo contains partnerpay-engine charge information

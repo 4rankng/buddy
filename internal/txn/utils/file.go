@@ -2,8 +2,10 @@ package utils
 
 import (
 	"bufio"
+	"fmt"
 	"os"
 	"strings"
+	"time"
 )
 
 // ReadTransactionIDsFromFile reads transaction IDs from a file, one per line
@@ -59,8 +61,29 @@ func IsSimpleFilePath(input string) bool {
 // Helper function to safely extract string values
 func GetStringValue(row map[string]interface{}, key string) string {
 	if val, ok := row[key]; ok {
-		if str, ok := val.(string); ok {
-			return str
+		switch v := val.(type) {
+		case string:
+			return v
+		case []byte:
+			return string(v)
+		case time.Time:
+			return v.Format(time.RFC3339Nano)
+		case fmt.Stringer:
+			return v.String()
+		case int:
+			return fmt.Sprintf("%d", v)
+		case int32:
+			return fmt.Sprintf("%d", v)
+		case int64:
+			return fmt.Sprintf("%d", v)
+		case float32:
+			return fmt.Sprintf("%g", v)
+		case float64:
+			return fmt.Sprintf("%g", v)
+		case bool:
+			return fmt.Sprintf("%t", v)
+		default:
+			return fmt.Sprintf("%v", v)
 		}
 	}
 	return ""

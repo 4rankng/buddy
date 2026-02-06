@@ -51,7 +51,7 @@ func (r *RPPAdapter) Query(params domain.RPPQueryParams) (*domain.RPPAdapterInfo
 }
 
 func (r *RPPAdapter) queryByE2EID(externalID string) (*domain.RPPAdapterInfo, error) {
-	query := fmt.Sprintf("SELECT req_biz_msg_id, partner_tx_id, partner_tx_sts AS status, created_at FROM credit_transfer WHERE end_to_end_id = '%s'", externalID)
+	query := fmt.Sprintf("SELECT req_biz_msg_id, partner_msg_id, partner_tx_id, partner_tx_sts AS status, created_at FROM credit_transfer WHERE end_to_end_id = '%s'", externalID)
 	rppResults, err := r.client.ExecuteQuery("prd-payments-rpp-adapter-rds-mysql", "prd-payments-rpp-adapter-rds-mysql", "rpp_adapter", query)
 	if err != nil || len(rppResults) == 0 {
 		// Fallback: Query wf_process_registry workflow using date extracted from EndToEndID
@@ -59,11 +59,12 @@ func (r *RPPAdapter) queryByE2EID(externalID string) (*domain.RPPAdapterInfo, er
 	}
 	row := rppResults[0]
 	info := &domain.RPPAdapterInfo{
-		ReqBizMsgID: utils.GetStringValue(row, "req_biz_msg_id"),
-		PartnerTxID: utils.GetStringValue(row, "partner_tx_id"),
-		EndToEndID:  externalID,
-		Status:      utils.GetStringValue(row, "status"),
-		CreatedAt:   utils.GetStringValue(row, "created_at"),
+		ReqBizMsgID:  utils.GetStringValue(row, "req_biz_msg_id"),
+		PartnerMsgID: utils.GetStringValue(row, "partner_msg_id"),
+		PartnerTxID:  utils.GetStringValue(row, "partner_tx_id"),
+		EndToEndID:   externalID,
+		Status:       utils.GetStringValue(row, "status"),
+		CreatedAt:    utils.GetStringValue(row, "created_at"),
 	}
 	r.populateWorkflowInfo(info)
 	info.Info = fmt.Sprintf("RPP Status: %s", info.Status)
@@ -72,7 +73,7 @@ func (r *RPPAdapter) queryByE2EID(externalID string) (*domain.RPPAdapterInfo, er
 
 func (r *RPPAdapter) queryByPartnerTxID(partnerTxID string) (*domain.RPPAdapterInfo, error) {
 	query := fmt.Sprintf(
-		"SELECT req_biz_msg_id, partner_tx_id, partner_tx_sts AS status, end_to_end_id, created_at FROM credit_transfer WHERE partner_tx_id = '%s'",
+		"SELECT req_biz_msg_id, partner_msg_id, partner_tx_id, partner_tx_sts AS status, end_to_end_id, created_at FROM credit_transfer WHERE partner_tx_id = '%s'",
 		partnerTxID,
 	)
 
@@ -87,11 +88,12 @@ func (r *RPPAdapter) queryByPartnerTxID(partnerTxID string) (*domain.RPPAdapterI
 
 	row := rppResults[0]
 	info := &domain.RPPAdapterInfo{
-		ReqBizMsgID: utils.GetStringValue(row, "req_biz_msg_id"),
-		PartnerTxID: utils.GetStringValue(row, "partner_tx_id"),
-		EndToEndID:  utils.GetStringValue(row, "end_to_end_id"),
-		Status:      utils.GetStringValue(row, "status"),
-		CreatedAt:   utils.GetStringValue(row, "created_at"),
+		ReqBizMsgID:  utils.GetStringValue(row, "req_biz_msg_id"),
+		PartnerMsgID: utils.GetStringValue(row, "partner_msg_id"),
+		PartnerTxID:  utils.GetStringValue(row, "partner_tx_id"),
+		EndToEndID:   utils.GetStringValue(row, "end_to_end_id"),
+		Status:       utils.GetStringValue(row, "status"),
+		CreatedAt:    utils.GetStringValue(row, "created_at"),
 	}
 	r.populateWorkflowInfo(info)
 	info.Info = fmt.Sprintf("RPP Status: %s", info.Status)
@@ -114,7 +116,7 @@ func (r *RPPAdapter) queryByAccountsAmountAndTimestamp(params domain.RPPQueryPar
 	if params.Amount > 0 {
 		amountDollars := params.Amount / 100.0
 		query = fmt.Sprintf(
-			"SELECT req_biz_msg_id, partner_tx_id, partner_tx_sts AS status, end_to_end_id, created_at FROM credit_transfer WHERE "+
+			"SELECT req_biz_msg_id, partner_msg_id, partner_tx_id, partner_tx_sts AS status, end_to_end_id, created_at FROM credit_transfer WHERE "+
 				"dbtr_acct_id='%s' AND cdtr_acct_id='%s' AND amount=%.2f AND created_at >= '%s' AND created_at <= '%s'",
 			params.SourceAccountID,
 			params.DestinationAccountID,
@@ -124,7 +126,7 @@ func (r *RPPAdapter) queryByAccountsAmountAndTimestamp(params domain.RPPQueryPar
 		)
 	} else {
 		query = fmt.Sprintf(
-			"SELECT req_biz_msg_id, partner_tx_id, partner_tx_sts AS status, end_to_end_id, created_at FROM credit_transfer WHERE "+
+			"SELECT req_biz_msg_id, partner_msg_id, partner_tx_id, partner_tx_sts AS status, end_to_end_id, created_at FROM credit_transfer WHERE "+
 				"dbtr_acct_id='%s' AND cdtr_acct_id='%s' AND created_at >= '%s' AND created_at <= '%s'",
 			params.SourceAccountID,
 			params.DestinationAccountID,
@@ -144,11 +146,12 @@ func (r *RPPAdapter) queryByAccountsAmountAndTimestamp(params domain.RPPQueryPar
 
 	row := rppResults[0]
 	info := &domain.RPPAdapterInfo{
-		ReqBizMsgID: utils.GetStringValue(row, "req_biz_msg_id"),
-		PartnerTxID: utils.GetStringValue(row, "partner_tx_id"),
-		EndToEndID:  utils.GetStringValue(row, "end_to_end_id"),
-		Status:      utils.GetStringValue(row, "status"),
-		CreatedAt:   utils.GetStringValue(row, "created_at"),
+		ReqBizMsgID:  utils.GetStringValue(row, "req_biz_msg_id"),
+		PartnerMsgID: utils.GetStringValue(row, "partner_msg_id"),
+		PartnerTxID:  utils.GetStringValue(row, "partner_tx_id"),
+		EndToEndID:   utils.GetStringValue(row, "end_to_end_id"),
+		Status:       utils.GetStringValue(row, "status"),
+		CreatedAt:    utils.GetStringValue(row, "created_at"),
 	}
 	r.populateWorkflowInfo(info)
 	info.Info = fmt.Sprintf("RPP Status: %s", info.Status)

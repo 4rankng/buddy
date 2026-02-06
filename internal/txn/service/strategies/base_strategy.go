@@ -309,6 +309,11 @@ func (s *BasePopulationStrategy) populatePartnerpayFromRPP(result *domain.Transa
 		}
 
 		if chargeInfo != nil {
+			if chargeInfo.Charge.Status == domain.NotFoundStatus {
+				slog.Debug("PartnerpayEngine charge not found for workflow",
+					"runID", wf.RunID)
+				continue
+			}
 			result.PartnerpayEngine = chargeInfo
 			slog.Info("PartnerpayEngine populated from RPP workflow",
 				"runID", wf.RunID,

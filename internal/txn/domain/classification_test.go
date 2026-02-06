@@ -191,22 +191,22 @@ func TestFormatWorkflowStateTransferCollection(t *testing.T) {
 		{
 			name:     "Valid state number",
 			stateStr: "220",
-			expected: "workflow_transfer_collection:220 (stAuthProcessing)",
+			expected: "220 (stAuthProcessing)",
 		},
 		{
 			name:     "Another valid state number",
 			stateStr: "910",
-			expected: "workflow_transfer_collection:910 (stCompletedNotified)",
+			expected: "910 (stCompletedNotified)",
 		},
 		{
 			name:     "Invalid state number",
 			stateStr: "999",
-			expected: "workflow_transfer_collection:999",
+			expected: "999",
 		},
 		{
 			name:     "Non-numeric state string",
 			stateStr: "invalid",
-			expected: "workflow_transfer_collection:invalid",
+			expected: "invalid",
 		},
 	}
 
@@ -255,7 +255,7 @@ func TestThoughtMachineFalseNegativeCase(t *testing.T) {
 
 	// Test workflow state formatting
 	state := FormatWorkflowState("workflow_transfer_payment", "701")
-	expected := "workflow_transfer_payment:701 (stCaptureFailed)"
+	expected := "701 (stCaptureFailed)"
 	if state != expected {
 		t.Errorf("Expected workflow state %s, got %s", expected, state)
 	}

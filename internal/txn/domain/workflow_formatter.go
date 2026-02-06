@@ -45,21 +45,21 @@ func FormatWorkflowState(workflowID, state string) string {
 	initializeStates()
 	if statesInitError != nil {
 		logger.Error("Workflow states not initialized: %v", statesInitError)
-		return fmt.Sprintf("%s:%s", workflowID, state)
+		return state
 	}
 
 	stateInt, err := strconv.Atoi(state)
 	if err != nil {
-		return fmt.Sprintf("%s:%s", workflowID, state)
+		return state
 	}
 
 	if stateMap, exists := workflowStates[workflowID]; exists {
 		if stateName, found := stateMap[stateInt]; found {
-			return fmt.Sprintf("%s:%d (%s)", workflowID, stateInt, stateName)
+			return fmt.Sprintf("%d (%s)", stateInt, stateName)
 		}
 	}
 
-	return fmt.Sprintf("%s:%d", workflowID, stateInt)
+	return fmt.Sprintf("%d", stateInt)
 }
 
 // FormatFastAdapterState formats a fast adapter state using external configuration

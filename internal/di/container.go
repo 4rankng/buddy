@@ -40,10 +40,6 @@ func (c *Container) InitializeForEnvironment(env string) error {
 	if doormanClient == nil {
 		return fmt.Errorf("failed to initialize Doorman client for environment: %s", env)
 	}
-	// Test authentication to fail fast on credential issues
-	if err := doormanClient.Authenticate(); err != nil {
-		return err
-	}
 	c.doormanClient = doormanClient
 
 	// Initialize Jira client

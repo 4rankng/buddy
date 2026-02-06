@@ -122,6 +122,11 @@ func displayRPPAdapterSection(w io.Writer, ra domain.RPPAdapterInfo, isE2EID boo
 			fmt.Printf("Warning: failed to write partner tx id: %v\n", err)
 		}
 	}
+	if ra.PartnerMsgID != "" {
+		if _, err := fmt.Fprintf(w, "partner_msg_id: %s\n", ra.PartnerMsgID); err != nil {
+			fmt.Printf("Warning: failed to write partner msg id: %v\n", err)
+		}
+	}
 	// Display all workflows
 	for _, wf := range ra.Workflow {
 		if wf.RunID != "" {

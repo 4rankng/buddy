@@ -2,7 +2,6 @@ package sgbuddy
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -10,7 +9,6 @@ import (
 	"buddy/internal/apps/common"
 	"buddy/internal/di"
 	"buddy/internal/logging"
-	"buddy/internal/clients/doorman"
 
 	"github.com/spf13/cobra"
 )
@@ -76,14 +74,6 @@ func NewDoormanCreateDMLCmd(appCtx *common.Context, clients *di.ClientSet) *cobr
 			// Call CreateTicket
 			ticketID, err := clients.Doorman.CreateTicket(serviceName, originalQuery, rollbackQuery, note)
 			if err != nil {
-				var authErr doorman.AuthenticationUnauthorizedError
-				if errors.As(err, &authErr) {
-					logger.Warn("Authentication failed (401). Login attempt aborted.")
-					if authErr.RequestID != "" {
-						logger.Warn("request_id=%s", authErr.RequestID)
-					}
-					os.Exit(1)
-				}
 				logger.Error("Failed to create ticket: %v", err)
 				os.Exit(1)
 			}
