@@ -77,8 +77,8 @@ func TestPcStuck201WaitingRppRepublishFromRpp_CaseIdentification(t *testing.T) {
 	// Test case identification
 	result := sopRepo.IdentifyCase(transactionResult, "my")
 
-	if result != domain.CasePcStuck201WaitingRppRepublishFromRpp {
-		t.Errorf("Expected case %s, got %s", domain.CasePcStuck201WaitingRppRepublishFromRpp, result)
+	if result != domain.CasePcExternalPaymentFlow201_0RPP900 {
+		t.Errorf("Expected case %s, got %s", domain.CasePcExternalPaymentFlow201_0RPP900, result)
 	}
 }
 
@@ -87,7 +87,7 @@ func TestPcStuck201WaitingRppRepublishFromRpp_SQLGeneration(t *testing.T) {
 	// Create the transaction data
 	transactionResult := domain.TransactionResult{
 		InputID:  "20260204GXSPMYKL010ORB00010461",
-		CaseType: domain.CasePcStuck201WaitingRppRepublishFromRpp,
+		CaseType: domain.CasePcExternalPaymentFlow201_0RPP900,
 		PaymentEngine: &domain.PaymentEngineInfo{
 			Transfers: domain.PETransfersInfo{
 				Type:        "PAYMENT",
@@ -265,7 +265,7 @@ func TestPcStuck201WaitingRppRepublishFromRpp_ConditionValidation(t *testing.T) 
 	// Get the rule we're testing
 	var targetRule *CaseRule
 	for _, rule := range getDefaultSOPRules() {
-		if rule.CaseType == domain.CasePcStuck201WaitingRppRepublishFromRpp {
+		if rule.CaseType == domain.CasePcExternalPaymentFlow201_0RPP900 {
 			targetRule = &rule
 			break
 		}
@@ -357,7 +357,7 @@ func TestPcStuck201WaitingRppRepublishFromRpp_MissingRPPAdapterShouldNotMatch(t 
 	sopRepo := NewSOPRepository()
 	result := sopRepo.IdentifyCase(transactionResult, "my")
 
-	if result == domain.CasePcStuck201WaitingRppRepublishFromRpp {
+	if result == domain.CasePcExternalPaymentFlow201_0RPP900 {
 		t.Errorf("Should not match when RPP adapter is missing")
 	}
 }
@@ -427,7 +427,7 @@ func TestPcStuck201WaitingRppRepublishFromRpp_WrongRPPStateShouldNotMatch(t *tes
 	sopRepo := NewSOPRepository()
 	result := sopRepo.IdentifyCase(transactionResult, "my")
 
-	if result == domain.CasePcStuck201WaitingRppRepublishFromRpp {
+	if result == domain.CasePcExternalPaymentFlow201_0RPP900 {
 		t.Errorf("Should not match when RPP state is not 900")
 	}
 }
@@ -497,7 +497,7 @@ func TestPcStuck201WaitingRppRepublishFromRpp_NonZeroAttemptShouldNotMatch(t *te
 	sopRepo := NewSOPRepository()
 	result := sopRepo.IdentifyCase(transactionResult, "my")
 
-	if result == domain.CasePcStuck201WaitingRppRepublishFromRpp {
+	if result == domain.CasePcExternalPaymentFlow201_0RPP900 {
 		t.Errorf("Should not match when RPP attempt is not 0")
 	}
 }
