@@ -54,6 +54,10 @@ const (
 	stateCaptureFailedCond  = "701"
 	stateCaptureProcessing = "230"
 	stateTransactionFailed = "500"
+	stateRppWaitingResponse = "210"
+	stateRppReject         = "101"
+	stateRppReceived       = "200"
+	stateValidationFailed  = "122"
 )
 
 // Common workflow IDs
@@ -338,21 +342,9 @@ func getDefaultSOPRules() []CaseRule {
 			Description: "RPP No Response Resume (timeout scenario)",
 			Country:     "my",
 			Conditions: []RuleCondition{
-				{
-					FieldPath: "RPPAdapter.Workflow.State",
-					Operator:  "eq",
-					Value:     "210",
-				},
-				{
-					FieldPath: "RPPAdapter.Workflow.Attempt",
-					Operator:  "eq",
-					Value:     0,
-				},
-				{
-					FieldPath: "RPPAdapter.Workflow.WorkflowID",
-					Operator:  "in",
-					Value:     []string{"wf_ct_cashout", "wf_ct_qr_payment"},
-				},
+				cond(pathRPPAdapterState, stateRppWaitingResponse),
+				cond(pathRPPAdapterAttempt, 0),
+				condIn(pathRPPAdapterWfID, []string{wfCashout, wfQrPayment}),
 			},
 		},
 		{
@@ -360,21 +352,9 @@ func getDefaultSOPRules() []CaseRule {
 			Description: "RPP Cashout Reject at state 101 with attempt 19",
 			Country:     "my",
 			Conditions: []RuleCondition{
-				{
-					FieldPath: "RPPAdapter.Workflow.WorkflowID",
-					Operator:  "eq",
-					Value:     "wf_ct_cashout",
-				},
-				{
-					FieldPath: "RPPAdapter.Workflow.State",
-					Operator:  "eq",
-					Value:     "101",
-				},
-				{
-					FieldPath: "RPPAdapter.Workflow.Attempt",
-					Operator:  "eq",
-					Value:     19,
-				},
+				cond(pathRPPAdapterWfID, wfCashout),
+				cond(pathRPPAdapterState, stateRppReject),
+				cond(pathRPPAdapterAttempt, 19),
 			},
 		},
 		{
@@ -382,21 +362,9 @@ func getDefaultSOPRules() []CaseRule {
 			Description: "RPP RTP Cashin stuck at state 200 with attempt 0",
 			Country:     "my",
 			Conditions: []RuleCondition{
-				{
-					FieldPath: "RPPAdapter.Workflow.WorkflowID",
-					Operator:  "eq",
-					Value:     "wf_ct_rtp_cashin",
-				},
-				{
-					FieldPath: "RPPAdapter.Workflow.State",
-					Operator:  "eq",
-					Value:     "200",
-				},
-				{
-					FieldPath: "RPPAdapter.Workflow.Attempt",
-					Operator:  "eq",
-					Value:     0,
-				},
+				cond(pathRPPAdapterWfID, wfRtpCashin),
+				cond(pathRPPAdapterState, stateRppReceived),
+				cond(pathRPPAdapterAttempt, 0),
 			},
 		},
 		{
@@ -404,21 +372,9 @@ func getDefaultSOPRules() []CaseRule {
 			Description: "RPP Cashin Validation Failed at state 122 with attempt 0",
 			Country:     "my",
 			Conditions: []RuleCondition{
-				{
-					FieldPath: "RPPAdapter.Workflow.WorkflowID",
-					Operator:  "eq",
-					Value:     "wf_ct_cashin",
-				},
-				{
-					FieldPath: "RPPAdapter.Workflow.State",
-					Operator:  "eq",
-					Value:     "122",
-				},
-				{
-					FieldPath: "RPPAdapter.Workflow.Attempt",
-					Operator:  "eq",
-					Value:     0,
-				},
+				cond(pathRPPAdapterWfID, wfCashin),
+				cond(pathRPPAdapterState, stateValidationFailed),
+				cond(pathRPPAdapterAttempt, 0),
 			},
 		},
 		{
@@ -426,16 +382,8 @@ func getDefaultSOPRules() []CaseRule {
 			Description: "RPP Process Registry stuck at state 0 (stInit)",
 			Country:     "my",
 			Conditions: []RuleCondition{
-				{
-					FieldPath: "RPPAdapter.Workflow.WorkflowID",
-					Operator:  "eq",
-					Value:     "wf_process_registry",
-				},
-				{
-					FieldPath: "RPPAdapter.Workflow.State",
-					Operator:  "eq",
-					Value:     "0",
-				},
+				cond(pathRPPAdapterWfID, wfProcessRegistry),
+				cond(pathRPPAdapterState, stateInit),
 			},
 		},
 	}
